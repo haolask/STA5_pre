@@ -1,0 +1,90 @@
+From d5e9f98055efcc8aff786885937ce16e54160a5e Mon Sep 17 00:00:00 2001
+From: Yann HEMON <yann.hemon@st.com>
+Date: Tue, 28 Feb 2017 18:28:08 +0100
+Subject: [PATCH] PTA-oriented additional traces - do not commit on trunk!
+
+---
+ etalcore/lib_etalcore/src/etalboot_mdr.c | 3 ++-
+ etalcore/lib_etalcore/src/etalcomm_mdr.c | 3 ++-
+ etalcore/lib_etalcore/src/etalinit.c     | 1 +
+ tuner_driver/lib_boot/src/boot_cmost.c   | 6 +++---
+ 4 files changed, 8 insertions(+), 5 deletions(-)
+
+diff --git a/etalcore/lib_etalcore/src/etalboot_mdr.c b/etalcore/lib_etalcore/src/etalboot_mdr.c
+index 84fe184..55a4e7a 100644
+--- a/etalcore/lib_etalcore/src/etalboot_mdr.c
++++ b/etalcore/lib_etalcore/src/etalboot_mdr.c
+@@ -151,6 +151,7 @@ tSInt ETAL_doFlashProgramOrDumpMDR(tVoid)
+  * ETAL_download_MDR
+  *
+  **************************/
++
+ static tSInt ETAL_download_MDR(const EtalDCOPAttr *dcop_attr)
+ {
+ 	tSInt retval = ETAL_RET_SUCCESS, ret = OSAL_OK;
+@@ -231,7 +232,7 @@ static tSInt ETAL_download_MDR(const EtalDCOPAttr *dcop_attr)
+ 						{
+ 							/* Send flash erase */
+ 							ret = ETAL_cmdSpecialFlashErase_MDR();
+-							ETAL_tracePrintSystem(TR_CLASS_APP_ETAL, "flasher erase ok");
++							ETAL_tracePrintSysmin(TR_CLASS_APP_ETAL_CMD, "DCOP MDR Flash erased!");
+ 
+ 							if (ret == OSAL_OK)
+ 							{
+diff --git a/etalcore/lib_etalcore/src/etalcomm_mdr.c b/etalcore/lib_etalcore/src/etalcomm_mdr.c
+index 8ca8cd5..57cc92c 100644
+--- a/etalcore/lib_etalcore/src/etalcomm_mdr.c
++++ b/etalcore/lib_etalcore/src/etalcomm_mdr.c
+@@ -1899,7 +1899,8 @@ tSInt ETAL_sendCommandWithRetryTo_MDR(etalCmdMdrTypeTy cmdType, tU8 *cmd, tU32 c
+ 			*cstat = (tU16)ETAL_toMDRCmdBuffer.cmdStatus;
+ 		}
+ 		retval = OSAL_ERROR;
+-		ETAL_tracePrintError(TR_CLASS_APP_ETAL_COMM, "Error returned from DCOP (code 0x%x)", ETAL_toMDRCmdBuffer.cmdStatus);
++		if (0x13 != ETAL_toMDRCmdBuffer.cmdStatus) ETAL_tracePrintError(TR_CLASS_APP_ETAL_COMM, \
++			"Error returned from DCOP (code 0x%x)", ETAL_toMDRCmdBuffer.cmdStatus);
+ 	}
+ 	else
+ 	{
+diff --git a/etalcore/lib_etalcore/src/etalinit.c b/etalcore/lib_etalcore/src/etalinit.c
+index e67547d..83c8bbf 100644
+--- a/etalcore/lib_etalcore/src/etalinit.c
++++ b/etalcore/lib_etalcore/src/etalinit.c
+@@ -1122,6 +1122,7 @@ tSInt ETAL_init(const EtalHardwareAttr *hardware_attr, tBool power_up)
+ }
+ 			else
+ 			{
++				ETAL_tracePrintSysmin(TR_CLASS_APP_ETAL, "DCOP OK");
+ 				ETAL_initStatusSetDCOPStatus(deviceAvailable);
+ 			}
+ 		}
+diff --git a/tuner_driver/lib_boot/src/boot_cmost.c b/tuner_driver/lib_boot/src/boot_cmost.c
+index 6d90179..b313e2e 100644
+--- a/tuner_driver/lib_boot/src/boot_cmost.c
++++ b/tuner_driver/lib_boot/src/boot_cmost.c
+@@ -1284,7 +1284,7 @@ tSInt BOOT_Download_CMOST(BootTunerTy tuner_type, tU32 device_address, tBool use
+ 	CMOST_StartDump();
+ #endif
+ 
+-	BOOT_tracePrintComponent(TR_CLASS_BOOT, "Starting %s Firmware download, address 0x%x, busI2C=%d", BOOT_tunerTypeToString(tuner_type), device_address, useI2C);
++	BOOT_tracePrintSysmin(TR_CLASS_BOOT, "Starting %s Firmware download, address 0x%x, busI2C=%d", BOOT_tunerTypeToString(tuner_type), device_address, useI2C);
+ 
+ 	/* read the Firmware or Patches and send them to the CMOST */
+ 
+@@ -1360,12 +1360,12 @@ tSInt BOOT_Download_CMOST(BootTunerTy tuner_type, tU32 device_address, tBool use
+ 
+ 	if (complete)
+ 	{
+-		BOOT_tracePrintComponent(TR_CLASS_BOOT, "Firmware download complete!");
++		BOOT_tracePrintSysmin(TR_CLASS_BOOT, "Firmware download complete!");
+ 		if (load_default_params)
+ 		{
+ 			if (BOOT_DownloadParameters_CMOST(tuner_type, device_address, useI2C) != OSAL_OK)
+ 			{
+-				BOOT_tracePrintSysmin(TR_CLASS_BOOT, "Parameter download error, continuing anyway");
++				BOOT_tracePrintComponent(TR_CLASS_BOOT, "Parameter download error, continuing anyway");
+ 			}
+ 		}
+ 		return OSAL_OK;
+-- 
+1.9.1
+

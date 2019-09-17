@@ -1,0 +1,107 @@
+/*
+ * Copyright (C) 2016 STMicroelectronics
+ * Author: ADG STA Team
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2, as
+ * published by the Free Software Foundation.
+ */
+
+#include "skeleton.dtsi"
+
+/ {
+	compatible = "st,sta1xxx-evb";
+
+	cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		cpu0: cpu@0 {
+			compatible = "arm,cortex-a7";
+			device_type = "cpu";
+			reg = <0x100>;
+		};
+		cpu1: cpu@1 {
+			compatible = "arm,cortex-a7";
+			device_type = "cpu";
+			reg = <0x101>;
+		};
+
+	};
+
+	soc {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges;
+
+		uart0: uart@50150000 {
+			compatible = "arm,pl011", "arm,primecell";
+			reg = <0x50150000 0x1000>;
+			clock = <51200000>;
+			status = "disabled";
+		};
+
+		uart1: uart@50000000 {
+			compatible = "arm,pl011", "arm,primecell";
+			reg = <0x50000000 0x1000>;
+			clock = <51200000>;
+			status = "disabled";
+		};
+
+		uart2: uart@50010000 {
+			compatible = "arm,pl011", "arm,primecell";
+			reg = <0x50010000 0x1000>;
+			clock = <51200000>;
+			status = "disabled";
+		};
+
+		uart3: uart@50020000 {
+			compatible = "arm,pl011", "arm,primecell";
+			reg = <0x50020000 0x1000>;
+			clock = <51200000>;
+			status = "disabled";
+		};
+
+		/* uart4 and uart5 are specific to the sta1385 */
+		uart4: uart@60835000 {
+			compatible = "arm,pl011", "arm,primecell";
+			reg = <0x60835000 0x1000>;
+			clock = <166400000>;
+			status = "disabled";
+		};
+
+		uart5: uart@60836000 {
+			compatible = "arm,pl011", "arm,primecell";
+			reg = <0x60836000 0x1000>;
+			clock = <166400000>;
+			status = "disabled";
+		};
+
+		qspi0: sqi@50200000 {
+			compatible = "st,sta-qspi";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <0x50200000 0x200>,
+			      <0x90000000 0x08000000>;
+			reg-names = "sqi-regs", "sqi-mmap";
+			status = "disabled";
+		};
+
+		qspi1: sqi@50800000 {
+			compatible = "st,sta-qspi";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <0x50800000 0x200>,
+			      <0x98000000 0x08000000>;
+			reg-names = "sqi-regs", "sqi-mmap";
+			status = "disabled";
+		};
+
+		dwmac0: dwmac@500a0000 {
+			compatible = "st,sta-dwmac-4.10", "snps,dwmac-4.10a";
+			reg = <0x500a0000 0x2000>;
+			reg-names = "stmmaceth";
+		};
+	};
+};

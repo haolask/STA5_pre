@@ -1,0 +1,77 @@
+<RCC>
+    <qresource prefix="/">
+        <file>images/btn_hardware.png</file>
+        <file>images/hole.png</file>
+        <file>images/image_not_available.jpg</file>
+        <file>images/line_x.png</file>
+        <file>images/line_y.png</file>
+        <file>images/minimize_cyan.png</file>
+        <file>images/minimize_gray.png</file>
+        <file>images/radio_harware_background.png</file>
+        <file>images/radio_move_bar.png</file>
+        <file>images/radio_window_background_off.png</file>
+        <file>images/radio_window_background_on.png</file>
+        <file>images/radio_window_settings_background.jpg</file>
+        <file>images/seek_bar_dark.png</file>
+        <file>images/seek_bar_light.png</file>
+        <file>images/seek_left.png</file>
+        <file>images/seek_right.png</file>
+        <file>images/setting_menu_bars.png</file>
+        <file>images/sls_background.png</file>
+        <file>images/ST_Logo.png</file>
+        <file>icons/audio_ico.png</file>
+        <file>icons/audio_off_ico.png</file>
+        <file>icons/chip_ico.png</file>
+        <file>icons/connected_gray_ico.png</file>
+        <file>icons/connected_green_ico.png</file>
+        <file>icons/connected_yellow_ico.png</file>
+        <file>icons/dab_logo_ico.png</file>
+        <file>icons/dab+_logo_dark_ico.png</file>
+        <file>icons/dab+_logo_light_ico.png</file>
+        <file>icons/exit_ico_off.png</file>
+        <file>icons/exit_ico_on.png</file>
+        <file>icons/hd_logo_ico.png</file>
+        <file>icons/info_ico.png</file>
+        <file>icons/katomic.ico</file>
+        <file>icons/ladybug_ico.png</file>
+        <file>icons/led_blue_ico.png</file>
+        <file>icons/led_green.png</file>
+        <file>icons/led_grey.png</file>
+        <file>icons/led_red.png</file>
+        <file>icons/led_yellow.png</file>
+        <file>icons/loading_ico.png</file>
+        <file>icons/loading_ico_1.png</file>
+        <file>icons/loading_ico_2.png</file>
+        <file>icons/loading_ico_3.png</file>
+        <file>icons/loading_ico_4.png</file>
+        <file>icons/logo.ico</file>
+        <file>icons/on_off_cyan_ico.png</file>
+        <file>icons/on_off_gray_ico.png</file>
+        <file>icons/option_ico.png</file>
+        <file>icons/radio_ico.png</file>
+        <file>icons/rds_ico.png</file>
+        <file>icons/science_ico.png</file>
+        <file>icons/settings_dual_ico.png</file>
+        <file>icons/settings_mono_ico.png</file>
+        <file>icons/signal_high_ico.png</file>
+        <file>icons/signal_low_ico.png</file>
+        <file>icons/signal_medium_ico.png</file>
+        <file>icons/sls_dls_ico.png</file>
+        <file>icons/star_ico.png</file>
+        <file>icons/up_ico.png</file>
+        <file>icons/user.png</file>
+        <file>icons/on_off_red_ico.png</file>
+        <file>icons/signal_verylow_ico.png</file>
+        <file>icons/signal_assent_ico.png</file>
+        <file alias="beep.wav">audio/beep-08b.wav</file>
+        <file>icons/Stereo_ico.png</file>
+        <file alias="checked">images/checked.png</file>
+        <file alias="unchecked">images/unchecked.png</file>
+        <file alias="button_onscreen_normal">images/button_onscreen_normal.png</file>
+        <file alias="button_onscreen_pressed">images/button_onscreen_pressed.png</file>
+        <file alias="station_tracking">images/test.g_f</file>
+    </qresource>
+    <qresource prefix="/fonts">
+        <file alias="cambria">fonts/cambria.ttf</file>
+    </qresource>
+</RCC>

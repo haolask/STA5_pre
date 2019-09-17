@@ -1,0 +1,6 @@
+SPI test utilities, taken from linux-3.15.6-gentoo/Documentatio/spi
+Compiled for Accordo2/Linux
+
+NOTE: the linux/spi/spidev.h included with STM's A2M2 releas is too old for these programs to compile, a local copy taken from  linux-3.15.6-gentoo source tree was used instead.
+
+NOTE: an ioctl was commnted out from spidev_test.c because not supported by the A2 driver; the same needs to be done for spidev_fdx.c

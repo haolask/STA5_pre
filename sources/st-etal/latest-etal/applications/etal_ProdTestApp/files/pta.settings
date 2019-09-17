@@ -1,0 +1,16 @@
+dabdcopfwfile=/run/media/sda/dcop_fw.bin
+hddcopfwfile=/run/media/sda/dcop_hd_fw.bin
+FMfreq=98000
+FMexpectedlevel=20
+FMmargin=5
+AMfreq=1071
+AMexpectedlevel=47
+AMmargin=5
+DAB3freq=206352
+DAB3expectedlevel=-81
+DAB3margin=5
+DABLfreq=1471792
+DABLexpectedlevel=-81
+DABLmargin=5
+FMHDfreq=98000
+HDaudiowait=3

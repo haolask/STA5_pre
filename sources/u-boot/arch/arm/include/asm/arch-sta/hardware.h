@@ -1,0 +1,80 @@
+/*
+ * Copyright (C) ST-microelectronics 2016
+ *
+ * SPDX-License-Identifier:	GPL-2.0+
+ */
+
+#ifndef __ASM_ARCH_HARDWARE_H
+#define __ASM_ARCH_HARDWARE_H
+
+/* Base addresses of our peripherals */
+
+/* GPIO */
+#define STA_GPIO0_BASE		0x48120000
+#define STA_GPIO1_BASE		0x48121000
+#define STA_GPIO2_BASE		0x48122000
+#define STA_GPIO3_BASE		0x48123000
+#define STA_GPIOS_BASE		0x50140000
+#define STA_GPIO_M3_BASE		0x40008000
+
+/* UART */
+#define STA_UART0_BASE		0x50150000
+#define STA_UART1_BASE		0x50000000
+#define STA_UART2_BASE		0x50010000
+#define STA_UART3_BASE		0x50020000
+#define STA_UART4_BASE		0x60835000
+#define STA_UART5_BASE		0x60836000
+
+#define CONFIG_SYS_TIMERBASE		0x48140000	/* MTU1 */
+
+#define STA_SRC_A7_BASE		0x48100000	/* System and Reset */
+#define	STA_SRC_A7_RESSTAT_REG_OFF	0x1C /* FIXME */
+
+/* HSEM */
+#define STA_MBOX_BASE		0x481A0000 /* FIXME switch on MBOX */
+#define STA_HSEM_BASE		0x481B0000
+
+/* FSMC Nand */
+#define CONFIG_SYS_NAND_CLE		(1 << 16)
+#define CONFIG_SYS_NAND_ALE		(1 << 17)
+
+#define CONFIG_SYS_FSMC_BASE		0x50300000
+#define CONFIG_SYS_NAND_BASE		0x80000000	/* NAND Base DATA */
+
+#define STA_I2C0_BASE		0x50160000	/* I2C0 interface */
+#define STA_I2C1_BASE		0x50040000	/* I2C1 interface */
+#define STA_I2C2_BASE		0x50030000	/* I2C2 interface */
+#define STA_RTC_BASE		0x50100000
+
+/* SD-MMC */
+#define CONFIG_ARM_PL180_MMCI0_BASE	0x50080000
+#define CONFIG_ARM_PL180_MMCI1_BASE	0x50070000
+#define CONFIG_ARM_PL180_MMCI2_BASE	0x500B0000
+
+/* USB */
+#define STA_USB0_OTG_BASE	0x48400000
+#define STA_USB1_OTG_BASE	0x48500000
+#define STA_USBPHY_BASE		0x48440000
+
+/* SPI */
+#define STA_SPI0_BASE		0x50170000
+#define STA_SPI1_BASE		0x50060000
+#define STA_SPI2_BASE		0x50050000
+
+/* SQI/QSPI */
+#define STA_SQI0_BASE		0x50200000
+#define STA_SQI1_BASE		0x50800000
+
+#define STA_MAP_LENGTH		0x08000000
+#define STA_SQI0_MMAP_BASE	0x90000000
+#define STA_SQI1_MMAP_BASE	0x98000000
+
+/* OTP VR4 register content */
+struct OTP_VR4_REG_Type {
+	u32 PRODUCT_ID:8;
+	u32 EROM_VERSION:8;
+	u32 TRIMMING:8;
+	u32 reserved:8;
+};
+
+#endif /* __ASM_ARCH_HARDWARE_H */

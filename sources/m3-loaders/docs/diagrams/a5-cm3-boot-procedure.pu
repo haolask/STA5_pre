@@ -1,0 +1,77 @@
+'-----------------------------------------------------
+'
+' XLOADER
+' Sequence diagram: describes dynamic components
+' interactions, non ATF scenario (legacy mode)
+'
+'-----------------------------------------------------
+@startuml
+!include diagrams/st_colors.pu
+
+participant BootROM as br
+participant "m3-xloader" as xl
+participant "m3-os" as os
+participant "CAN task" as can
+
+title M3 boot sequence legacy mode without ATF
+
+br->br: looking for bootable devices
+note over br
+	Depending on the REMAP switch configuration, the BootROM
+	will poll for a "bootable" device (USB DFU, UART, NAND, etc.)
+	In that case, we assume that REMAP switch are configured
+	to boot from a memory (MMC, NAND, SQI)
+	Once found, the BootROM "shadows" the code found in "bootable"
+	device into the ESRAM and triggers the boot.
+end note
+
+br->br: shadowing m3-xloader from bootable device at start of ESRAM
+
+br->xl: start
+xl->xl: Relocate code and data at end of M3 ESRAM
+xl->xl: core drivers initialization
+
+note over xl
+	SOC and board IDs auto detection
+	initialize Cortex-M3 core and peripherals controllers:
+		- AHB-APB settings
+		- NIC security settings
+		- QoS DMA settings
+		- SRC (M3 and A7)
+		- NVIC, MTU
+		- Detect board and SoC info and save them in shared_data
+		- UART for traces
+		- Memory boot device (MMC, NAND or SQI)
+		  Save memory boot dev info in shared_data for next stages
+		- DDR
+	Recopy TOC from @0x200 to end of M3 ESRAM for next stage
+end note
+
+xl->xl: Shadowing M3 OS from bootable device at start of ESRAM
+xl->os: start
+
+os->os: core drivers initialization
+
+note over os
+	initialize controllers:
+		- NVIC, MTU, Trace
+		- Reuse boot dev info in shared_data for memory boot re-init
+	initialize PMU & IPC
+	initialize application specific peripherals:
+		- LCD, VIP, G1, audio/DSP... for car radio
+		- modem, accelerometer ... for car telematics 
+end note
+
+os->can : xTaskCreate
+os->Bootflow : xTaskCreate
+note over Bootflow
+	Shadowing of needed images
+	Finally load and U-boot for normal Linux boot
+end note
+os->RpMsg : xTaskCreate
+os->Accelerometer : xTaskCreate
+os->prm : xTaskCreate
+os->i2c : xTaskCreate
+
+@enduml
+

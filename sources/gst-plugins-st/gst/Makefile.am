@@ -1,0 +1,18 @@
+if USE_KMS
+KMS_DIR=kms
+else
+KMS_DIR=
+endif
+
+if USE_EGL
+EGL_DIR=gl
+else
+EGL_DIR=
+endif
+
+SUBDIRS = $(GST_PLUGINS_SELECTED) \
+		  $(KMS_DIR) \
+		  $(BDISP_DIR) \
+		  $(EGL_DIR)
+
+DIST_SUBDIRS = $(GST_PLUGINS_ALL)

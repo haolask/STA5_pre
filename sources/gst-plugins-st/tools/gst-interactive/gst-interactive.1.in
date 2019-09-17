@@ -1,0 +1,87 @@
+.TH "GStreamer" "1" "May 2007"
+.SH "NAME"
+gst\-interactive \- build and run a GStreamer pipeline
+.SH "SYNOPSIS"
+\fBgst\-interactive\fR \fI[OPTION...]\fR PIPELINE\-DESCRIPTION
+.SH "DESCRIPTION"
+.LP
+\fIgst\-interactive\fP is a tool that builds and runs basic
+\fIGStreamer\fP pipelines and permit to make some action via terminal input?
+
+In simple form, a PIPELINE\-DESCRIPTION is a list of
+elements separated by exclamation marks (!). Properties may be appended to
+elements, in the form \fIproperty=value\fR.
+
+For a complete description of possible PIPELINE-DESCRIPTIONS see the section
+\fIpipeline description\fR below or consult the GStreamer documentation.
+
+Please note that \fIgst\-interactive\fP is primarily a debugging tool for
+developers and users. You should not build applications on top of it. For
+applications, use the gst_parse_launch() function of the GStreamer API as an
+easy way to construct pipelines from pipeline descriptions.
+
+
+.
+.SH "OPTIONS"
+.l
+\fIgst\-interactive\fP accepts the following options:
+.TP 8
+.B  \-\-help
+Print help synopsis and available FLAGS
+.TP 8
+.B  \-v, \-\-verbose
+Output status information and property notifications
+.TP 8
+.B  \-q, \-\-quiet
+Do not print any progress information
+.TP 8
+
+.
+.SH "Possible interaction on Terminal"
+.l
+\fIgst\-interactive\fP also accepts the following command on terminal:
+.TP 8
+.B  h [ENTER] or H [ENTER]
+Usage commands: list of the commands available.
+.TP 8
+.B  p [ENTER] or P [ENTER]
+Play/Pause: this command put the playback on pause or Playing state.
+.TP 8
+.B  s <seek position> [ENTER] or S <seek position> [ENTER]
+Move the playback to the specified position on milliseconds
+
+Example:
+s 24000
+(means: move to 24 seconds on video)
+
+.TP 8
+.B  n <nb> [ENTER] or N <nb> [ENTER]
+Move to the next <nb> frame (<nb> is optional and its default value is 1).
+Note that the stream is paused before this action.
+.TP 8
+.B  r [ENTER]
+Increase the playback rate by 2.
+.TP 8
+.B  R [ENTER]
+Decrease the playback rate by 2.
+.TP 8
+.B  d [ENTER] or D [ENTER]
+Toogle the playback direction.
+.TP 8
+.B  i [ENTER] or I [ENTER]
+get the stream state, duration, current position and rate.
+.TP 8
+.B  q [ENTER] or Q [ENTER]
+Quit gst\-interactive.
+.TP 8
+.B  auto [ENTER]
+Launch automatic seek tests.
+.TP 8
+
+.
+.SH "SEE ALSO"
+.BR gst\-inspect\-GST_API_VERSION (1),
+.BR gst\-launch\-GST_API_VERSION (1),
+.SH "AUTHOR"
+The GStreamer team at http://gstreamer.freedesktop.org/,
+The STMicroelectronics team at http://st.com/

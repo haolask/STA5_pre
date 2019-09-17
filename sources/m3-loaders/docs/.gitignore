@@ -1,0 +1,15 @@
+a5-user-manual.pdf
+a5-user-manual.mediawiki
+a5-user-manual.phpwiki
+doxygen/
+*.doxyfile
+a5-user-manual.lof
+a5-user-manual.log
+a5-user-manual.out
+a5-user-manual.toc
+a5-user-manual.aux
+a5-user-manual.lot
+pinmux.tex
+qos.tex
+nic.tex
+*.png

@@ -1,0 +1,57 @@
+################################################################################
+# Makefile.libStreamDecAdapt
+# 
+################################################################################
+include ${WSPATH}/lib_scripts/TargetLibs.mk
+
+TARGET_INCLUDES= \
+	-I${TARGET_CONFIG_PATH} \
+	${LIB_STREAMDEC_INCLUDES} \
+	${LIB_STREAMDECADAPT_INCLUDES} \
+	${LIB_COMMON_INCLUDES} \
+	${LIB_OSAL_INCLUDES} \
+	$(LIB_UTILS_INCLUDES) \
+	-I${WSPATH}/../etalcore/exports \
+	-I${WSPATH}/../etalcore/exports/etalparam \
+	-I${WSPATH}/../etalcore/lib_etalcore/include \
+	-I${WSPATH}/../etalcommon/lib_common/include \
+	-I${WSPATH}/../tuner_driver/exports \
+	-I${WSPATH}/../dcop_driver/lib_steci/include \
+	-I${WSPATH}/../etaltml/lib_etaltml/include \
+	-I${WSPATH}/../etaltml/lib_servicefollowing/include \
+	-I${WSPATH}/../dcop_driver/exports
+
+ifdef CONFIG_TARGET_DABMW_STREAMDECODER_COMM_ENABLE
+TARGET_INCLUDES+= \
+	${LIB_DABMW_INCLUDES}
+endif
+
+################################################################################
+# Collect files, create object and dependency lists ...
+################################################################################
+C_TARGET_OBJECTS+=$(patsubst %.c, %.o, $(addprefix ${ODIR}/,$(notdir ${LIB_STREAMDECADAPT_C_SOURCES})))
+CPP_TARGET_OBJECTS+=$(patsubst %.cpp, %.o, $(addprefix ${ODIR}/,$(notdir ${LIB_STREAMDECADAPT_CPP_SOURCES})))
+A_TARGET_OBJECTS+=$(patsubst %.s, %.o, $(addprefix ${ODIR}/,$(notdir ${LIB_STREAMDECADAPT_A_SOURCES})))
+TARGET_DEPENDENCIES= $(C_TARGET_OBJECTS:.o=.d) $(CPP_TARGET_OBJECTS:.o=.d) $(A_TARGET_OBJECTS:.o=.d)
+TARGET_OBJECTS= ${C_TARGET_OBJECTS} ${CPP_TARGET_OBJECTS} ${A_TARGET_OBJECTS}
+VPATH = $(LIB_STREAMDECADAPT_VPATH)
+
+################################################################################
+# Source Dependencies if required ...
+################################################################################
+VARNAME_LIB_DEPENDENCIES=\
+	LIB_STREAMDECADAPT_DEPENDENCIES
+-include ${TARGET_DEPENDENCIES}
+
+################################################################################
+# Targets ...
+################################################################################
+${LDIR}:
+	${MKDIR} ${LDIR}
+
+${ODIR}:
+	${MKDIR} ${ODIR}
+	
+${LDIR}/libStreamDecAdapt.a: ${ODIR} ${TARGET_DEPENDENCIES} $(TARGET_OBJECTS)
+	${HIDEOUTPUT} $(CPU_AR) $(CPU_ARFLAGS) ${LDIR}/libStreamDecAdapt.a $(TARGET_OBJECTS)
+

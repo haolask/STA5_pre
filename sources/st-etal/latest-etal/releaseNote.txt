@@ -1,0 +1,65 @@
+---------------------------------------------------------------
+Release Note created the 28/01/2019.
+Commitments are sorted from the most recent to the oldest
+---------------------------------------------------------------
+###############################################################
+DESCRIPTION: svn17997
+- Change return value of BSP_BusConfig_CMOST (OSAL_OK, OSAL_ERROR), 
+  do not return file descriptor anymore.
+- Function BSP_Write_CMOST() remove call to BSP_BusConfig_CMOST,
+  BSP_Write_CMOST should be used after correct bus configuration.
+TICKET NB: https://stintbugzilla.st.com/show_bug.cgi?id=118603
+###############################################################
+###############################################################
+DESCRIPTION: svn17989
+- Correction to error introduce for DCOP Flashing
+  Dependence with DCOP FW svn 17965 (20190107)
+TICKET NB: 
+###############################################################
+###############################################################
+DESCRIPTION: svn17986
+- Correction of build error found by automatic build/test
+TICKET NB:
+###############################################################
+###############################################################
+DESCRIPTION: svn17985
+- Correction of build error found by automatic build/test
+TICKET NB:
+###############################################################
+###############################################################
+DESCRIPTION: svn17984
+- Implementation of Service Linking Information in ETAL
+  (Support of commands 0x106 and 0x107 in the DCOP)
+TICKET NB: 6603
+###############################################################
+###############################################################
+DESCRIPTION: svn17978
+- DAB driver : add parameter in interface to select option for reset
+- CPU improvements : Replace polling by event wait / Interupt. 
+- OSAL improvements : add Timer managements
+  Dependence with DCOP FW svn 17965 (20190107)
+TICKET NB: 6474, 6531
+###############################################################
+###############################################################
+DESCRIPTION: svn17967
+- Missing DAB Auto notifications
+- Tune status notifications missing after signal regain
+- New release : STRADE_ETAL_CORE_2019_01_09__3_3_6
+  Dependence with DCOP FW svn 17965 (20190107)
+TICKET NB: 6474, 6531
+###############################################################
+###############################################################
+DESCRIPTION: svn17941
+- rename the spiloader.bin name to match DCOP one : xloader_spiloader.bin
+- correction for compilation errors in FILE_MODE_FILE
+TICKET NB: NA
+###############################################################
+DESCRIPTION: svn17939
+compilation errors & warning correction
+TICKET NB: NA
+###############################################################
+DESCRIPTION: Add a new to track all commitments
+The file is located in ETAL/releaseNote.txt
+It has to be updated at every commitment
+TICKET NB: NA
+###############################################################

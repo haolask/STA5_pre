@@ -1,0 +1,113 @@
+'-----------------------------------------------------
+'
+' DDR
+' Sequence diagram: describes the DDR subsystem init sequence
+'
+'-----------------------------------------------------
+@startuml
+!include diagrams/st_colors.pu
+
+participant "m3-loaders" as m3
+participant "SRC M3" as srcm3
+participant "SRC A7" as srca7
+participant "DRAM ctrl (uMCTL2)" as umctl2
+participant "Phy Utility Block (PUB)" as pub
+participant "DRAM" as ddr
+
+title DDR3 initialization sequence
+activate m3
+
+== Registers configuration ==
+
+m3->umctl2 : sta_ddr3_init
+activate umctl2
+
+note over umctl2
+	Register platform specific drivers
+	operations (sta1x95, sta1385)
+end note
+
+
+note over umctl2
+	Configure all the set of registers
+	such as MR registers, timings,
+	addressing, refresh, DFI, etc...
+end note
+umctl2->umctl2 : sta_ddr_ctl_configure
+
+umctl2->srcm3 : DDR reset
+umctl2->srca7 : DDR AXI reset
+umctl2->pub : sta_ddr_pub_configure
+activate pub
+
+note over pub
+	(Soc Dependant)
+	Configure all the set of registers
+	such as MR registers, timings,
+	impedance, ODT, PLL, etc...
+end note
+pub->pub : sta1xx5_ddr3_pub_configure
+
+== PUB Initialization Routine (PIR) ==
+
+note over pub
+	1st PIR sequence, to set Phy
+	in a ready state.
+	2nd PIR sequence, to init DRAM
+	3rd PIR sequence, to trigger
+	DRAM training (signals adjustments)
+	Note: during those phases, obscur
+	transactions are done between Phy and
+	DRAM
+end note
+
+pub->pub : PIR (DCAL, ZCAL, PLL, Reset)
+pub->pub : PIR (DRAM Reset, DRAM init)
+pub<->ddr : transactions
+pub->pub : PIR (DCAL, ZCAL, PLL, Reset)
+pub<->ddr : transactions
+
+pub->pub : ddr3_phy_has_errors
+
+alt Error(s) during training
+	pub->umctl2 : failure
+	note over m3
+		if at least one error occured
+		during training	the DDR subsystem
+		is not fully functional so execution
+		stops.
+	end note
+	umctl2->m3 : failure
+	destroy m3
+else no error
+
+== Power up sequence ==
+
+	note over umctl2,pub
+		No error occured during training
+		(warnings are allowed), execution
+		continues with power-up sequence.
+	end note
+	umctl2->umctl2 : sta_ddr_ctl_power_up_seq
+	umctl2->m3 : ok
+	deactivate umctl2
+	deactivate pub
+end
+@enduml
+
+'-----------------------------------------------------
+'
+' DDR
+' Block diagram: describes the DDR subsystem
+'
+'-----------------------------------------------------
+@startuml
+[m3-loaders] -left-> sta_ddr_ctl : uses
+[sta_ddr_ctl] -down-> sta_ddr_pub : uses
+[sta1x95_ddr3_ctl] ..> sta_ddr_ctl : implements
+[sta1385_ddr3_ctl] ..> sta_ddr_ctl : implements
+[sta1x95_ddr3_pub] ..> sta_ddr_pub : implements
+[sta1385_ddr3_pub] ..> sta_ddr_pub : implements
+
+@enduml
+

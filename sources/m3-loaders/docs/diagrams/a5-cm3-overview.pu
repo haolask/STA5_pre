@@ -1,0 +1,77 @@
+'-----------------------------------------------------
+'
+' Component diagram: describes static components
+' interactions and relationships
+'
+'-----------------------------------------------------
+@startuml
+!include diagrams/st_colors.pu
+
+' ---- Packages, folders declarations and aliases
+
+[sta_common] as common
+[sta_xl_uflashloader] as xl_uflashloader
+[sta_xloader] as xloader
+[sta_car_radio] as app_car_radio
+[sta_telematics] as app_telematics
+[FreeRTOS] as rtos
+
+folder "Tasks" {
+[task_...] as tsk
+}
+
+folder "STA drivers" {
+[sta_...] as drv
+}
+
+' ---- Relationship between objects
+
+xl_uflashloader ..> common : uses
+xloader ..> common : uses
+app_car_radio ..> common : uses
+app_telematics ..> common : uses
+
+common ..> drv : uses
+xloader ..> drv : uses
+xl_uflashloader ..> drv : uses
+
+app_car_radio ..> drv : uses
+app_car_radio -up-> rtos : start scheduler
+app_car_radio -up-> tsk : create
+
+app_telematics ..> drv : uses
+app_telematics -up-> rtos : start scheduler
+app_telematics -up-> tsk : create
+
+tsk ..> drv : uses
+
+' ---- Notes and comments
+
+note right of drv
+Every sta driver such as can, DDR, i2c, usb, uart...
+end note
+
+note top of xloader
+Xloader main
+end note
+
+note bottom of app_car_radio
+App car radio main
+end note
+
+note bottom of app_telematics
+App car telematics main
+end note
+
+note bottom of xl_uflashloader
+XLoader U-boot Flashloader main
+end note
+
+note left of tsk
+task accel uses sta_acc
+task rpmsg uses sta_mbox
+etc.
+end note
+
+@enduml
+

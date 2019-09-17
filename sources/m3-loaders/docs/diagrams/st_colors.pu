@@ -1,0 +1,57 @@
+!define ST_DARK_BLUE #002052
+!define ST_LIGHT_BLUE #39A9DC
+!define ST_PINK #D4007A
+!define ST_GREEN #BBCC00
+!define ST_YELLOW #FFD300
+!define ST_MID_GREY #90989E
+
+skinparam noteBorderColor ST_MID_GREY
+skinparam noteBackgroundColor ST_MID_GREY
+skinparam noteFontColor white
+skinparam noteFontStyle bold
+
+skinparam sequence {
+	Participant underline
+	ParticipantBorderColor ST_DARK_BLUE
+	ParticipantBackgroundColor ST_LIGHT_BLUE
+	ParticipantFontName Arial
+	ParticipantFontColor white
+	ParticipantFontStyle bold
+
+	ArrowFontColor ST_DARK_BLUE
+	ArrowColor ST_LIGHT_BLUE
+	ActorBorderColor ST_DARK_BLUE
+	LifeLineBorderColor ST_DARK_BLUE
+	'LifeLineBackgroundColor ST_LIGHT_BLUE
+}
+
+skinparam activity {
+	ArrowColor ST_DARK_BLUE
+	ArrowFontColor ST_DARK_BLUE
+	BackgroundColor ST_LIGHT_BLUE
+	BorderColor ST_DARK_BLUE
+	StartColor ST_DARK_BLUE
+	EndColor ST_DARK_BLUE
+	BarColor ST_DARK_BLUE
+
+	FontColor white
+	'FontStyle bold
+	DiamondFontColor white
+	'DiamondFontStyle bold
+}
+
+skinparam component {
+	ArrowColor ST_DARK_BLUE
+	ArrowFontColor ST_DARK_BLUE
+	BackgroundColor ST_PINK
+	BorderColor ST_DARK_BLUE
+	StartColor ST_DARK_BLUE
+	EndColor ST_DARK_BLUE
+	BarColor ST_DARK_BLUE
+
+	FontColor white
+	'FontStyle bold
+	DiamondFontColor white
+	'DiamondFontStyle bold
+}
+

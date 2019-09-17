@@ -1,0 +1,137 @@
+--------------------
+Building set  target_config.h.1
+-----------
+
+****************************
+BUILD OK for target_config.h.1
+****************************
+failed_current  0
+warning_current  0
+--------------------------
+--------------------
+Building set  target_config.h.10
+-----------
+
+****************************
+BUILD OK for target_config.h.10
+****************************
+failed_current  0
+warning_current  0
+--------------------------
+--------------------
+Building set  target_config.h.11
+-----------
+
+****************************
+BUILD OK for target_config.h.11
+****************************
+failed_current  0
+warning_current  0
+--------------------------
+--------------------
+Building set  target_config.h.12
+-----------
+
+****************************
+BUILD OK for target_config.h.12
+****************************
+failed_current  0
+warning_current  0
+--------------------------
+--------------------
+Building set  target_config.h.13
+-----------
+
+****************************
+BUILD OK for target_config.h.13
+****************************
+failed_current  0
+warning_current  0
+--------------------------
+--------------------
+Building set  target_config.h.2
+-----------
+
+****************************
+BUILD OK for target_config.h.2
+****************************
+failed_current  0
+warning_current  0
+--------------------------
+--------------------
+Building set  target_config.h.3
+-----------
+
+****************************
+BUILD OK for target_config.h.3
+****************************
+failed_current  0
+warning_current  0
+--------------------------
+--------------------
+Building set  target_config.h.4
+-----------
+
+****************************
+BUILD OK for target_config.h.4
+****************************
+failed_current  0
+warning_current  0
+--------------------------
+--------------------
+Building set  target_config.h.5
+-----------
+
+****************************
+BUILD OK for target_config.h.5
+****************************
+failed_current  0
+warning_current  0
+--------------------------
+--------------------
+Building set  target_config.h.6
+-----------
+
+****************************
+BUILD OK for target_config.h.6
+****************************
+failed_current  0
+warning_current  0
+--------------------------
+--------------------
+Building set  target_config.h.7
+-----------
+
+****************************
+BUILD WITH WARNING for target_config.h.7
+****************************
+failed_current  0
+warning_current  1
+LOG SAVED in :  /tmp/tmp.target_config.h.7
+--------------------------
+--------------------
+Building set  target_config.h.8
+-----------
+
+****************************
+BUILD OK for target_config.h.8
+****************************
+failed_current  0
+warning_current  0
+--------------------------
+--------------------
+Building set  target_config.h.9
+-----------
+
+****************************
+BUILD OK for target_config.h.9
+****************************
+failed_current  0
+warning_current  0
+--------------------------
+*******************************************************************
+****************************
+**** TEST BUILD RESULTS : 
+****  0 builds FAILED /  13 total
+**** total  1  warnings
+*******************************************************************

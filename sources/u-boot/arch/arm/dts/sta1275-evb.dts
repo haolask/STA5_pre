@@ -1,0 +1,62 @@
+/*
+ * Copyright (C) 2016 STMicroelectronics
+ * Author: Philippe Langlais <philippe.langlais@st.com>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2, as
+ * published by the Free Software Foundation.
+ */
+
+/dts-v1/;
+#include "sta1295.dtsi"
+
+/ {
+	model = "ST ACCORDO5 STA1275 EValuation Board";
+	compatible = "st,sta1275-evb";
+
+	aliases {
+		spi0 = &qspi0;
+	};
+
+	chosen {
+                stdout-path = &uart3;
+        };
+
+	cpus {
+		cpu0: cpu@0 {
+			reg = <0x0>;
+		};
+		cpu1: cpu@1 {
+			status = "disabled";
+		};
+	};
+
+	memory@A0000000 {
+		device_type = "memory";
+		reg = <0xa0000000 0x03B00000>; /* Limited to 256MB-192MB(GPU)-3MB(RVC)-2MB(SPLASH) */
+	};
+
+	soc {
+		uart3: uart@50020000 {
+			status = "okay";
+		};
+
+	};
+};
+
+&qspi0 {
+	bus-num = <0>;
+	status = "okay";
+
+	/* Macronix 64MB serial flash memory */
+	flash0: mx25l51235f@0 { /* 64MB */
+		compatible = "spi-flash";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		reg = <0>;
+		spi-max-frequency = <133000000>;
+		spi-tx-bus-width = <4>; /* TX quad mode */
+		spi-rx-bus-width = <4>; /* RX quad mode */
+		memory-map = <0x90000000 0x08000000>;
+	};
+};

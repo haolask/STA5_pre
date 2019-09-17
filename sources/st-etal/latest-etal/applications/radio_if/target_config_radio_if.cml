@@ -1,0 +1,110 @@
+mainmenu 'ETAL radio_if application configuration'
+
+config APP_RADIO_IF
+bool 'Build the ETAL radio_if application'
+help
+    Builds the ETAL radio_if application used for GUIs CMOST, DCOP and DTA
+if $APP_RADIO_IF ::= y
+    menu 'radio_if options'
+        config RADIO_IF_HAVE_ALL
+            bool 'include all radio_if options'
+            default true
+            select BUILD_DRIVER if $APP_RADIO_IF ::= y
+            select COMM_STECI_UART if $APP_RADIO_IF ::= y
+            select COMM_MCP if $APP_RADIO_IF ::= y
+            help
+                include COMM_MCP switch, should be set to true
+        config BUILD_DRIVER
+            bool 'include BUILD_DRIVER'
+            default false
+            help
+                include BUILD_DRIVER switch, should be set to true
+        config COMM_STECI_UART
+            bool 'include COMM_STECI_UART'
+            default true
+            help
+                include COMM_STECI_UART switch, should be set to true
+        config COMM_MCP
+            bool 'include COMM_MCP'
+            default true
+            help
+                include COMM_MCP switch, should be set to true
+    endmenu # radio_if options
+    menu 'Maximum Trace Level Configuration'
+        config TRACE_CLASS_MCP
+            int 'Level for TRACE_CLASS_MCP'
+            default 1
+            help
+                Configure minimum trace level for MCP protocol
+                Only messages with this level or lower will be included in the build
+                0 TR_LEVEL_FATAL (fatal errors)
+                1 TR_LEVEL_ERRORS (functional errors)
+                2 TR_LEVEL_SYSTEM_MIN (minimal system information)
+                3 TR_LEVEL_SYSTEM (some more system information)
+                4 TR_LEVEL_COMPONENT (internal component information)
+                5 TR_LEVEL_USER_1 (more information)
+                6 TR_LEVEL_USER_2 (more information)
+                7 TR_LEVEL_USER_3 (more information)
+                8 TR_LEVEL_USER_4 (more information)
+        config TRACE_CLASS_STECI_UART
+            int 'Level for TRACE_CLASS_STECI_UART'
+            default 1
+            help
+                Configure minimum trace level for STECI UART protocol
+                Only messages with this level or lower will be included in the build
+                0 TR_LEVEL_FATAL (fatal errors)
+                1 TR_LEVEL_ERRORS (functional errors)
+                2 TR_LEVEL_SYSTEM_MIN (minimal system information)
+                3 TR_LEVEL_SYSTEM (some more system information)
+                4 TR_LEVEL_COMPONENT (internal component information)
+                5 TR_LEVEL_USER_1 (more information)
+                6 TR_LEVEL_USER_2 (more information)
+                7 TR_LEVEL_USER_3 (more information)
+                8 TR_LEVEL_USER_4 (more information)
+        config TRACE_CLASS_RIF_PROTOCOL_ROUTER
+            int 'Level for TRACE_CLASS_RIF_PROTOCOL_ROUTER'
+            default 1
+            help
+                Configure minimum trace level for Radio IF Protocol Router
+                Only messages with this level or lower will be included in the build
+                0 TR_LEVEL_FATAL (fatal errors)
+                1 TR_LEVEL_ERRORS (functional errors)
+                2 TR_LEVEL_SYSTEM_MIN (minimal system information)
+                3 TR_LEVEL_SYSTEM (some more system information)
+                4 TR_LEVEL_COMPONENT (internal component information)
+                5 TR_LEVEL_USER_1 (more information)
+                6 TR_LEVEL_USER_2 (more information)
+                7 TR_LEVEL_USER_3 (more information)
+                8 TR_LEVEL_USER_4 (more information)
+        config TRACE_CLASS_RIF_RIMW
+            int 'Level for TRACE_CLASS_RIF_RIMW'
+            default 1
+            help
+                Configure minimum trace level for Radio IF RIMW
+                Only messages with this level or lower will be included in the build
+                0 TR_LEVEL_FATAL (fatal errors)
+                1 TR_LEVEL_ERRORS (functional errors)
+                2 TR_LEVEL_SYSTEM_MIN (minimal system information)
+                3 TR_LEVEL_SYSTEM (some more system information)
+                4 TR_LEVEL_COMPONENT (internal component information)
+                5 TR_LEVEL_USER_1 (more information)
+                6 TR_LEVEL_USER_2 (more information)
+                7 TR_LEVEL_USER_3 (more information)
+                8 TR_LEVEL_USER_4 (more information)
+        config TRACE_CLASS_RIF_MSG_QUEUE
+            int 'Level for TRACE_CLASS_RIF_MSG_QUEUE'
+            default 1
+            help
+                Configure minimum trace level for Radio IF msg queue
+                Only messages with this level or lower will be included in the build
+                0 TR_LEVEL_FATAL (fatal errors)
+                1 TR_LEVEL_ERRORS (functional errors)
+                2 TR_LEVEL_SYSTEM_MIN (minimal system information)
+                3 TR_LEVEL_SYSTEM (some more system information)
+                4 TR_LEVEL_COMPONENT (internal component information)
+                5 TR_LEVEL_USER_1 (more information)
+                6 TR_LEVEL_USER_2 (more information)
+                7 TR_LEVEL_USER_3 (more information)
+                8 TR_LEVEL_USER_4 (more information)
+    endmenu # Maximum Trace Level
+endif

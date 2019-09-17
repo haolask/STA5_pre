@@ -1,0 +1,49 @@
+if ARCH_STA
+
+config STA
+	bool
+	default y
+
+choice
+	prompt "ST-Microelectronics STA SoC select"
+	default SOC_STA1295
+
+config SOC_STA1295
+	bool "STA1295 SoC"
+
+config SOC_STA1195
+	bool "STA1195 SoC"
+
+config SOC_STA1385
+	bool "STA1385 SoC"
+
+config SOC_STA1275
+	bool "STA1275 SoC"
+
+endchoice
+
+choice
+	prompt "STA board select"
+	optional
+
+config TARGET_STA_EVB
+	select CPU_V7_HAS_NONSEC
+	bool "STA EVB (Accordo5/Telemaco3) board family"
+
+endchoice
+
+config SYS_TEXT_BASE
+	default 0x00000000 if ARMV7_NONSEC
+	default 0xA0000000 if !ARMV7_NONSEC
+
+config STA_STR
+	bool "STA STR feature"
+
+config STA_STR_TAG
+	hex "TAG to indicate STR state"
+	depends on STA_STR
+	default  0x53545200
+
+source "board/st/sta-evb/Kconfig"
+
+endif

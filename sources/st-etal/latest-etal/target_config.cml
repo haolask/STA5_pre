@@ -1,0 +1,2208 @@
+#
+# For a description of the syntax of this configuration file,
+# see tools/linux/gconf/kconfig-language.txt
+#
+
+mainmenu 'ETAL Configuration'
+
+################################################################################
+#
+# Submenu: 'Hardware System'
+#
+################################################################################
+menu 'Hardware System'
+	choice
+		prompt 'Target Board'
+		help
+			Defines the Board for which the ETAL is built
+			This option impacts on the Capabilities because it is used to define how many tuners,
+			co-processors and which interconnections are available
+			Support for the tuner and coprocessor selected here must be built in ETAL
+			in the 'Hardware System/Digital Co-Processor support' and 'Hardware System/Tuner support' menus
+			For some boards it is necessary to define separately the mainboard (e.g. ACCORDO2)
+			and the tuner module (e.g. CMOST+DCOP)
+		default BOARD_ACCORDO2
+		config BOARD_CMOST_MAIN
+			bool 'STM CMOS Tuner Main Board'
+			help
+				STM CMOST Main board (6033-380.1)
+				Accepts one CMOST module and optionally one DCOP module (DAB or HD)
+				CMOST and DCOP selection is made below
+		config BOARD_ACCORDO2
+			bool 'STM Accordo2 Evaluation Board'
+			help
+				STM Accordo2 Evaluation board, accepts one CMOST and optionally one DCOP module
+				CMOST and DCOP selection is made below
+		if BOARD_ACCORDO2 = y && (HOST_OS_LINUX = y || HOST_OS_TKERNEL = y) && COMM_DRIVER_EMBEDDED = y
+			config BOARD_ACCORDO2_CUSTOM1
+				bool 'Build for custom configuration'
+				help
+					Some Accordo2 have different GPIO, I2C bus and CMOST address
+					than the default configuration. For the details
+					see bsp_sta1095evb.c and etalconfig_accordo2.c.
+					DO NOT SELECT THIS OPTION UNLESS YOU KNOW WHAT YOU ARE DOING!
+			config BOARD_ACCORDO2_CUSTOM2
+				bool 'Build for custom configuration'
+				help
+					Some Accordo2 have different GPIO, I2C/SPI bus and CMOST address
+					than the default configuration. For the details
+					see bsp_sta1095evb.c and etalconfig_accordo2.c.
+					DO NOT SELECT THIS OPTION UNLESS YOU KNOW WHAT YOU ARE DOING!
+		endif # BOARD_ACCORDO2 && HOST_OS_LINUX && COMM_DRIVER_EMBEDDED
+		config BOARD_ACCORDO5
+			bool 'STM Accordo5 Evaluation Board'
+			help
+				STM Accordo5 Evaluation board, accepts one CMOST and optionally one DCOP module
+				CMOST and DCOP selection is made below
+	endchoice # Target Board
+
+	if (BOARD_ACCORDO2 = y || BOARD_ACCORDO5 = y) && (HOST_OS_LINUX = y || HOST_OS_TKERNEL = y) && COMM_DRIVER_EMBEDDED = y
+	menu 'Target Board Configuration'
+		choice
+			prompt 'SPI0 linux name'
+			help
+				Depending on the Linux kernel version (or some other factor
+				still unknown) the SPI0 is named differently. To see the name
+				used on your board issue from the Accordo command line:
+				 ls -l /dev/spi*
+			default BOARD_ACCORDO2_SPI0_IS_32766
+			config BOARD_ACCORDO2_SPI0_IS_32766
+				bool 'SPI0 is /dev/spidev32766.0'
+			config BOARD_ACCORDO2_SPI0_IS_0
+				bool 'SPI0 is /dev/spidev0.0'
+		endchoice # SPI0 linux name
+	endmenu
+	endif
+
+	menu 'Tuner module selection'
+		choice
+			prompt 'Tuner module Type'
+			help
+				Defines the type of tuner/DCOP modules used
+				It can be a single module containing one or more CMOST and a DCOP,
+				or one CMOST and one DCOP modules coupled through a connector,
+				or just one CMOST module
+			default MODULE_INDEPENDENT
+			config MODULE_INTEGRATED
+				bool 'Complete tuner/DCOP module'
+				help
+					Select this option for a complete module embedding
+					two CMOST and one DCOP
+					Also select the appropriate CMOST and DCOP support below
+				if MODULE_INTEGRATED = y
+				choice
+					prompt 'Type of integrated board'
+					help
+						Type of integrated board selection
+					default MODULE_INTEGRATED_WITH_2_TDA7707
+					config MODULE_INTEGRATED_WITH_2_TDA7707
+					bool 'MTD v2.1 board with two TDA7707'
+					help
+						MTD rev. 2.1 with two STAR-T
+					config MODULE_INTEGRATED_WITH_TDA7707_TDA7708
+					bool 'MTD v2.1 with TDA7707 and TDA7708'
+					help
+						Modified MTD rev. 2.1 with STAR-T and STAR-S
+				endchoice
+				endif # MODULE_INTEGRATED
+			config MODULE_INDEPENDENT
+				bool 'Independent tuner and DCOP modules'
+				help
+					Select this option if the CMOST module is stand-alone
+					and optionally connected to the DCOP module
+				if MODULE_INDEPENDENT = y && BOARD_ACCORDO5 = y
+				choice
+					prompt 'DCOP board reference'
+					help
+						reference of the DCOP board
+					default BOARD_DCOP_6033_406_15
+					config BOARD_DCOP_6033_393_14
+						bool 'board DCOP 6033-393.14'
+						help
+							board DCOP 6033-393.14
+					config BOARD_DCOP_6033_406_15
+						bool 'board DCOP 6033-406.15'
+						help
+							board DCOP 6033-406.15
+					config BOARD_DCOP_6033_439_16
+						bool 'board DCOP 6033-439.16'
+						help
+							board DCOP 6033-439.16
+				endchoice
+				endif
+		endchoice # Tuner module type selection
+	if BOARD_ACCORDO5 = y && (MODULE_INTEGRATED = y || BOARD_DCOP_6033_439_16 = y)
+		config DIGITAL_AUDIO
+		bool 'I2S digital audio Enabled'
+		help
+			Enable this configuration if your MTD board has I2S outputs connected to Tuner module connector
+	endif # BOARD_ACCORDO5 && (MODULE_INTEGRATED || BOARD_DCOP_6033_439_16)
+	endmenu
+
+	menu 'Tuner support'
+		config ETAL_SUPPORT_CMOST
+			bool 'CMOS Tuner family'
+			help
+				CMOST is the CMOSTuner family of tuners
+				If this is selected an additional menu permits to select the CMOST variant
+	if ETAL_SUPPORT_CMOST = y
+		menu 'CMOST flavour'
+			config ETAL_SUPPORT_CMOST_STAR
+			bool 'STAR'
+			help
+				Adds support for the STAR family, which performs full AM/FM decode
+
+			config ETAL_SUPPORT_CMOST_DOT
+			bool 'DOT'
+			help
+				Adds support for the DOT (Digital Output Tuner) family
+		endmenu # CMOST flavour
+
+		menu 'Tuner channels'
+			config ETAL_SUPPORT_CMOST_DUAL_CHANNEL
+			bool 'Dual channel'
+			help
+				Supports:
+				STAR-T (aka TDA7707), the dual channel STAR device
+				DOT-T  (aka STA710),  the dual channel DOT device
+			config ETAL_SUPPORT_CMOST_SINGLE_CHANNEL
+		bool 'Single channel'
+			help
+				Supports:
+				STAR-S (aka TDA7708), the single channel STAR device
+				DOT-S  (aka STA709),  the single channel DOT device
+		endmenu # Tuner channels
+
+		menu 'Tuner silicon version (a.k.a CUT)'
+			if ETAL_SUPPORT_CMOST_STAR = y && ETAL_SUPPORT_CMOST_DUAL_CHANNEL = y
+				choice
+					prompt 'STAR-T CUT'
+					help
+						Select the specific TDA7707 CUT version
+						This is used to select the appropriate firmware file,
+						to perform silicon-specific initialization and to adapt
+						ETAL to the command set supported by the silicon
+					default ETAL_SUPPORT_CMOST_STAR_T_CUT_BF
+					config ETAL_SUPPORT_CMOST_STAR_T_CUT_BC # was ETAL_SUPPORT_CMOST_CUT_2_1
+					bool 'CUT_BC'
+					help
+						BC silicon version
+						WARNING: This is legacy silicon maintained only due to the
+						availability of JTAG connector on the module that uses it.
+						Will be removed in the future.
+					config ETAL_SUPPORT_CMOST_STAR_T_CUT_BF
+					bool 'CUT_BF'
+					help
+						BF silicon version, supports seamless switching FM/DAB in the DCOP
+						NOTE: this silicon version uses the same firmware as the BG silicon.
+					config ETAL_SUPPORT_CMOST_STAR_T_CUT_BG
+					bool 'CUT_BG'
+					help
+						BG silicon version, supports seamless switching FM/DAB in the DCOP
+					config ETAL_SUPPORT_CMOST_STAR_T_CUT_CA
+					bool 'CUT CA'
+					help
+						CA silicon version, first version with complete ROM
+					config ETAL_SUPPORT_CMOST_STAR_T_CUT_DA
+					bool 'CUT DA'
+					help
+						DA (or EA) silicon version
+					config ETAL_SUPPORT_CMOST_STAR_T_CUT_EB
+					bool 'CUT EB'
+					help
+						EA silicon version, latest version of silicon fulled ROM
+				endchoice # STAR-T CUT
+			endif # ETAL_SUPPORT_CMOST_STAR && ETAL_SUPPORT_CMOST_DUAL_CHANNEL
+
+			if ETAL_SUPPORT_CMOST_STAR = y && ETAL_SUPPORT_CMOST_SINGLE_CHANNEL = y
+				choice
+					prompt 'STAR-S CUT'
+					help
+						Select the specific TDA7708 CUT version
+						This is used to select the appropriate firmware file,
+						to perform silicon-specific initialization and to adapt
+						ETAL to the command set supported by the silicon
+					default ETAL_SUPPORT_CMOST_STAR_S_CUT_BC
+					config ETAL_SUPPORT_CMOST_STAR_S_CUT_BA
+					bool 'CUT_BA'
+					help
+						CUT BA silicon version
+						ROM and RAM embedded
+						NOTE: CUT BA mounted on module 6033-429.15 supports only AM/FM, no DAB
+					config ETAL_SUPPORT_CMOST_STAR_S_CUT_BC
+					bool 'CUT_BC'
+					help
+						CUT BC silicon version
+						ROM based
+						NOTE: CUT BC mounted on module 6033-429.15 supports only AM/FM, no DAB
+					config ETAL_SUPPORT_CMOST_STAR_S_CUT_CB
+					bool 'CUT_CB'
+					help
+						CUT CB silicon version
+						ROM based
+						NOTE: CUT CB mounted on module 6033-429.15 supports only AM/FM, no DAB
+				endchoice # STAR-S CUT
+			endif # ETAL_SUPPORT_CMOST_STAR && ETAL_SUPPORT_CMOST_SINGLE_CHANNEL
+
+			if ETAL_SUPPORT_CMOST_DOT = y && ETAL_SUPPORT_CMOST_DUAL_CHANNEL = y
+				choice
+					prompt 'DOT-T CUT'
+					help
+						Select the specific STA710 CUT version
+						This is used to select the appropriate firmware file,
+						to perform silicon-specific initialization and to adapt
+						ETAL to the command set supported by the silicon
+					default ETAL_SUPPORT_CMOST_DOT_T_CUT_AB
+					config ETAL_SUPPORT_CMOST_DOT_T_CUT_AB # was ETAL_SUPPORT_CMOST_CUT_2_1
+					bool 'CUT_AB'
+					help
+						AB silicon version
+					config ETAL_SUPPORT_CMOST_DOT_T_CUT_BA
+					bool 'CUT_BA'
+					help
+						BA silicon version, first version with ROM
+				endchoice # DOT-T CUT
+			endif # ETAL_SUPPORT_CMOST_DOT && ETAL_SUPPORT_CMOST_DUAL_CHANNEL
+
+			if ETAL_SUPPORT_CMOST_DOT = y && ETAL_SUPPORT_CMOST_SINGLE_CHANNEL = y
+				choice
+					prompt 'DOT-S CUT'
+					help
+						Select the specific STA709 CUT version
+						This is used to select the appropriate firmware file,
+						to perform silicon-specific initialization and to adapt
+						ETAL to the command set supported by the silicon
+					default ETAL_SUPPORT_CMOST_DOT_S_CUT_2_1
+					config ETAL_SUPPORT_CMOST_DOT_S_CUT_2_1 # was ETAL_SUPPORT_CMOST_CUT_2_1
+					bool 'CUT_2_1'
+					help
+						CUT2.1 silicon version
+				endchoice # DOT-S CUT
+			endif # ETAL_SUPPORT_CMOST_DOT && ETAL_SUPPORT_CMOST_SINGLE_CHANNEL
+		endmenu # Tuner silicon version (a.k.a CUT)
+		if ETAL_SUPPORT_DCOP_MDR = y && MODULE_INDEPENDENT = y
+			config ETAL_ENABLE_CMOST_SDM_CLOCK
+			bool 'CMOST generates the SDM clock'
+			default true
+			help
+				If defined ETAL generates the CMOST instructions to output the clock over the SDM
+				If not defined the DCOP module must use its onboard crystal for clock generation
+				Used in HW configurations where the DCOP module takes the clock from the CMOST module
+				over the SDM, Sigma Delta interface
+				note : in module_integrated version this is implicit
+		endif # ETAL_SUPPORT_DCOP_MDR && MODULE_INDEPENDENT
+	endif # ETAL_SUPPORT_CMOST
+	endmenu # Tuner support
+
+	menu 'Digital Co-processor support'
+		config ETAL_SUPPORT_DCOP
+		bool 'Digital Co-Processors'
+		help
+			DCOP is the co-processor for digital radio standards
+			If this is selected an additional menu permits to select the DCOP variant
+		if ETAL_SUPPORT_DCOP = y
+			config ETAL_SUPPORT_DCOP_HDRADIO
+				bool 'HDRADIO device'
+				help
+					HDRADIO is the STA680 device
+			if ETAL_SUPPORT_DCOP_HDRADIO = y
+				config MODULE_DCOP_HDRADIO_SPECIAL_AUDIO_GPIO
+				bool 'HDRADIO module requires GPIO configuration'
+				help
+					Some DCOP HDRADIO modules (6033-379.13 or older) require a specific
+					GPIO configuration for the audio interface to the CMOST to work.
+				choice
+					prompt 'HDRADIO I2C lines resistor network'
+					help
+						If HDRADIO is hosted on "6033-379.13 2.0" module,
+						I2C bus has a series and pull-up resistors network
+						that limits the device reactivity.
+						To select which resistors network to support
+					default MODULE_DCOP_HDRADIO_I2C_SERIES_PULLUP_RES
+					config MODULE_DCOP_HDRADIO_I2C_SERIES_PULLUP_RES
+					bool 'I2C lines with series resistors'
+					help
+						I2C bus has series (limiting the device reactivity)
+						and pull-up resistors.
+					config MODULE_DCOP_HDRADIO_I2C_PULLUP_RES
+					bool 'I2C lines without series resistors'
+					help
+						I2C bus has pull-up resistors only as recommended HW setting.
+				endchoice # HDRADIO I2C lines resistor network
+
+				config MODULE_DCOP_HDRADIO_CLOCK_FROM_CMOST
+				bool 'HDRADIO module is clocked by CMOST'
+				help
+					Controls if the CMOST should generate the system clock for the DCOP.
+					If defined the CMOST provides the system clock to the CMOST
+					(ETAL uses the CMOST command 0x04 (SetBBIf) with AiMode set to 3,
+					STA680 mode with AAA and BB MUX IQ, System clock to STA680 from CMOS Tuner).
+					If not defined the DCOP module must use its onboard crystal for clock generation.
+					(ETAL uses the CMOST command 0x04 (SetBBIf) with AiMode set to 1,
+					LegacySTA680 mode (no AAA) with BB MUX IQ).
+	
+				config MODULE_DCOP_HDRADIO_SAI_IS_MASTER
+				bool 'HDRADIO SAI is master'
+				help
+					Configures the CMOST SAI connected to the HDRADIO DCOP module.
+					If defined the HDRADIO module SAI is master and CMOST Slave;
+					else the HDRADIO SAI is slave and CMOST SAI is master
+
+				config MODULE_DCOP_HDRADIO_SUPPORT_AAA
+				bool 'Indicate if DCOP HDRADIO fw supports AAA'
+				help
+					This should be set only with HD module supporting AAA algorithm
+					When activated, it indicates the DCOP FW support AAA alignment
+
+				if MODULE_DCOP_HDRADIO_SUPPORT_AAA = y
+					config MODULE_DCOP_HDRADIO_DISABLE_AAA
+					bool 'Disable AAA by default'
+					help
+						When activated, ETAL sends command SetAlignParameter to DCOP HD
+						(command HDRADIO_IBOC_CNTRL_CNFG_CMD = 0x91, function 0x18)
+						with AAA disabled for AM/FM and Digital Audio played if alignemnt not reached
+				endif #MODULE_DCOP_HDRADIO_SUPPORT_AAA
+
+			endif # ETAL_SUPPORT_DCOP_HDRADIO && MODULE_INDEPENDENT
+
+			config ETAL_SUPPORT_DCOP_MDR
+				bool 'MDR device'
+				help
+					MDR (Multistandard Digital Radio) is the STA66x family
+
+			if ETAL_SUPPORT_DCOP_MDR = y 
+				config MDR_STECI_FULL_DUPLEX_ENABLED
+				bool 'MDR module fw support STECI full duplex protocol'
+				help
+					DCOP MDR fw support STECI full duplex protocol
+			endif # ETAL_SUPPORT_DCOP_MDR 
+			if ETAL_SUPPORT_DCOP_MDR = y && MODULE_INDEPENDENT = y
+				config MODULE_DCOP_MDR_SPECIAL_AUDIO_GPIO
+				bool 'MDR module requires GPIO configuration'
+				help
+					Some DCOP MDR modules (6033-393.14 or older) require a specific
+					GPIO configuration for the audio interface to the CMOST to work.
+					Note that this configuration is not compatible with COMM_ENABLE_RDS_IRQ
+					so if this is selected the RDS IRQ other option is disabled.
+			endif # ETAL_SUPPORT_DCOP_MDR && MODULE_INDEPENDENT
+		endif # ETAL_SUPPORT_DCOP
+	endmenu # Coprocessors selection
+endmenu # Hardware System
+
+################################################################################
+#
+# Submenu: 'ETAL options'
+#
+################################################################################
+if APP_TUNERDRIVER_LIBRARY = n && APP_OSALCORE_TESTS = n
+menu 'ETAL options'
+	menu 'ETAL APIs'
+		choice
+			prompt 'ETAL core APIs'
+			help
+				Select which ETAL core APIs to include
+				in ETAL
+			default ETAL_HAVE_ALL_API
+			config ETAL_HAVE_ALL_API
+			bool 'Include all APIs'
+			help
+				Includes all the ETAL core APIs
+				USE THIS when building the test application to avoid build issues
+			config ETAL_HAVE_SELECTED_API
+			bool 'Include selected APIs only'
+			help
+				Permits to select which optional APIs to include
+
+			if ETAL_HAVE_SELECTED_API = y
+
+				choice
+					prompt 'Tune interfaces'
+					help
+						Tune command provides a blocking and a non-blocking interface
+						Select which ones to include in the build
+					default ETAL_HAVE_TUNE_BOTH
+
+					config ETAL_HAVE_TUNE_BLOCKING
+					bool 'Blocking Tune interface only'
+					help
+					Includes the following APIs:
+						- etal_tune_receiver	
+
+					config ETAL_HAVE_TUNE_ASYNC
+					bool 'Non blocking Tune interface only'
+					help
+					Includes the following APIs:
+						- etal_tune_receiver_async
+
+					config ETAL_HAVE_TUNE_BOTH
+					bool 'Both interfaces available'
+					help
+					Includes the following APIs:
+						- etal_tune_receiver
+						- etal_tune_receiver_async
+				endchoice # Tune interfaces
+
+				config ETAL_HAVE_QUALITY
+				bool 'Quality interfaces'
+				help
+					Includes the following APIs:
+					- etal_get_reception_quality
+					- etal_get_reception_quality_AD
+					- etal_get_CF_data
+				config ETAL_HAVE_QUALITY_MONITOR
+				bool 'Quality monitor interfaces'
+				help
+					Includes the following APIs:
+					- etal_config_reception_quality_monitor
+					- etal_destroy_reception_quality_monitor
+
+				if ETAL_SUPPORT_CMOST = y
+					config ETAL_HAVE_MANUAL_SEEK
+					bool 'Seek (manual)'
+					help
+						Includes the manual seek interfaces and state machines:
+						- etal_seek_start_manual
+						- etal_seek_continue_manual
+						- etal_seek_stop_manual
+						- etal_seek_get_status_manual
+				endif # ETAL_SUPPORT_CMOST
+
+				config ETAL_HAVE_AUDIO_CONTROL
+				bool 'Audio control'
+				help
+					Includes the following APIs:
+					- etal_force_mono
+					- etal_mute
+					
+				config ETAL_HAVE_ALTERNATE_FREQUENCY
+				bool 'Alternate frequency'
+				help
+					Includes the following APIs:
+					- etal_alternate_frequency
+
+				config ETAL_HAVE_READ_WRITE_PARAMETERS
+				bool 'Read/Write parameters'
+				help
+					Includes the following APIs:
+					- etal_read_parameter
+					- etal_write_parameter
+										
+				config ETAL_HAVE_RECEIVER_ALIVE
+				bool 'Receiver alive'
+				help
+					Includes the following APIs:
+					- etal_receiver_alive
+
+				if ETAL_SUPPORT_DCOP = y
+					config ETAL_HAVE_ADVTUNE
+					bool 'Advanced tuning'
+					help
+						Includes the following APIs:
+						- etal_get_current_ensemble (DAB only)
+						- etal_service_select (DAB, HDRadio)
+						Warning: many tests depend on this API
+					config ETAL_HAVE_DATASERVICES
+					bool 'Data services support'
+					help
+						Includes the following APIs:
+						- etal_enable_data_service
+						- etal_disable_data_service
+					config ETAL_HAVE_SYSTEMDATA
+					bool 'DAB/HD System Data interfaces'
+					help
+						Includes the following APIs:
+						- etal_get_service_list
+					if ETAL_SUPPORT_DCOP_MDR = y
+						config ETAL_HAVE_SYSTEMDATA_DAB
+						bool 'DAB System Data interfaces'
+						help
+							Includes the following APIs:
+							- etal_get_ensemble_list
+							- etal_get_ensemble_data
+							- etal_get_specific_service_data_DAB
+					endif # ETAL_SUPPORT_DCOP_MDR
+				endif # ETAL_SUPPORT_DCOP
+
+				if ETAL_SUPPORT_CMOST = y
+					config ETAL_HAVE_XTAL_ALIGNMENT
+					bool 'XTAL alignment interface'
+					help
+						Includes the following APIs:
+						- etal_xtal_alignment
+						- etal_initialize code to initialize XTAL
+				endif # ETAL_SUPPORT_CMOST
+
+				config ETAL_HAVE_GET_VERSION
+				bool 'Get version'
+				help
+					Includes the following APIs:
+					- etal_get_version
+
+				config ETAL_HAVE_DEBUG_COMMANDS
+				bool 'Debug Commands interfaces'
+				help
+					Includes the following APIs:
+					- etal_debug_DISS_control
+					- etal_debug_VPA_control
+
+				if ETAL_SUPPORT_CMOST_STAR = y
+				config ETAL_HAVE_FMSTEREO_EVENT_CONTROL
+				bool 'FM stereo event control'
+				help
+					Includes the following APIs:
+					- etal_event_FM_stereo_start
+					- etal_event_FM_stereo_stop
+					Time interval configurable under ETAL optional features (Receiver check state period)
+				endif # ETAL_SUPPORT_CMOST_STAR
+
+				config ETAL_HAVE_AUTOSEEK
+				bool 'Autoseek'
+				help
+					Includes the following APIs:
+					- etal_autoseek_start
+					- etal_autoseek_continue
+					- etal_autoseek_stop
+					- etal_set_autoseek_thresholds_value
+
+				if ETAL_SUPPORT_DCOP_MDR = y
+					config ETAL_HAVE_SEAMLESS
+					bool 'Seamless estimation and switching commands'
+					help
+						Include the seamless estimation and switching interfaces:
+						- etal_seamless_estimation_start
+						- etal_seamless_estimation_stop
+						- etal_seamless_switching
+				endif # ETAL_SUPPORT_DCOP_MDR   
+			endif # ETAL_HAVE_SELECTED_API
+		endchoice # ETAL core APIs
+	endmenu # ETAL APIs
+	menu 'ETAL Optional features'
+		if APP_ETAL_LIBRARY = y || APP_ETAL_TEST = y
+			config ETAL_HAVE_ETALTML
+			bool 'Include ETAL Tuner Middleware Layer (TML) extensions'
+			help
+				Includes TML extensions which may provide:
+				- RDS
+				- automatic seek
+		endif # APP_ETAL_LIBRARY || APP_ETAL_TEST
+
+		config ETAL_RECEIVER_ALIVE_PERIODIC_CHECK
+			bool 'Receiver Alive periodic check'
+			default false
+			help
+				Periodically check if receivers are alive.
+				Event ETAL_RECEIVER_ALIVE_ERROR is sent if it fails.
+			config ETAL_RECEIVER_ALIVE_PERIOD
+				int 'Receiver Alive Period (ms)'
+				default 5000
+				depends on ETAL_RECEIVER_ALIVE_PERIODIC_CHECK
+				help
+					Period in ms for receiver alive check.
+
+		config ETAL_RECEIVER_CHECK_STATE_PERIOD
+			int 'Receiver check state period (ms)'
+			default 333
+			depends on ETAL_HAVE_FMSTEREO_EVENT_CONTROL || ETAL_HAVE_ALL_API
+			help
+				Period in ms for receiver check state check.
+				Used with the following APIs:
+				etal_event_FM_stereo_start
+				etal_event_FM_stereo_stop
+
+		config ETAL_INIT_CHECK_SILICON_VERSION
+			bool 'Check CMOST silicon version before download'
+			default true
+			help
+				etal_initialize() checks the CMOST silicon version before
+				starting the formware download and aborts if not compatible
+				with the ETAL configuration
+
+		config ETAL_SUPPORT_EARLY_TUNER
+			bool 'Early tuner audio'
+			default true
+			help
+				Activate early tuner audio feature in ETAL.
+				On Accordo 5 platform the file build-pokyst-sta1295-evb-nand/conf/local.conf shall contains:
+				EARLY_TUNER_FTR = "1"
+				ETAL_CMOST_VERSION = "DA" or "EB"
+
+
+	if BOARD_ACCORDO5 = y
+		config ETAL_MDR_AUDIO_CODEC_ON_HOST
+			bool 'ETAL MDR Audio decoder on host'
+			default false
+			help
+				ETAL DAB/DAB+/DMB Audio decoder on host A5
+		config ETAL_MDR_DABMW_ON_HOST
+			bool 'ETAL MDR DABMW on host'
+			default false
+			help
+				ETAL DAB middleware on host A5
+	endif # BOARD_ACCORDO5 = y
+
+	endmenu # ETAL Optional features
+endmenu # ETAL options
+endif # !APP_TUNERDRIVER_LIBRARY && !APPOSALCORE_TESTS
+
+################################################################################
+#
+# Submenu: 'ETALTML options'
+#
+################################################################################
+if ETAL_HAVE_ETALTML = y
+	menu 'ETALTML options'
+		config ETALTML_HAVE_RDS
+		bool 'Include code to decode and access RDS'
+		help
+			When defined includes the RDS decoder and permits to select
+			various interfaces dependent on RDS
+			This is mandatory for Service Following feature
+		if ETALTML_HAVE_RDS = y
+			config ETALTML_HAVE_AMFMLANDSCAPE
+			bool 'Build the AMFM landscape in ETAL'
+			help
+				When defined ETAL builds the AM/FM landscape and populates it at run-time
+				Currently used only to build the RDS AFList, so if this option
+				is not selected AFList will not be available
+				This is mandatory for Service Following feature
+			if ETALTML_HAVE_AMFMLANDSCAPE = y
+				config ETALTML_HAVE_AMFMLANDSCAPE_FULL
+					bool 'Build additional features for AMFM landscape'
+					help
+						When defined compiles some extra features
+						(notification of new data to landscape users)
+						This is mandatory for Service Following feature
+			endif # ETALTML_HAVE_AMFMLANDSCAPE
+			config ETALTML_HAVE_RADIOTEXT
+			bool 'RDS and Radiotext command'
+			help
+				Include the RDS and radiotext interfaces:
+				- etal_get_radiotext
+				- etal_start_radiotext
+				- etal_stop_radiotext
+				- etal_get_decoded_RDS
+				- etal_start_RDS
+				- etal_stop_RDS
+		endif # ETALTML_HAVE_RDS
+
+		config ETALTML_HAVE_SCAN
+		bool 'Scan command'
+		help
+			Include the scan interfaces and state machines:
+			- etaltml_scan_start
+			- etaltml_scan_stop
+
+		if ETALTML_HAVE_RDS = y && ETALTML_HAVE_AMFMLANDSCAPE = y && ETALTML_HAVE_AMFMLANDSCAPE_FULL =y && (ETAL_HAVE_SEAMLESS = y || ETAL_HAVE_ALL_API = y)
+			config ETALTML_HAVE_SERVICE_FOLLOWING
+			bool 'Service Following feature'
+			help
+				Include the service following feature in TML:
+				- the service following automatically manages the best frequency (Freq & Band) selection for a given Service
+				- ETALTML_TuneOnServiceId
+				- ETALTML_ActivateServiceFollowing
+				- ETALTML_DisableServiceFollowing
+		endif # ETALTML_HAVE_RDS & ETALTML_HAVE_AMFMLANDSCAPE & ETALTML_HAVE_AMFMLANDSCAPE_FULL
+
+		config ETALTML_HAVE_LEARN
+		bool 'Learn command'
+		help
+			Include the learn interfaces and state machines:
+			- etaltml_learn_start
+			- etaltml_learn_stop
+		if ETALTML_HAVE_RDS = y
+			config ETALTML_HAVE_RDS_STRATEGY
+			bool 'Build the RDS Strategy code'
+			help
+				When defined, ETAL includes the RDS Strategy for FM consisting in 
+ 				- Automatic AF check/switch;
+ 				- TA switch if Traffic Announcement happens(both TA and TP are on);
+ 				- AF search when strong signal but lost RDS information;
+ 				- PI seek when lost RDS information etc.
+			if ETALTML_HAVE_RDS_STRATEGY = y
+				config ETALTML_HAVE_RDS_STRATEGY_EON
+				bool 'include the EON (other network) management'
+				help
+					When defined, RDS Strategy for FM includes EON mgt 
+			endif #ETALTML_HAVE_RDS_STRATEGY
+		endif # ETALTML_HAVE_RDS
+	endmenu # ETALTML options
+endif # ETAL_HAVE_ETALTML
+
+################################################################################
+#
+# Submenu: 'Device Communication'
+#
+################################################################################
+menu 'Device Communication'
+	choice
+		prompt 'Low level driver implementation'
+		help
+			Defines where the low level driver, including the communication protocol
+			(e.g. SSI32 or STECI for DCOP), will be implemented
+			For embedded systems only EMBEDDED is supported. (EXTERNAL driver
+			support for this case was removed due to lack of interest and for the sake of simplification)
+			For Win32 systems only EXTERNAL supported.
+		config COMM_DRIVER_EXTERNAL
+			bool 'External low level driver'
+			help
+				When defined assumes the low level CMOST and/or DCOP driver are implemented
+				in a standalone process named MDR_protocol_layer which communicates
+				with the main application through TCP sockets on the localhost.
+				This is the only way to communicate with MDR using SSI32 (instead of STECI).
+				Selecting this option enables additional options under 'Trace Settings'
+		if HOST_OS_LINUX = y || HOST_OS_TKERNEL = y
+		config COMM_DRIVER_EMBEDDED
+			bool 'Embedded low level driver'
+			help
+				If defined the low level CMOST and/or DCOP drivers are embedded
+				in the main application.
+				Available protocols are SPI/I2C for the CMOST,
+				SPI/I2C/I2S for the HDRADIO and STECI/I2S for the MDR.
+				SPI0 HW bus is reworked to use GPIO13 instead of the native SS for STECI support.
+				SSI32 for the MDR is not available in the Embedded driver.
+		endif # HOST_OS_LINUX  || $HOST_OS_TKERNEL
+	endchoice # Low level driver implementation
+
+	if COMM_DRIVER_EMBEDDED = y
+		if ETAL_SUPPORT_DCOP_HDRADIO = y
+			choice
+				prompt 'HDRADIO communication bus'
+				help
+					HDRADIO supports I2C and/or SPI for control and data interfaces.
+					The selection is made mutual between the two.
+					To select which one to support
+				default COMM_HDRADIO_I2C
+				config COMM_HDRADIO_I2C
+				bool 'I2C'
+				help
+					Use I2C bus; the HDRADIO device address is defined in
+					HDRADIO_ACCORDO2_I2C_ADDRESS (default 0x17)
+				config COMM_HDRADIO_SPI
+				bool 'SPI'
+				help
+					Use SPI bus
+				if COMM_HDRADIO_SPI = y
+					choice
+						prompt 'SPI bus mode and frequency setting'
+						help
+							Allows to configure the master HC to be aligned with
+							the native configuration of BBP in regard to SPI mode
+							and bus frequency.
+						default COMM_HDRADIO_SPI_CPHA0_CPOL0
+						config COMM_HDRADIO_SPI_CPHA0_CPOL0
+						bool 'SPI CPHA0 CPOL0'
+						help
+							When defined, configures the master HC to be aligned with
+							the native configuration of BBP: SPI CPHA0 CPOL0 and
+							2 MHz bus frequency.
+						config COMM_HDRADIO_SPI_CPHA1_CPOL1
+						bool 'SPI CPHA1 CPOL1'
+						help
+							When defined, configures the master HC to be aligned with
+							the native configuration of BBP: SPI CPHA1 CPOL1 and
+							2 MHz bus frequency.
+					endchoice # SPI bus mode and frequency
+				endif # COMM_HDRADIO_SPI
+			endchoice # HDRADIO communication bus
+		endif # ETAL_SUPPORT_DCOP_HDRADIO
+	endif # COMM_DRIVER_EMBEDDED
+
+		if ETAL_SUPPORT_CMOST = y
+			choice
+				prompt 'CMOST communication bus'
+				help
+					CMOST supports I2C or SPI for the control interface.
+					To select which one to support
+				default COMM_CMOST_I2C
+				config COMM_CMOST_I2C
+				bool 'I2C'
+				help
+					Use I2C bus; the CMOST device address is defined in
+					CMOST_ACCORDO2_I2C_ADDRESS (default 0x61)
+				config COMM_CMOST_SPI
+				bool 'SPI'
+				help
+					Use SPI bus
+					!!!!!!!
+					!! on Accordo 5 Linux, valid ONLY if CMOST uses SPI2 (DCOP's one)
+					!! as a consequence, DCOP cannot be active 
+					!! SPI1 for CMOST not yet verified due to A5 hw restrictions
+					!!!!!!!
+			endchoice # CMOST communication bus
+		if MODULE_INTEGRATED = y
+			config COMM_CMOST_HAVE_DEDICATED_RESET_LINE
+			bool 'each Tuner has a dedicated reset line'
+			help
+			define if there is a dedicated reset line per tuner
+			else one common reset line is share for each tuner
+		endif #MTD
+			if ETAL_SUPPORT_CMOST_STAR = y && (HOST_OS_LINUX = y || HOST_OS_TKERNEL = y) && MODULE_DCOP_MDR_SPECIAL_AUDIO_GPIO = n
+				config COMM_ENABLE_RDS_IRQ
+				bool 'Use the STAR interrupt to read RDS data'
+				help
+					If this option is selected ETAL reads the RDS data from the STAR
+					only when the STAR raises the interrupt request;
+					if not selected otherwise ETAL polls the STAR periodically.
+					When this option is selected an additional OS thread is started.
+					The Accordo2 supports the hardware connection between the STAR
+					IRQ pin and the Accordo2 S_GPIO7 pin.
+			endif # ETAL_SUPPORT_CMOST_STAR && HOST_OS_LINUX && !MODULE_DCOP_MDR_SPECIAL_AUDIO_GPIO
+		endif # ETAL_SUPPORT_CMOST
+
+	if ETAL_SUPPORT_CMOST = y
+		choice
+		prompt 'Source for CMOST Firmware download'
+		default COMM_CMOST_FIRMWARE_EMBEDDED
+		help
+			The CMOST may require Firmware or Patch download during the
+			device boot procedure. This may be read from a file or from
+			a byte array build in the ETAL. This option selects which one to use.
+		config COMM_CMOST_FIRMWARE_FILE
+			bool 'CMOST firmware from file'
+			help
+				Read the Firmware/Patch from a file. The filename is specified
+				in the code as CMOST_FIRMWARE_FILENAME
+		config COMM_CMOST_FIRMWARE_IMAGE
+			bool 'CMOST firmware from image'
+			help
+				Read the Firmware/Patch from an image. The image and the size are
+				passed as arguments through TUNERDRIVER API (TUNERDRIVER_download_CMOST).
+		config COMM_CMOST_FIRMWARE_EMBEDDED
+			bool 'CMOST firmware from memory'
+			help
+				The Firmware/Patch is directly embedded in the ETAL code, with
+				an include file.
+				The include file is located in lib_cmost/include and is named
+				CMOST_Firmware_cutX.h where X is the silicon version.
+		endchoice # Source for CMOST Firmware download
+	endif # ETAL_SUPPORT_CMOST
+
+	config COMM_CMOST_CUSTOMER_SETTINGS
+	bool 'Enable customer settings'
+	help
+		Enable/disable Customer settings after FW download complete
+
+	if COMM_DRIVER_EMBEDDED = y
+		if ETAL_SUPPORT_DCOP_MDR = y
+			choice
+			prompt 'Source for DCOP MDR Firmware download'
+			default COMM_DCOP_MDR_FIRMWARE_NO_DOWNLOAD
+			help
+				The DCOP MDR may require Firmware or Patch download during the
+				device boot procedure. This may be read from a file
+				and downloaded to DCOP MDR serial flash.
+			config COMM_DCOP_MDR_FIRMWARE_NO_DOWNLOAD
+				bool 'No download'
+				help
+					Start without DCOP MDR Firmware download.
+			config COMM_DCOP_MDR_FIRMWARE_FILE
+				bool 'DCOP MDR firmware download'
+				help
+					Enable the DCOP MDR firmware download support.
+				if COMM_DCOP_MDR_FIRMWARE_FILE = y
+					menu 'DCOP MDR firmware download additional support'
+						config COMM_DCOP_MDR_FIRMWARE_FILE_MODE_FILE
+						bool 'DCOP MDR firmware download file from filesystem support'
+						help
+							Enable DCOP MDR firmware download file with filesystem access mode
+
+						config COMM_DCOP_MDR_FIRMWARE_FILE_MODE_FILE_RENAME
+						bool 'DCOP MDR firmware download file from filesystem and rename it'
+						depends on COMM_DCOP_MDR_FIRMWARE_FILE_MODE_FILE
+						help
+							Enable DCOP MDR firmware download file with filesystem and rename .bin in .used
+					endmenu
+				endif # COMM_DCOP_MDR_FIRMWARE_FILE
+			endchoice # Source for DCOP MDR Firmware download
+
+			config COMM_DCOP_MDR_ENABLE_SPI_BOOT_GPIO
+			bool 'Enable SPI_BOOT GPIO for DCOP MDR firmware download'
+			default false
+			help
+				If selected ETAL uses a GPIO to automatically configure the DCOP MDR for
+				boot mode (i.e. firmware download) or normal mode.
+				On the Accordo2 EVB the A2's GPIO10 should be connected to DCOP MDR's BOOTSEL0 pin (a.k.a. D14) which is
+				also available on the JP9 strip connector.
+
+		endif # ETAL_SUPPORT_DCOP_MDR
+
+		if ETAL_SUPPORT_DCOP_HDRADIO = y
+			choice
+			prompt 'Source for DCOP HD Radio Firmware download'
+			default COMM_DCOP_HDRADIO_FIRMWARE_DOWNLOAD
+			help
+				The DCOP HD Radio may require Firmware or Patch download during the
+				device boot procedure. This may be downloaded to DCOP HD Radio serial flash
+				or volatil memory.
+			config COMM_DCOP_HDRADIO_FIRMWARE_NO_DOWNLOAD
+				bool 'No download'
+				help
+					Start without DCOP HD Radio Firmware download.
+			config COMM_DCOP_HDRADIO_FIRMWARE_DOWNLOAD
+				bool 'DCOP HD Radio firmware download'
+				help
+					Enable the DCOP HD Radio firmware download support.
+				if COMM_DCOP_HDRADIO_FIRMWARE_DOWNLOAD = y
+					menu 'DCOP HD Radio firmware download additional support'
+						config COMM_DCOP_HDRADIO_FIRMWARE_DL_FILE_MODE
+						bool 'DCOP HD Radio firmware download file from filesystem support'
+						help
+							Enable DCOP HD Radio firmware download file with filesystem access mode
+						config COMM_DCOP_HDRADIO_FIRMWARE_DL_VIA_CMD
+						bool 'DCOP HD Radio firmware download via command support'
+						help
+							Enable DCOP HD Radio firmware download via command (works only if serial flash has already a firmware) instead of normal procedure (works even if serial flash doesn't have a firmware).
+				if COMM_HDRADIO_SPI = y
+						config COMM_DCOP_HDRADIO_FIRMWARE_DL_SPI_CPHA1_CPOL1
+						bool 'DCOP HD Radio firmware download with SPI CPHA1 CPOL1'
+						help
+							Enable DCOP HD Radio firmware download with SPI CPHA1 CPOL1 (polarity high and phase high) instead of SPI CPHA0 CPOL0 (polarity low and phase low)
+				endif # COMM_HDRADIO_SPI
+					endmenu
+				endif # COMM_DCOP_HDRADIO_FIRMWARE_DOWNLOAD
+			endchoice # Source for DCOP HD Radio Firmware download
+		endif # $ETAL_SUPPORT_DCOP_HDRADIO
+	endif # COMM_DRIVER_EMBEDDED
+
+	if ETAL_SUPPORT_DCOP_MDR = y
+	config COMM_DRIVER_DIRECT
+	bool 'Enable direct tuner driver'
+	help
+		Enable/disable direct tuner driver MDR to use external tuner GUI
+	endif # ETAL_SUPPORT_DCOP_MDR
+
+endmenu # Device Communication'
+
+################################################################################
+#
+# Submenu: 'ETALMDR options'
+#
+################################################################################
+if BOARD_ACCORDO5 = y
+if ETAL_MDR_AUDIO_CODEC_ON_HOST = y
+	menu 'ETALMDR options'
+		source ../../etalmdr/lib_scripts/target_config.cml
+	endmenu # ETALMDR options
+endif # ETAL_MDR_AUDIO_CODEC_ON_HOST
+endif # BOARD_ACCORDO5
+
+################################################################################
+#
+# Submenu: 'Application Configuration'
+#
+################################################################################
+menu 'Application Configuration'
+	choice
+		prompt 'Application Type'
+		help
+			Defines the final application for the build
+		default APP_ETAL_TEST
+
+		config APP_ETAL_LIBRARY
+		bool 'Build the ETAL library'
+		help
+			Builds the ETAL library ready for linking with customer application
+			The library includes the ETALCORE, ETALTML, ETALCOMMON and TUNER_DRIVER
+			The library is named 'etal<extension>'
+			The <extension> depends on the 'Host System' setting
+
+		config APP_ETALCORE_LIBRARY
+		bool 'Build the ETALCORE library'
+		help
+			Builds the ETALCORE library ready for linking with customer application
+			The library includes the ETALCORE, ETALCOMMON and TUNER_DRIVER
+			The library is named 'etal<extension>'
+			The <extension> depends on the 'Host System' setting
+			
+		config APP_TUNERDRIVER_LIBRARY
+		bool 'Build the TUNER_DRIVER library'
+		help
+			Builds the TUNER_DRIVER library ready for linking with customer application
+			The library includes the CMOST communication and boot driver and the ETALCOMMON
+			The library is named 'tuner_driver<extension>'
+			The <extension> depends on the 'Host System' setting
+
+		config APP_ETAL_TEST
+		bool 'Build the ETAL test application'
+		help
+			Builds the ETAL library and the ETAL test application
+			The executable is named 'etaltest<extension>'
+			The <extension> depends on the 'Host System' setting
+		if APP_ETAL_TEST = y
+			menu 'Test type'
+				if ETAL_SUPPORT_DCOP_MDR = y
+					config APP_TEST_DAB
+					bool 'Build the DAB tests'
+					help
+						Include the DAB test suite
+						Use ETI file DE-Augsburg-20090713.eti for most of the DAB tests and 
+						DE-Bayern-20090730.eti for Service Select DCOP test and Data Services test
+				endif
+				if ETAL_SUPPORT_DCOP_HDRADIO = y
+					config APP_TEST_HDRADIO_FM
+					bool 'Build the HDRadio tests for FM'
+					help
+						Include the HDRadio FM test suite
+						Use HD Radio RDM1-IBDC1 module for HD Radio FM broadcasting
+					config APP_TEST_HDRADIO_AM
+					bool 'Build the HDRadio tests for AM'
+					help
+						Include the HDRadio AM test suite
+						Use R&S ARB IB_AMr208_e1awfa05.wv IQ file for HD Radio AM broadcasting
+				endif 
+				config APP_TEST_FM
+				bool 'Build the FM tests'
+				help
+					Include the FM test suite
+					Use FM antenna
+				config APP_TEST_AM
+				bool 'Build the AM tests'
+				help
+					Include the AM test suite
+					Use AM broadcasting tool
+				choice
+				prompt 'Concurrent test selection'
+				help
+					Choose whether to run sequential tests (default)
+					or concurrent tests or both.
+					Concurrent test work by spawning two or more
+					threads which do in parallel, on different receivers,
+					the same operations done in the sequential tests
+					Not all tests support concurrent tests
+					This option makes sense only for hardware options
+					including a STAR-T or DOT-T, it is validated at build-time
+				default APP_TEST_ONLY_SEQUENTIAL
+				config APP_TEST_ONLY_SEQUENTIAL
+					bool 'Build only sequential tests'
+				config APP_TEST_ONLY_CONCURRENT
+					bool 'Build only concurrent tests'
+					help
+						Tests supporting this option:
+							APP_TEST_SEEK
+				config APP_TEST_BOTH_CONCURRENT_AND_SEQUENTIAL
+					bool 'Build sequential and concurrent tests'
+					help
+						Tests supporting this option:
+							APP_TEST_SEEK
+				endchoice # Concurrency test selection
+				config APP_TEST_IN_LE_MANS
+				bool 'Build the test for Le Mans location'
+				help
+					Set configuration for Le Mans location				
+			endmenu
+
+			menu 'Test selection'
+				config APP_TEST_INITIALIZATION
+				bool 'Build the initialization test'
+				help
+					API tested:
+						etal_initialize()
+					Issues a ETAL initialization command and exits.
+					The etal_initialize API is a prerequisite for all tests
+					so it is called even if this test is not selected. This
+					test is provided in case it is necessary to test only that API
+					etal_initialize tests may be long since they require
+					loading the CMOST and/or DCOP images, thus they
+					can be selected one by one
+				if APP_TEST_INITIALIZATION = y
+					config APP_TEST_INITIALIZATION_PARAMETER
+					bool 'Build the parameter check test'
+					help
+						Verify etal_initialize behaviour with
+						valid or invalid parameter
+					config APP_TEST_INITIALIZATION_TUNER
+					bool 'Build the Tuner initialization test'
+					help
+						Verify etal_initialize behaviour with
+						- empty CMOST image
+						- invalid CMOST image
+						- valid CMOST image
+					config APP_TEST_INITIALIZATION_DCOP
+					bool 'Build the DCOP initialization test'
+					help
+						Verify etal_initialize behaviour with
+						- DCOP disabled
+						- DCOP enabled
+					config APP_TEST_LANDSCAPE_MANAGEMENT
+					bool 'Build the landscape management test'
+					help
+						Verify landscape management load, clear, save landscape
+						in NVM (2 DAB frequencies needs to be configured 
+						(ETAL_VALID_DAB_FREQ and ETAL_VALID_DAB_OTHER_FREQ))
+					config APP_TEST_INITIALIZATION_CUSTOMPARAM
+					bool 'Build the Tuner initialization with custom parameter test'
+					help
+						Verify etal_initialize behaviour with
+						- invalid custom parameter
+						- valid custom parameter
+				endif # APP_TEST_INITIALIZATION
+
+				config APP_TEST_CAPABILITIES
+				bool 'Build the capabilities test'
+				help
+					API tested:
+						etal_get_capabilities()
+					Gets the capabilities from MDR and prints them.
+					May be used without previous ETAL_TEST_INITIALIZATION, in this case
+					just prints the current capabilities without querying the DCOP
+
+				config APP_TEST_CONFIG_RECEIVER
+				bool 'Build the config receiver test'
+				help
+					API tested:
+						etal_config_receiver()
+						etal_destroy_receiver()
+					Tests various valid and invalid configurations
+
+				config APP_TEST_DESTROY_RECEIVER
+				bool 'Build the destroy receiver test'
+				help
+					API tested:
+						etal_destroy_receiver()
+					Ensures that the monitors associated with a receiver are destroyed
+					when the receiver is destroyed.
+					Since this test requires quality monitors for AMFM it can be used only
+					with ETAL_SUPPORT_CMOST_STAR (not with DOT)
+
+				if BOARD_ACCORDO2 = y
+				config APP_TEST_AUDIO_SELECT
+				bool 'Build the audio selection test'
+				help
+					API tested:
+						etal_audio_select()
+				endif #BOARD_ACCORDO2
+
+				config APP_TEST_TUNE_RECEIVER
+				bool 'Build the tune receiver test'
+				help
+					API tested:
+						etal_tune_receiver()
+					Configures the receiver and sends various tune commands.
+
+				config APP_TEST_GETQUALITY
+				bool 'Build the get quality test'
+				help
+					API tested:
+						etal_get_reception_quality()
+					Configures the receiver and tunes to a good station.
+					Then read the current reception quality.
+					For AMFM this test is available only with ETAL_SUPPORT_CMOST_STAR
+
+				if APP_TEST_GETQUALITY = y
+				if APP_TEST_FM = y || APP_TEST_AM = y || APP_TEST_HDRADIO_FM = y || APP_TEST_HDRADIO_AM = y
+					config APP_TEST_GETCFQUALITY
+					bool 'Build the get CF quality test'
+					help
+						API tested:
+							etal_get_CF_quality()
+						Configures the receiver and tunes to a good station.
+						Then read the current reception quality.
+				endif # APP_TEST_FM || APP_TEST_AM || APP_TEST_HDRADIO_FM || APP_TEST_HDRADIO_AM
+				endif # APP_TEST_GETQUALITY
+
+				config APP_TEST_SETMONITOR
+				bool 'Build the set monitor test'
+				help
+					API tested:
+						etal_config_reception_quality_monitor()
+						etal_destroy_reception_quality_monitor()
+					Configures the receiver and tunes to a good station.
+					Then set a monitor filter and wait for some notification.
+					For AMFM this test is available only with ETAL_SUPPORT_CMOST_STAR
+
+				if ETAL_RECEIVER_ALIVE_PERIODIC_CHECK = y
+					config APP_TEST_RECEIVER_ALIVE
+					bool 'Build the receiver alive test'
+					help
+						API tested:
+							etal_receiver_alive()
+							etal_receiver_alive_callback()
+							etal_reinitialize()
+						Check periodically receiver are alive.
+				endif # ETAL_RECEIVER_ALIVE_PERIODIC_CHECK
+			
+				if ETAL_SUPPORT_CMOST_STAR = y && ETAL_SUPPORT_CMOST_STAR_T_CUT_BC != y && ETAL_SUPPORT_CMOST_STAR_S_CUT_BA != y
+					config APP_TEST_AUDIO
+					bool 'Build the audio test'
+					help
+						API tested:
+							etal_audio_mute()
+							etal_force_mono()
+							etal_config_audio_path()
+						Configures the receiver and tunes to a good station.
+						Then test audio mute in AM/FM and DAB, audio format switch from stereo to mono in AM/FM
+						and digital audio output availability.
+					if APP_TEST_AUDIO = y
+						config APP_TEST_AUDIO_MUTE
+						bool 'Build the audio mute test'
+						help
+							API tested
+								etal_audio_mute()
+						config APP_TEST_AUDIO_MONO
+						bool 'Build the force mono test'
+						help
+							API tested
+								etal_force_mono()
+						config APP_TEST_AUDIO_DIGITAL
+						bool 'Build the digital audio test'
+						help
+							API tested
+								etal_config_audio_path()
+							Enables the digital audio interface of the STAR.
+							Does not check if digital audio is actually available on the interface,
+							this must be checked externally.
+						config APP_TEST_AUDIO_FM_STEREO
+						bool 'Build the FM_STEREO audio test'
+						depends on ETAL_HAVE_FMSTEREO_EVENT_CONTROL || ETAL_HAVE_ALL_API
+						help
+							API tested
+								etal_force_mono(), ETAL_event_FM_stereo_start(), ETAL_event_FM_stereo_stop(), event ETAL_INFO_FM_STEREO
+							Enable and disable mono and check event ETAL_INFO_FM_STEREO is received with correct value.
+					endif # APP_TEST_AUDIO
+				endif # ETAL_SUPPORT_CMOST_STAR && !ETAL_SUPPORT_CMOST_STAR_T_CUT_BC && !ETAL_SUPPORT_CMOST_STAR_S_CUT_BA
+						
+				config APP_TEST_GETFREQUENCY
+				bool 'Build the get frequency test'
+				help
+					API tested:
+						etal_get_receiver_frequency()
+					Tunes to a good station then checks the returned frequency
+					Issues several seek commands and reads the tuned frequency
+					while seek is in progress
+					
+				config APP_TEST_ALTERNATE_FREQUENCY
+				bool 'Build the alternate frequency test'
+				help
+					API tested:
+					etal_AF_check()
+					Check alternate frequency
+					
+				config APP_TEST_CHANGEBAND
+				bool 'Build the change band test'
+				help
+					API tested:
+						etal_change_band_receiver()
+					Performs several change band commands and also
+					tuner reconfigurations (e.g. FM to DAB)
+
+				if APP_TEST_DAB = y || APP_TEST_HDRADIO_FM = y || APP_TEST_HDRADIO_AM = y
+					config APP_TEST_ADVANCED_TUNING
+					bool 'Build the advanced tuning test'
+					help
+						API tested:
+							etal_get_current_ensemble() (DAB only)
+							etal_service_select()
+						Verifies DAB information retrieval (for DAB only) and the
+						service select for both DAB and HDRadio
+						For DAB it requires the DE-Augsburg-20090713 ETI test pattern.
+				endif # APP_TEST_DAB || APP_TEST_HDRADIO_FM || APP_TEST_HDRADIO_AM
+
+				if APP_TEST_DAB = y || APP_TEST_HDRADIO_FM = y || APP_TEST_HDRADIO_AM = y
+					config APP_TEST_SYSTEMDATA
+					bool 'Build the system data test'
+					help
+						API tested:
+							etal_get_ensemble_list()
+							etal_get_ensemble_data()
+							etal_get_service_list()
+							etal_get_specific_service_data_DAB()
+						Verifies DAB information retrieval, assuming the tuned
+						frequency receives the ETI DE-Augsburg-20090713
+						For HDRadio verifies etal_get_service_list() only
+						If only DAB is selected can optionally check in DAB1.5 configuration
+					if APP_TEST_FM = n
+					if APP_TEST_SYSTEMDATA = y
+						config APP_TEST_SYSTEMDATA_1_5
+						bool 'Build the system data test in 1.5 mode'
+						help
+							Build the same test using a 1.5 configuration
+							that is tune the foreground channel to an Audio
+							service and use the background channel to
+							fetch the system data
+							Only for DAB, since two HD signals are not available
+					endif # APP_TEST_SYSTEMDATA
+					endif # APP_TEST_FM
+				endif # APP_TEST_DAB || APP_TEST_HDRADIO_FM || APP_TEST_HDRADIO_AM
+
+				if APP_TEST_DAB = y || APP_TEST_HDRADIO_FM = y || APP_TEST_HDRADIO_AM = y
+					config APP_TEST_DATASERVICES
+					bool 'Build the data services test'
+					help
+						API tested:
+							etal_enable_data_service()
+							etal_disable_data_service()
+						Verifies DAB data services retrieval:
+						- Slideshow
+						Uses the ETI DE-Bayern-20090730
+						
+					if APP_TEST_DATASERVICES = y
+						if APP_TEST_HDRADIO_FM = y || APP_TEST_HDRADIO_AM = y || APP_TEST_FM = y || APP_TEST_AM = y
+							config APP_TEST_DATASERVICES_PSD
+							bool 'Build the data service test for PSD'
+							help
+								Test PSD data service
+						endif # APP_TEST_HDRADIO_FM = y || APP_TEST_HDRADIO_AM = y || APP_TEST_FM = y || APP_TEST_AM = y
+
+						if APP_TEST_DAB = y
+							config APP_TEST_DATASERVICES_SLS_XPAD
+							bool 'Build the data service test for SLS_XPAD'
+							help
+								Test SLS_XPAD data service
+								Uses the DE-Bayern ETI file
+							config APP_TEST_DATASERVICES_EPG
+							bool 'Build the data service test for EPG'
+							help
+								Test EPG data service
+								Uses the DE-Bayern ETI file
+							config APP_TEST_DATASERVICES_JOURNALINE
+							bool 'Build the data service test for JOURNALINE'
+							help
+								Test journaline data service
+								Uses the FraunhoferIIS-JournalineVariety ETI file		
+							config APP_TEST_DATASERVICES_TPEG
+							bool 'Build the data service test for TPEG'
+							help
+								Test TPEG data service
+								Uses the TPEG-Fraunhofer-2010-10-25-1 ETI file
+							config APP_TEST_DATASERVICES_SLI
+							bool 'Build the data service test for SLI'
+							help
+								Test Service Linking Information data service
+								Uses the FraunhoferIIS-ServiceFollowing-2010-02-25 ETI file									
+							config APP_TEST_DATASERVICES_DLS
+							bool 'Build the data service test for DLS'
+							help
+								Test DLS data service
+								Uses the DE-Bayern ETI file	
+							config APP_TEST_DATASERVICES_DLPLUS
+							bool 'Build the data service test for DLPLUS'
+							help
+								Test DLPLUS data service
+								Uses the FraunhoferIIS-International_Fig2_DLPlus-2010-01-28.eti file	
+						endif # APP_TEST_DAB = y
+					endif # APP_TEST_DATASERVICES						
+						
+				endif # APP_TEST_DAB || APP_TEST_HDRADIO_FM || APP_TEST_HDRADIO_AM
+
+				if APP_TEST_DAB = y
+					if ETAL_HAVE_ALL_API = y
+						config APP_TEST_AUTONOTIFICATION
+						bool 'Build the autonotification tests'
+						help
+						  THIS REQUIRES a specific setting : ETI Mixed_Announcement.dab on frequency 225648
+						  
+ 							API tested:
+								etal_enable_autonotification_service()
+								etal_disable_autonotification_service()
+							Enable/disable auto notification events.
+					endif # APP_TEST_AUTONOTIFICATION
+				endif # APP_TEST_DAB
+
+				if APP_TEST_DAB = y && APP_TEST_FM = y
+					if ETAL_HAVE_ALL_API = y || ETAL_HAVE_SEAMLESS = y
+						config APP_TEST_SEAMLESS
+						bool 'Build the seamless tests'
+						help
+							API tested:
+								etal_seamless_estimation_start()
+								etal_seamless_switching()
+								etal_seamless_estimation_stop()
+							Perform several seamless estimation on configured receivers with various command.
+					endif # ETAL_HAVE_SEAMLESS
+				endif # APP_TEST_DAB && APP_TEST_FM
+
+				if APP_TEST_DAB = y
+					config APP_TEST_DABDATA
+					bool 'Build the Dab data test'
+					help
+						API tested:
+							etal_service_select() for RAW DAB data services
+					if APP_TEST_DABDATA = y
+						config APP_TEST_DABDATA_CONTINUOUS
+						bool 'Build the continuous DAB data test'
+						help
+							Endless test catching data from the A2 and printing
+							error counters
+					endif # APP_TEST_DABDATA
+						
+				endif # APP_TEST_DAB
+
+				if ETAL_SUPPORT_CMOST_STAR = y && ETAL_SUPPORT_CMOST_STAR_T_CUT_BC != y
+					config APP_TEST_MANUAL_SEEK
+					bool 'Build the manual seek test'
+					help
+						API tested:
+							etal_seek_start_manual()
+							etal_seek_stop_manual()
+							etal_seek_continue_manual()
+							etal_seek_get_status_manual()
+						Tunes to a good station then perform manual seek test.						
+				endif # ETAL_SUPPORT_CMOST_STAR && !ETAL_SUPPORT_CMOST_STAR_T_CUT_BC
+						
+				if ETAL_SUPPORT_CMOST_STAR = y
+					if APP_TEST_FM = y
+						config APP_TEST_GETRAWRDS_DATAPATH
+						bool 'Build the RAW RDS datapath test'
+						help
+							API tested:
+								etal_start_RDS()
+								etal_stop_RDS()
+							Sets up a RAW RDS data path and checks if data is received for
+							some time, then stops the path.
+					endif # APP_TEST_FM
+				endif # ETAL_SUPPORT_CMOST_STAR
+
+				if APP_TEST_FM = y || APP_TEST_AM = y || APP_TEST_DAB = y || APP_TEST_HDRADIO_FM = y || APP_TEST_HDRADIO_AM = y
+					config APP_TEST_SEEK
+					bool 'Build the automatic seek test'
+					help
+						API tested:
+							etal_autoseek_start()
+							etal_autoseek_stop()
+						Tunes to a good station then seeks up to the next one;
+						then seeks down back to the first one;
+						then seeks from a different start frequency.
+				endif # APP_TEST_FM || APP_TEST_DAB || APP_TEST_HDRADIO_FM || APP_TEST_HDRADIO_AM
+
+
+				if ETAL_HAVE_ETALTML = y
+					if APP_TEST_FM = y || APP_TEST_AM = y || APP_TEST_DAB = y || APP_TEST_HDRADIO_FM = y || APP_TEST_HDRADIO_AM = y
+						if ETAL_SUPPORT_CMOST_STAR = y
+								config APP_TEST_GETRDS
+								bool 'Build the RDS test'
+								help
+									API tested:
+										etal_get_decoded_RDS()
+									Configures the receiver and tunes to a good station.
+									Then requests decoded RDS data. The decoded data is compared
+									with a pre-recorded data set.
+
+								if APP_TEST_GETRDS = y && (APP_TEST_HDRADIO_FM = y || APP_TEST_FM = y || APP_TEST_HDRADIO_AM = y)
+									config APP_TEST_GETRDS_DATAPATH
+									bool 'Build the RDS datapath test'
+									help
+										API tested:
+											etal_start_RDS()
+											etal_stop_RDS()
+										Sets up a decoded RDS data path and checks if data is received for
+										some time, then stops the path. The decoded data is compared
+										with a pre-recorded data set.
+								endif # APP_TEST_GETRDS && (APP_TEST_HDRADIO_FM = y || APP_TEST_FM = y || APP_TEST_HDRADIO_AM = y)
+						endif # ETAL_SUPPORT_CMOST_STAR
+
+						config APP_TEST_GETRADIOTEXT
+							bool 'Build the radiotext test'
+							help
+								API tested:
+									etal_get_radiotext()
+									etal_start_radiotext()
+								Configures the receiver and tunes to a good station.
+								Then reads the radiotext information
+					endif # APP_TEST_FM || APP_TEST_DAB || APP_TEST_HDRADIO_FM || APP_TEST_HDRADIO_AM
+
+					if APP_TEST_FM = y || APP_TEST_AM = y || APP_TEST_HDRADIO_FM = y || APP_TEST_HDRADIO_AM = y
+						# Will not be implemented for DAB
+						config APP_TEST_SCAN
+						bool 'Build the scan test'
+						help
+							API tested:
+							etal_scan_start() / etal_scan_stop()
+							Walks through FM band and plays good stations;
+							Test supported only on:
+							- FM (CMOST STAR)
+					endif # APP_TEST_FM || APP_TEST_AM || APP_TEST_HDRADIO_FM || APP_TEST_HDRADIO_AM
+
+					config APP_TEST_LEARN
+					bool 'Build the learn test'
+					help
+						API tested:
+							etaltml_learn_start()
+							etaltml_learn_stop()
+						Performs a learn procedure form start frequency to end frequency;
+						then tries to issue the learn command in some illegal situations;
+						finally tries to stop a learn while it is in progress
+
+					if ETALTML_HAVE_RDS_STRATEGY = y
+					   config APP_TEST_RDS_SEEK
+					   bool 'Build the rds seek test'
+					   help
+						API tested:
+						    etaltml_RDS_seek_start
+
+					   config APP_TEST_RDS_AF_STRATEGY
+					   bool 'Build the rds AF strategy test'
+					   help
+						API tested:
+						    etaltml_RDS_AF 
+					endif # ETALTML_HAVE_RDS_STRATEGY
+				endif #ETAL_HAVE_ETALTML 
+
+				if ETAL_SUPPORT_CMOST = y
+					config APP_TEST_READ_WRITE_PARAMETER
+					bool 'Build the read/write parameter tests'
+					help
+						API tested:
+							etal_read_parameter()
+							etal_write_parameter()
+						Test read / write memory cells in CMOST.
+
+					if ETAL_HAVE_XTAL_ALIGNMENT = y || ETAL_HAVE_ALL_API = y
+					config APP_TEST_XTAL_ALIGNMENT
+					bool 'Build the XTAL alignment test'
+					help
+						API tested:
+							- etal_xtal_alignment
+							- etal_initialize with XTAL correction
+						Initializes the CMOST with default XTAL alignment,
+						measures the correction and saves it to file.
+						Upon ETAL initialization, if the file exists, uses the
+						value there contained to init the XTAL with the calculated correction
+					endif # ETAL_HAVE_XTAL_ALIGNMENT || ETAL_HAVE_ALL_API
+				endif # ETAL_SUPPORT_CMOST
+
+				if ETAL_HAVE_GET_VERSION = y || ETAL_HAVE_ALL_API = y
+				config APP_TEST_GET_VERSION
+				bool 'Build the Get Version test'
+				help
+					API tested:
+						- etal_get_version
+				endif # ETAL_HAVE_GET_VERSION || ETAL_HAVE_ALL_API
+
+				if APP_TEST_DAB = y
+				config APP_TEST_DCOP
+				bool 'Build DCOP tests'
+				help
+					Tests aiming to verify DCOP functionalities
+					Normally are not needed for ETAL verification
+
+				if APP_TEST_DCOP = y
+
+						config APP_TEST_SERVICE_SELECT_DCOP
+						bool 'Build the DCOP service select test'
+						help
+							Test the DCOP Service Select (0x061) command
+							Uses the ETI DE-Bayern-20090730
+							These tests are defined to stress the DCOP Service Select
+							in ways not possible with the QT GUI, so are more DCOP test
+							rather than ETAL test. They can be run for ETAL but are not
+							normally necessary
+
+						config APP_TEST_TUNE_DCOP
+						bool 'Build the DCOP Tune test'
+						help
+							Test the DCOP Tune command (0x060)
+							Uses the ETI DE-Bayern-20090730
+							This test is used to DCOP tune command in continuous and fast
+							sequence. The test was devised to debug the issue of the
+							DCOP returning 'No Data' on valid frequency sometimes
+							
+				endif # APP_TEST_DCOP
+				endif # APP_TEST_DAB
+
+					if ETAL_SUPPORT_CMOST_STAR = y
+					if ETAL_SUPPORT_CMOST_DUAL_CHANNEL = y
+					config APP_TEST_FM_VPA
+					bool 'Build the FM VPA tests'
+					help
+						Tests aiming to verify FM VPA functionalities.
+						API tested:
+							- etal_config_receiver
+					endif # $ETAL_SUPPORT_CMOST_DUAL_CHANNEL
+
+					if ETAL_HAVE_DEBUG_COMMANDS = y || ETAL_HAVE_ALL_API = y
+					menu 'Build the Debug and Evaluation operations test'
+						config APP_TEST_DEBUG_DISS_WSP
+						bool 'Build the Debug set DISS and Get WSP Status test'
+						help
+							API tested:
+								- etal_debug_DISS_control
+								- etal_debug_get_WSP_Status
+							Test the DISS different modes and filters
+							and read DISS filter value with Get WSP Status
+						if ETAL_SUPPORT_CMOST_DUAL_CHANNEL = y
+						config APP_TEST_DEBUG_VPA_CONTROL
+						bool 'Build the Debug VPA Control test'
+						help
+							API tested:
+								- etal_debug_VPA_control
+							Test the enable disable debug VPA control for different use cases.
+						endif # $ETAL_SUPPORT_CMOST_DUAL_CHANNEL
+					endmenu
+					endif # ETAL_HAVE_DEBUG_COMMANDS || ETAL_HAVE_ALL_API
+					endif # ETAL_SUPPORT_CMOST_STAR
+
+				if DEBUG_INCLUDE_SPECIAL_FUNCTION = y
+					config APP_TEST_SPECIAL
+					bool 'Build special tests'
+					help
+						When selected additional tests are shown
+						These are only for very particular development issues,
+						none should be normally enabled
+						Normally only one of these tests should be selected at a time.
+						These tests are not started automatically, they must be
+						selected at run-time with a command line option (issue 'etaltest -h'
+						to see the list of options).
+
+					if APP_TEST_SPECIAL = y
+					config APP_TEST_STACK
+					bool 'Build stack protection tests'
+					help
+						API tested:
+							none
+						Attempts to verify the stack checking code inserted by GCC
+						WARNING: does not work
+
+					if COMM_ENABLE_RDS_IRQ = n
+						config APP_TEST_SIGNALLING_GPIO
+						bool 'Build Signaling GPIO test'
+						help
+							API tested:
+								none
+							Check the functionality of the internal APIs providing access
+							to the signaling GPIO; this GPIO is shared with the CMOST
+							RDS IRQ so only one of the two functionality can be selected
+							For this function to be available also BSP_INCLUDE_SIGNALLING_GPIO
+							must be defined in the BSP
+							- Set the signaling GPIO to a 0 value
+							- sleep 5sec
+							- set to 1
+							- sleep 5 sec
+							- toggle the GPIO on/off, 50% duty cycle, one cycle per 500ms, for 30s
+					endif # COMM_ENABLE_RDS_IRQ
+					config APP_TEST_TUNE_TIME_MEASURE
+					bool 'Build DAB tune to SYNC measure test'
+					help
+						Build special test to measure time from tune to SYNC in the following conditions:
+						- tune to frequency w/o signal, with band change
+						- tune to frequency w/o signal, w/o band change
+						- tune to frequency with signal, w/o band change
+						- tune to frequency with signal, with band change
+						It is recommended to enable tracing for STECI module with level
+						COMPONENT to see the autonotification from the DCOP and their timing
+					endif # APP_TEST_SPECIAL
+				endif # DEBUG_INCLUDE_SPECIAL_FUNCTION
+
+			endmenu
+		endif # APP_ETAL_TEST
+
+		config APP_OSALCORE_TESTS
+		bool 'Build the OSALCORE test suite'
+		help
+			Builds the OSALCORE test suite only (no ETAL)
+			The list of tests can be selected under 'Test and Debug Switches'
+			The executable is named 'osaltest<extension>'
+			The <extension> depends on the 'Host System' setting
+		if APP_OSALCORE_TESTS = y
+			config APP_OSALCORE_THREADS_TEST
+			bool 'Build Thread tests'
+			help
+				Build the OSALCORE Thread tests
+			config APP_OSALCORE_SEMAPHORE_TEST
+			bool 'Build Semaphore tests'
+			help
+				Build the OSALCORE Semaphore tests
+			config APP_OSALCORE_EVENTS_TEST
+			bool 'Build Event tests'
+			help
+				Build the OSALCORE Event tests
+		endif # APP_OSALCORE_TESTS
+
+	if ETAL_SUPPORT_DCOP_MDR = y && COMM_DCOP_MDR_FIRMWARE_FILE = y
+		config APP_ETAL_DCOP_MDR_FLASH
+		bool 'Build the ETAL DCOP MDR flash application'
+		help
+			Builds the ETAL DCOP MDR flash application
+	endif # ETAL_SUPPORT_DCOP_MDR && COMM_DCOP_MDR_FIRMWARE_FILE
+
+	endchoice # Application Type
+endmenu # Application Configuration
+
+################################################################################
+#
+# Submenu: 'Trace Settings'
+#
+################################################################################
+menu 'Trace Settings'
+
+	config TRACE_ENABLE
+		bool 'Enable trace output'
+		help
+			Includes in the build strings and functions to trace the output
+			Select to further define the per-module trace level
+	if TRACE_ENABLE = y
+		config TRACE_ASYNC
+		bool 'Asynchronous traces'
+		help
+			Strings to be printed are inserted in a FIFO and
+			printed to the terminal from a dedicated thread.
+			If defined creates a new thread and (optionally) uses dynamic memory
+			allocation to manage the FIFO.
+			In case of FIFO overflow the newest messages are discarded
+			until there is some space. To avoid these overflows the ETAL test application
+			inserts an artificial delay between test loops when executed with option -l
+		config TRACE_ETAL_SYSLOG
+		bool 'ETAL trace logged in SYSLOG System'
+		help
+			Valid for LINUX SYSTEM ONLY.
+			When activated, the trace are logged thru linux system 'syslog' daemon.
+			Logs are output in syslog file.
+			the linux platform has to be setup with syslog : configuring syslog.
+		menu 'Minimum Trace Level Configuration'
+		comment 'Configure compile time trace levels.'
+		comment 'Trace messages with lower level will not be compiled into the binary.'
+		config TRACE_CLASS_OSALCORE
+			default 2
+			int 'Level for TRACE_CLASS_OSALCORE'
+			help
+				Configure minimum trace level for OSALCORE
+				Only messages with this level or lower will be included in the build
+				0 TR_LEVEL_FATAL (fatal errors)
+				1 TR_LEVEL_ERRORS (functional errors)
+				2 TR_LEVEL_SYSTEM_MIN (minimal system information)
+				3 TR_LEVEL_SYSTEM (some more system information)
+				4 TR_LEVEL_COMPONENT (internal component information)
+				5 TR_LEVEL_USER_1 (more information)
+				6 TR_LEVEL_USER_2 (more information)
+				7 TR_LEVEL_USER_3 (more information)
+				8 TR_LEVEL_USER_4 (more information)
+		config TRACE_CLASS_ETAL
+			default 2
+			int 'Level for TRACE_CLASS_ETAL'
+			help
+				Configure minimum trace level for ETAL
+				Only messages with this level or lower will be included in the build
+				0 TR_LEVEL_FATAL (fatal errors)
+				1 TR_LEVEL_ERRORS (functional errors)
+				2 TR_LEVEL_SYSTEM_MIN (minimal system information)
+				3 TR_LEVEL_SYSTEM (some more system information)
+				4 TR_LEVEL_COMPONENT (internal component information)
+				5 TR_LEVEL_USER_1 (more information)
+				6 TR_LEVEL_USER_2 (more information)
+				7 TR_LEVEL_USER_3 (more information)
+				8 TR_LEVEL_USER_4 (more information)
+		config TRACE_CLASS_BOOT
+			default 2
+			int 'Level for TRACE_CLASS_BOOT'
+			help
+				Configure minimum trace level for BOOT driver
+				Only messages with this level or lower will be included in the build
+				0 TR_LEVEL_FATAL (fatal errors)
+				1 TR_LEVEL_ERRORS (functional errors)
+				2 TR_LEVEL_SYSTEM_MIN (minimal system information)
+				3 TR_LEVEL_SYSTEM (some more system information)
+				4 TR_LEVEL_COMPONENT (internal component information)
+				5 TR_LEVEL_USER_1 (more information)
+				6 TR_LEVEL_USER_2 (more information)
+				7 TR_LEVEL_USER_3 (more information)
+				8 TR_LEVEL_USER_4 (more information)
+		config TRACE_CLASS_CMOST
+			default 2
+			int 'Level for TRACE_CLASS_CMOST'
+			help
+				Configure minimum trace level for CMOST driver
+				(WARNING: includes the Firmware download messages
+				which may overflow the output)
+				Only messages with this level or lower will be included in the build
+				0 TR_LEVEL_FATAL (fatal errors)
+				1 TR_LEVEL_ERRORS (functional errors)
+				2 TR_LEVEL_SYSTEM_MIN (minimal system information)
+				3 TR_LEVEL_SYSTEM (some more system information)
+				4 TR_LEVEL_COMPONENT (internal component information)
+				5 TR_LEVEL_USER_1 (more information)
+				6 TR_LEVEL_USER_2 (more information)
+				7 TR_LEVEL_USER_3 (more information)
+				8 TR_LEVEL_USER_4 (more information)
+		config TRACE_CLASS_TUNERDRIVER
+			default 2
+			int 'Level for TRACE_CLASS_TUNERDRIVER'
+			help
+				Configure minimum trace level for TUNERDRIVER
+				Set this to 4 to view the raw CMOST commands and responses
+				_excluding_ the Firmware or Patches download.
+				Only messages with this level or lower will be included in the build
+				0 TR_LEVEL_FATAL (fatal errors)
+				1 TR_LEVEL_ERRORS (functional errors)
+				2 TR_LEVEL_SYSTEM_MIN (minimal system information)
+				3 TR_LEVEL_SYSTEM (some more system information)
+				4 TR_LEVEL_COMPONENT (internal component information)
+				5 TR_LEVEL_USER_1 (more information)
+				6 TR_LEVEL_USER_2 (more information)
+				7 TR_LEVEL_USER_3 (more information)
+				8 TR_LEVEL_USER_4 (more information)
+		config TRACE_CLASS_HDRADIO
+			default 2
+			int 'Level for TRACE_CLASS_HDRADIO'
+			help
+				Configure minimum trace level for HDRADIO driver
+				Only messages with this level or lower will be included in the build
+				0 TR_LEVEL_FATAL (fatal errors)
+				1 TR_LEVEL_ERRORS (functional errors)
+				2 TR_LEVEL_SYSTEM_MIN (minimal system information)
+				3 TR_LEVEL_SYSTEM (some more system information)
+				4 TR_LEVEL_COMPONENT (internal component information)
+				5 TR_LEVEL_USER_1 (more information)
+				6 TR_LEVEL_USER_2 (more information)
+				7 TR_LEVEL_USER_3 (more information)
+				8 TR_LEVEL_USER_4 (more information)
+		config TRACE_CLASS_STECI
+			default 2
+			int 'Level for TRACE_CLASS_STECI'
+			help
+				Configure minimum trace level for STECI driver
+				Only messages with this level or lower will be included in the build
+				0 TR_LEVEL_FATAL (fatal errors)
+				1 TR_LEVEL_ERRORS (functional errors)
+				2 TR_LEVEL_SYSTEM_MIN (minimal system information)
+				3 TR_LEVEL_SYSTEM (some more system information)
+				4 TR_LEVEL_COMPONENT (internal component information)
+				5 TR_LEVEL_USER_1 (more information)
+				6 TR_LEVEL_USER_2 (more information)
+				7 TR_LEVEL_USER_3 (more information)
+				8 TR_LEVEL_USER_4 (more information)
+		if COMM_DRIVER_EMBEDDED = y
+			config TRACE_CLASS_BSP
+				default 2
+				int 'Level for TRACE_CLASS_BSP'
+				help
+					Configure minimum trace level for low level drivers
+					Only messages with this level or lower will be included in the build
+					0 TR_LEVEL_FATAL (fatal errors)
+					1 TR_LEVEL_ERRORS (functional errors)
+					2 TR_LEVEL_SYSTEM_MIN (minimal system information)
+					3 TR_LEVEL_SYSTEM (some more system information)
+					4 TR_LEVEL_COMPONENT (internal component information)
+					5 TR_LEVEL_USER_1 (more information)
+					6 TR_LEVEL_USER_2 (more information)
+					7 TR_LEVEL_USER_3 (more information)
+					8 TR_LEVEL_USER_4 (more information)
+		endif # COMM_DRIVER_EMBEDDED
+		config TRACE_CLASS_IPFORWARD
+			default 2
+			int 'Level for TRACE_CLASS_IPFORWARD'
+			help
+				Configure minimum trace level for the ETAL IPForward subsystem
+				(the interface to the low level device driver running over TCP/IP)
+				Only messages with this level or lower will be included in the build
+				0 TR_LEVEL_FATAL (fatal errors)
+				1 TR_LEVEL_ERRORS (functional errors)
+				2 TR_LEVEL_SYSTEM_MIN (minimal system information)
+				3 TR_LEVEL_SYSTEM (some more system information)
+				4 TR_LEVEL_COMPONENT (internal component information)
+				5 TR_LEVEL_USER_1 (more information)
+				6 TR_LEVEL_USER_2 (more information)
+				7 TR_LEVEL_USER_3 (more information)
+				8 TR_LEVEL_USER_4 (more information)
+		if ETAL_MDR_AUDIO_CODEC_ON_HOST = n
+		config ENABLE_CLASS_APP_DABMW
+			default 2
+			int 'Level for RDS'
+			help
+				Configure minimum trace level for the ETAL RDS subsystem
+				Only messages with this level or lower will be included in the build
+				0 TR_LEVEL_FATAL (fatal errors)
+				1 TR_LEVEL_ERRORS (functional errors)
+				2 TR_LEVEL_SYSTEM_MIN (minimal system information)
+				3 TR_LEVEL_SYSTEM (some more system information)
+				4 TR_LEVEL_COMPONENT (internal component information)
+				5 TR_LEVEL_USER_1 (more information)
+				6 TR_LEVEL_USER_2 (more information)
+				7 TR_LEVEL_USER_3 (more information)
+				8 TR_LEVEL_USER_4 (more information)
+		endif
+		config ENABLE_CLASS_APP_DABMW_SF
+			bool 'Enable Service Following trace output'
+			help
+				Includes in the build strings and functions to trace the output of Service Following feature
+				Select to further define the service following trace level
+			if ENABLE_CLASS_APP_DABMW_SF = y
+				config DEFAULT_CLASS_APP_DABMW_SF_LEVEL
+				default 3
+				int 'Trace Level Configuration for Service Following'
+				help
+					Configure default level at compile time for Service Following
+					Trace messages with lower level will not be printed but compiled
+					0 TR_LEVEL_FATAL (fatal errors)
+					1 TR_LEVEL_ERRORS (functional errors)
+					2 TR_LEVEL_SYSTEM_MIN (minimal system information)
+					3 TR_LEVEL_SYSTEM (some more system information)
+					4 TR_LEVEL_COMPONENT (internal component information)
+					5 TR_LEVEL_USER_1 (more information)
+					6 TR_LEVEL_USER_2 (more information)
+					7 TR_LEVEL_USER_3 (more information)
+					8 TR_LEVEL_USER_4 (more information)
+			endif # ENABLE_CLASS_APP_DABMW_SF
+		if ETALTML_HAVE_RDS_STRATEGY = y
+			config TRACE_CLASS_RDS_STRATEGY
+				default 2
+				int 'Level for TRACE_CLASS_RDS_STRATEGY'
+				help
+					Configure minimum trace level for low level drivers
+					Only messages with this level or lower will be included in the build
+					0 TR_LEVEL_FATAL (fatal errors)
+					1 TR_LEVEL_ERRORS (functional errors)
+					2 TR_LEVEL_SYSTEM_MIN (minimal system information)
+					3 TR_LEVEL_SYSTEM (some more system information)
+					4 TR_LEVEL_COMPONENT (internal component information)
+					5 TR_LEVEL_USER_1 (more information)
+					6 TR_LEVEL_USER_2 (more information)
+					7 TR_LEVEL_USER_3 (more information)
+					8 TR_LEVEL_USER_4 (more information)
+		endif # ETALTML_HAVE_RDS_STRATEGY			
+		config TRACE_CLASS_EXTERNAL
+			default 2
+			int 'Level for messages from the Digital Co-Processor'
+			help
+				Configure minimum trace level of the ASCII messages coming from the Digital Co-Processor to be printed by ETAL
+		config TRACE_DEFAULT_LEVEL
+			default 2
+			int 'Default minimum trace level'
+			help
+				Configure global minimum trace level
+				Only messages with this level or lower will be send to the output
+					0 TR_LEVEL_FATAL (fatal errors)
+					1 TR_LEVEL_ERRORS (functional errors)
+					2 TR_LEVEL_SYSTEM_MIN (minimal system information)
+					3 TR_LEVEL_SYSTEM (some more system information)
+					4 TR_LEVEL_COMPONENT (internal component information)
+					5 TR_LEVEL_USER_1 (more information)
+					6 TR_LEVEL_USER_2 (more information)
+					7 TR_LEVEL_USER_3 (more information)
+					8 TR_LEVEL_USER_4 (more information)
+		endmenu # Minimum Trace Level Configuration
+				
+		menu 'Other Trace configuration'
+		config TRACE_INCLUDE_FILTERS
+			bool 'Include trace filters capabilities'
+			help
+				Trace filters permit to selectively increase the trace level
+				on module basis. This option selects how many filters will
+				be supported by ETAL (it does not create the filters themselves,
+				these must be created using the ETAL API)
+			if TRACE_INCLUDE_FILTERS = y
+				config OSUTIL_TRACE_NUM_FILTERS
+					default 8
+				int 'Number of runtime trace filters'
+				help
+					Max number of trace filters supported by ETAL
+		endif # TRACE_INCLUDE_FILTERS
+		if COMM_DRIVER_EXTERNAL = y
+			config TRACE_ENABLE_IPFORWARD_LOGFILE
+				bool 'Enable IPForward logging to file'
+				help
+					Further trace option for lib_ipforward: if defined the library
+					logs all actions to a text file, independently of the
+					TRACE_CLASS_APP_IPFORWARD level, including the binary
+					content of the commands. The same is also echoed on the console.
+					This is the only way to get a trace of the data exchanged
+					with the device since ENABLE_CLASS_APP_IPFORWARD traces only
+					the commands, not the sent/received data.
+					This option adds a LOG_BUFFER_SIZE (4Kb) buffer per TCP/IP connection.
+					The log file is named ETAL_MDR_protocol_log.txt or ETAL_CMOST_protocol_log.txt
+		endif # COMM_DRIVER_EXTERNAL
+		endmenu # Other Trace configuration
+	endif
+
+endmenu # Trace Settings
+
+################################################################################
+#
+# Submenu: 'Build Environment'
+#
+################################################################################
+menu 'Build Environment'
+	config BUILD_SILENT
+	bool 'Silent build'
+	help
+		Omit compiler/linker command line from the build output
+		When selected the build process only outputs errors and warnings
+	choice
+		prompt 'Host system'
+		help
+			Defines the system that executes the ETAL. The build system uses
+			this information to choose the appropriate standard 'C' library
+			functions for OSAL, BSP and the CMOST and DCOP device drivers.
+		default HOST_OS_LINUX
+		config HOST_OS_LINUX
+		bool 'Build for Linux system'
+			help
+				Select to run ETAL on a Linux system.
+				This is the choice to run ETAL on:
+				- embedded Linux system (e.g. Accordo2)
+				- Desktop Linux (e.g. Ubuntu, Gentoo)
+				- Linux system (e.g. Lubuntu) running from a Virtual Machine (e.g. Oracle VirtualBox).
+				In the latter two cases the CMOST and DCOP driver must be EXTERNAL (via the Protocol Layer).
+				The ETAL build system has no way to enforce this requirement, care must be taken by the
+				ETAL library user.
+		if HOST_OS_LINUX = y
+			choice
+				prompt 'HOST_OS_LINUX type'
+				config HOST_OS_LINUX_EMBEDDED
+				bool 'Build for Linux system embedded'
+					help
+						Select to run ETAL on a Linux system embedded.
+						This is the choice to run ETAL on:
+						- embedded Linux system (e.g. Accordo2)
+				config HOST_OS_LINUX_DESKTOP
+				bool 'Build for Linux system desktop'
+					help
+						Select to run ETAL on a Linux system desktop.
+						This is the choice to run ETAL on:
+						- Desktop Linux (e.g. Ubuntu, Gentoo)
+						- Linux system (e.g. Lubuntu) running from a Virtual Machine (e.g. Oracle VirtualBox).
+						In the latter two cases the CMOST and DCOP driver must be EXTERNAL (via the Protocol Layer).
+						The ETAL build system has no way to enforce this requirement, care must be taken by the
+						ETAL library user.
+			endchoice
+		endif # HOST_OS_LINUX
+		config HOST_OS_WIN32
+		bool 'Build for MinGW/Win32 system'
+			help
+				Select to run ETAL on a Windows Desktop PC with FTDI USB-to-SPI adapter.
+				The CMOST and DCOP driver must be EXTERNAL (via the Protocol Layer)
+		config HOST_OS_TKERNEL
+		bool 'Build for T-Kernel system'
+			help
+				Select to run ETAL on a T-Kernel system.
+				This is the choice to run ETAL on:
+				- embedded T-Kernel system (e.g. Accordo2)
+				If this is selected Toolchain and Code generation options will be
+				hidden since T-Kernel uses its own build environment.
+	endchoice # Host system
+	if HOST_OS_LINUX = y || HOST_OS_WIN32 = y
+		choice
+			prompt 'Toolchain'
+			help
+				Defines the type of compiler toolchain.
+				This impacts only on the Makefile choice of the compiler executable name.
+			default COMPILER_GCC_CROSS
+			config COMPILER_GCC_CROSS
+			bool 'Use GCC cross compiler toolchain'
+				help
+					Uses 'arm-v7-linux-uclibceabi-gcc' toolchain to build for an ARM host
+			config COMPILER_GCC_NATIVE
+			bool 'Use GCC native toolchain'
+				help
+					Uses 'gcc' toolchain to build for an x86 Desktop PC host.
+					Select this option for Win32 builds (MinGW)
+		endchoice # Toolchain
+		if COMPILER_GCC_CROSS = y
+			choice
+				prompt 'Code generation'
+				default COMPILER_GCC_CROSS_THUMB
+				config COMPILER_GCC_CROSS_ARM
+				bool 'Use ARM instruction set'
+					help
+						Configure GCC to generate ARM instruction set. Might result in slightly
+						faster and larger code.
+				config COMPILER_GCC_CROSS_THUMB
+				bool 'Use Thumb instruction set'
+					help
+						Configure GCC to generate Thumb instruction set. This is a reduced set of
+						instructions that uses less bits per instructions and thus results in smaller
+						(and possibly slower) code.
+			endchoice # Code generation
+		endif # COMPILER_GCC_CROSS
+	endif # HOST_OS_LINUX || HOST_OS_WIN32
+endmenu # Build Environment
+
+################################################################################
+#
+# Submenu: 'Test and Debug Switches'
+#
+################################################################################
+menu 'Test and Debug Switches'
+
+	config DEBUG_OSAL
+	bool 'Enable OSAL debugging'
+	help
+		Builds into the OSAL code additional run-time tests (ASSERTS)
+		Not recommended for final build
+
+	config DEBUG_SYMBOLS
+	bool 'Include debug symbols in the build'
+	help
+		Adds compiler/linker switches to keep the debugging symbols
+
+	config DEBUG_STACK_USAGE
+	bool 'Generate stack usage maps'
+	help
+		Configure GCC to create the .su files containing the stack usage estimations
+
+	if HOST_OS_LINUX = y
+		config DEBUG_MEMORY_USAGE
+		bool 'Check free memory'
+		help
+			Adds code to etaltest to output the free memory before and after the test suite
+			using Linux command line utilities (free, grep, tr, cut).
+			Suggested to run etaltest with limited output in loop mode (e.g. 'etaltest -q 4 -t 0 -l 100')
+	endif
+
+	config DEBUG_INST_FUNC
+	bool 'Enable function profiling'
+	help
+		Add compilation switch -finstrument-functions to activate debug function profiling.
+		Generate instrumentation calls for entry and exit to functions profiling in file trace.out.
+		Profiling allows you to learn where your program spent its time and which functions called which other functions while it was executing.
+		Use script readtracelog.sh to decode function names.
+
+	config ETAL_CPU_IMPROVEMENT_STECI
+	bool 'Enable ETAL CPU improvements'
+	help
+		enable etal CPU improvements 
+		recommanded for Linux only
+
+	config ETAL_CPU_IMPROVEMENT
+	bool 'Enable ETAL CPU improvements'
+	help
+		enable etal CPU improvements 
+		recommanded for Linux only
+		
+	if APP_ETAL_TEST = y
+		config DEBUG_INCLUDE_SPECIAL_FUNCTION
+		bool 'Add special test functions'
+		help
+			DON'T SELECT IF YOU DON'T KNOW WHAT YOU ARE DOING
+			This option permits to select additional options under Application Configuration
+
+		config DEBUG_COVERAGE
+		bool 'Generate coverage files'
+		help
+			Configures GCC to create coverage files (.gcno) by adding the
+			-fprofile-arcs and -ftest-coverage compile flags.
+			During program execution the .gcda files will be generated containing
+			the execution statistics.
+			The .gcda files may be analized by issuing 'make coverage'
+			This option is only provided for etaltest application.
+	endif # APP_ETAL_TEST
+
+	menu 'ETAL build-time and run-time checks'
+	config DEBUG_ETAL_CHECKS
+	bool 'Include various build-time and run-time checks'
+	help
+		If selected permits to select some sanity checks to include in the build
+		Some of these tests depend on DEBUG_OSAL
+		Not recommended for final build
+	if DEBUG_ETAL_CHECKS = y
+	if DEBUG_OSAL = y
+
+		config DEBUG_TYPEDEF_CHECK
+		bool 'Include run-time checks on critical typedef sizes'
+		help
+			ETAL assumes that some variables fit in a single byte. This option
+			selects if to include code to check at run-time this assumption.
+			Not recommended for the final build
+
+		config DEBUG_CONFIG_VALIDATE_CHECK
+		bool 'Include run-time checks on board configuration arrays'
+		help
+			The etalconfig_*.c files contain the board description. This option
+			includes code to perform some run-time checks on the validity of the
+			board configuration arrays.
+	endif # DEBUG_OSAL
+	endif # DEBUG_ETAL_CHECKS
+	endmenu # DEBUG_ETAL_CHECKS
+endmenu # Test and Debug Switches
+
+################################################################################
+# EOF
+################################################################################

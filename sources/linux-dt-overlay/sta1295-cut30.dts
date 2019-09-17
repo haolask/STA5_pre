@@ -1,0 +1,22 @@
+/*
+ * Copyright (C) 2016 STMicroelectronics
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2, as
+ * published by the Free Software Foundation.
+ */
+
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "st,sta1295";
+
+	fragment@0 {
+		target = <&srcm3_clk>;
+		__overlay__ {
+			compatible = "st,sta1295-src-m3-clk";
+		};
+	};
+};
+

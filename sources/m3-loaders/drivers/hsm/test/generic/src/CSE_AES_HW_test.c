@@ -1,0 +1,1466 @@
+/*
+    SPC5-CRYPTO - Copyright (C) 2014 STMicroelectronics
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+*/
+
+/**
+ * @file    CSE_AES_HW_test.c
+ * @brief   CSE AES driver computation function tests
+ * @details
+ *
+ * @addtogroup CSE_driver
+ * @{
+ * @addtogroup CSE_driver_test
+ * @{
+ */
+#include "config.h"
+#include "CSE_Constants.h"
+#include "CSE_AES_HW_Modes.h"
+#include "CSE_AES_HW_test.h"
+
+#include "CSE_AES_API_sc.h"
+#include "CSE_Key.h"
+
+#include <string.h> /* for memcmp */
+#include "serialprintf.h"
+
+#include "err_codes.h"
+#include "test_support.h"
+
+#define CRL_AES128_KEY 16
+#define CRL_AES_BLOCK 16
+
+/* number of NIST blocks */
+#define TEST_BLOCKS_NUMBER  4
+/* length of NIST test vectors */
+#define TEST_MESSAGES_LENGTH  TEST_BLOCKS_NUMBER*CRL_AES_BLOCK
+
+/* NIST plaintext vector: in decryption test we expect this vector as result */
+const ALIGN uint8_t expectedPlainText_small[TEST_MESSAGES_LENGTH] = {
+      0x6b, 0xc1, 0xbe, 0xe2, 0x2e, 0x40, 0x9f, 0x96,
+      0xe9, 0x3d, 0x7e, 0x11, 0x73, 0x93, 0x17, 0x2a,
+      0xae, 0x2d, 0x8a, 0x57, 0x1e, 0x03, 0xac, 0x9c,
+      0x9e, 0xb7, 0x6f, 0xac, 0x45, 0xaf, 0x8e, 0x51,
+      0x30, 0xc8, 0x1c, 0x46, 0xa3, 0x5c, 0xe4, 0x11,
+      0xe5, 0xfb, 0xc1, 0x19, 0x1a, 0x0a, 0x52, 0xef,
+      0xf6, 0x9f, 0x24, 0x45, 0xdf, 0x4f, 0x9b, 0x17,
+      0xad, 0x2b, 0x41, 0x7b, 0xe6, 0x6c, 0x37, 0x10};
+
+/* NIST given key */
+const ALIGN uint8_t key[CRL_AES128_KEY] = {
+      0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6,
+      0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf, 0x4f, 0x3c};
+
+/* NIST ciphertext vector: in encryption we expect this vector as result */
+const ALIGN uint8_t expectedCipherText_small[TEST_MESSAGES_LENGTH] = {
+      0x3a, 0xd7, 0x7b, 0xb4, 0x0d, 0x7a, 0x36, 0x60,
+      0xa8, 0x9e, 0xca, 0xf3, 0x24, 0x66, 0xef, 0x97,
+      0xf5, 0xd3, 0xd5, 0x85, 0x03, 0xb9, 0x69, 0x9d,
+      0xe7, 0x85, 0x89, 0x5a, 0x96, 0xfd, 0xba, 0xaf,
+      0x43, 0xb1, 0xcd, 0x7f, 0x59, 0x8e, 0xce, 0x23,
+      0x88, 0x1b, 0x00, 0xe3, 0xed, 0x03, 0x06, 0x88,
+      0x7b, 0x0c, 0x78, 0x5e, 0x27, 0xe8, 0xad, 0x3f,
+      0x82, 0x23, 0x20, 0x71, 0x04, 0x72, 0x5d, 0xd4};
+
+/* NIST given IV */
+const ALIGN uint8_t IV[CRL_AES_BLOCK] = {
+      0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+      0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d,
+      0x0e, 0x0f};
+
+uint8_t expectedPlainText[32 * TEST_MESSAGES_LENGTH];  /* calculated plaintext */
+uint8_t computed[32 * TEST_MESSAGES_LENGTH];           /* calculated ciphertext */
+uint8_t expectedCipherText[32 * TEST_MESSAGES_LENGTH]; /* expected ciphertext */
+
+const ALIGN uint8_t expectedCipherText_CBC[32 * TEST_MESSAGES_LENGTH] = {
+        0x76,0x49,0xAB,0xAC,0x81,0x19,0xB2,0x46,0xCE,0xE9,0x8E,0x9B,0x12,0xE9,0x19,0x7D,
+        0x50,0x86,0xCB,0x9B,0x50,0x72,0x19,0xEE,0x95,0xDB,0x11,0x3A,0x91,0x76,0x78,0xB2,
+        0x73,0xBE,0xD6,0xB8,0xE3,0xC1,0x74,0x3B,0x71,0x16,0xE6,0x9E,0x22,0x22,0x95,0x16,
+        0x3F,0xF1,0xCA,0xA1,0x68,0x1F,0xAC,0x09,0x12,0x0E,0xCA,0x30,0x75,0x86,0xE1,0xA7,
+        0x1F,0x55,0x12,0xB4,0xE7,0x73,0xA5,0x91,0xE3,0x38,0x01,0x09,0xA5,0x5E,0x8B,0x75,
+        0xD0,0xCE,0x36,0x6B,0xFF,0x52,0x44,0xE8,0xDD,0x3B,0xAD,0xA4,0x59,0x09,0x05,0x34,
+        0xBE,0x69,0xF5,0x10,0x6B,0x17,0x10,0x3B,0x3C,0xD1,0x67,0x26,0xE8,0x62,0x50,0x8C,
+        0x83,0xE3,0xC0,0x6B,0xA3,0xF9,0x13,0xF7,0x28,0x47,0x22,0xAD,0x4E,0x85,0xDD,0x41,
+        0x9E,0x03,0xB3,0xBB,0x69,0x44,0xCA,0x44,0xBE,0x22,0x28,0x14,0x1D,0x26,0x3F,0xA5,
+        0x60,0x16,0xE9,0x8E,0xB9,0x85,0xEE,0xB3,0x60,0xD4,0x44,0x05,0xB2,0x8A,0x8F,0x94,
+        0x4A,0x91,0xEF,0x7C,0xA4,0x6A,0x62,0xD9,0x85,0x75,0xF6,0x72,0x90,0x4D,0x66,0xC1,
+        0x8A,0xBC,0x05,0x6E,0xE4,0x1E,0x1E,0xD1,0xD9,0x23,0x45,0x6F,0x64,0x3D,0x16,0x03,
+        0xEA,0x14,0x3C,0x88,0x14,0xA1,0x41,0xB5,0x92,0x61,0x11,0x81,0x1A,0x7C,0x0B,0x19,
+        0x76,0xE5,0x2D,0x09,0x02,0xBB,0xC9,0x00,0x22,0x00,0xAE,0x6C,0x14,0x52,0x24,0xEC,
+        0xB3,0x1C,0x87,0x25,0x2C,0x23,0x38,0x55,0x80,0xD6,0x5C,0xDA,0x97,0x84,0x48,0xE9,
+        0xFE,0x6D,0x0A,0xE7,0xD1,0x83,0x55,0x18,0x95,0x51,0xC8,0x8D,0x63,0x18,0x7D,0x17,
+        0x85,0xF3,0x3A,0x84,0x94,0x7A,0x2C,0x73,0x00,0xBC,0x6E,0xB1,0xCF,0x65,0xA8,0x6C,
+        0xFB,0x14,0xD0,0x67,0xDA,0x75,0x9A,0x7E,0xF8,0xF5,0x9A,0x61,0x0A,0xA4,0x45,0x31,
+        0x35,0x1F,0x90,0x88,0x09,0x4A,0xE7,0x3B,0x37,0x7E,0xEC,0x27,0x21,0xB4,0xA9,0x8D,
+        0x12,0xFA,0x18,0x2F,0xFD,0xFA,0x47,0xFF,0xF6,0x94,0xC6,0xDB,0xD3,0x19,0xD4,0x8A,
+        0x40,0x08,0xE1,0x36,0x94,0xAC,0xD5,0x4C,0x5D,0x11,0x59,0xDD,0xD0,0x39,0x12,0xCD,
+        0x2C,0x64,0xF8,0x3C,0xEA,0x9C,0xE6,0x56,0xDE,0xFB,0xAF,0x1A,0x08,0x1B,0xD9,0x84,
+        0x77,0x76,0x9F,0xA0,0x88,0x14,0x1B,0x24,0x49,0x25,0x5E,0x27,0x9C,0xC5,0xC1,0x31,
+        0x9B,0x98,0x30,0x3B,0xE8,0x59,0xED,0xF7,0x00,0x0B,0x37,0x79,0x01,0xA6,0xFB,0xA6,
+        0xB3,0x8A,0xE1,0xBB,0xC2,0xEF,0x3D,0x19,0x57,0xF0,0xE1,0x5C,0xC8,0x2B,0x56,0x22,
+        0xDA,0xBE,0xBD,0xF5,0x6D,0x3C,0xCD,0xC2,0x58,0x03,0xFB,0xED,0x57,0xA7,0xB4,0xE2,
+        0xD0,0xD7,0x0A,0xC8,0xBE,0x20,0x4B,0x76,0xDF,0x7C,0x3D,0x3F,0x06,0x68,0xC2,0x87,
+        0x3B,0x4A,0xC0,0x19,0x41,0xBA,0xDA,0x46,0xC8,0x02,0x39,0x33,0x62,0x89,0x61,0xFC,
+        0xB2,0xE9,0x53,0x56,0x75,0x0D,0x1F,0xAB,0xC4,0x80,0x33,0xDE,0x75,0x4B,0xD3,0x13,
+        0xBF,0x71,0xE3,0xCE,0x31,0x05,0x09,0x6D,0xD2,0x9A,0x24,0x48,0x73,0xB9,0x81,0xC8,
+        0xA0,0x24,0x42,0x0D,0x1B,0xE2,0xC0,0x94,0x92,0xAB,0x20,0xB6,0xD4,0xFB,0x84,0xC4,
+        0xA1,0xDC,0xAD,0xA5,0xCD,0xBD,0xCF,0x2F,0x71,0xAB,0x38,0x63,0x63,0x97,0xBB,0xBA,
+        0x21,0x82,0x06,0x3C,0x2F,0x2A,0x50,0x6E,0xF1,0x2B,0x39,0x87,0xA0,0xEC,0xC9,0x96,
+        0xA7,0x3F,0x4B,0x4F,0x53,0x5D,0x14,0xBF,0x23,0xEF,0xCF,0xD1,0x60,0x55,0xE8,0x9F,
+        0xD0,0x89,0x6C,0xB1,0x95,0x56,0xB7,0x42,0xCC,0x67,0x12,0x0D,0xDD,0xDE,0xB8,0xE2,
+        0x40,0xB7,0xC2,0x6E,0x3A,0xA3,0xD0,0xA9,0x3C,0x84,0xB7,0xF8,0xD7,0xD9,0x2E,0x9A,
+        0x0E,0xF8,0xEA,0x1C,0x81,0xFB,0x7B,0xF6,0x05,0xFD,0x7F,0x81,0xAA,0x9E,0x63,0x2A,
+        0x71,0x40,0xF7,0xB5,0x84,0x5D,0x74,0xBC,0xD8,0xA9,0xFD,0xAD,0x7B,0x33,0x39,0x03,
+        0x86,0xF8,0x1C,0xFE,0xB7,0x49,0x93,0xBC,0x23,0x6C,0x8E,0x33,0x7E,0x6A,0xBD,0x01,
+        0xE7,0xE1,0x66,0xC3,0x6F,0x96,0xD9,0x32,0x4A,0xEE,0xC9,0xF2,0x63,0x46,0x0C,0xB7,
+        0x47,0xEE,0x4B,0x89,0x5D,0x9A,0xD5,0xAA,0xEF,0x25,0xB4,0x1C,0x13,0xF7,0xE3,0x7C,
+        0x96,0x2F,0x1E,0x3E,0x3E,0x79,0x72,0xFA,0xFA,0xBE,0x5B,0xAE,0x69,0x5C,0x3E,0x93,
+        0x98,0xF0,0x8F,0x62,0x67,0x95,0xEA,0xA8,0x28,0x15,0x36,0xCC,0x2E,0x48,0xF6,0xB2,
+        0x68,0x11,0x6B,0x0B,0xC6,0xC6,0x74,0xBB,0x97,0x85,0x1D,0x68,0xD8,0xF4,0xDC,0x21,
+        0x07,0x9A,0x26,0xD4,0x59,0x0C,0x72,0xB3,0x0A,0x74,0xC2,0x8E,0x32,0x3F,0x24,0xBB,
+        0xDF,0x23,0xD1,0xE2,0x44,0xE6,0xA2,0x8A,0xB4,0x6B,0x77,0x28,0xF6,0x78,0x13,0xF7,
+        0x4F,0x61,0xBE,0xA7,0xFE,0xFD,0xF4,0x64,0x78,0xF1,0xBF,0xEA,0x0F,0x7B,0xCB,0xB3,
+        0xBF,0xC2,0x52,0x94,0xB2,0xD8,0xFD,0xB4,0xDD,0x3F,0xB8,0x72,0x96,0x78,0x84,0x08,
+        0xE1,0xC9,0x09,0xAF,0x14,0x23,0x96,0x5F,0xF5,0x16,0x97,0x04,0xC3,0x0F,0x84,0xD9,
+        0x3B,0xE3,0x18,0x20,0x1B,0x9B,0x3A,0x36,0xBA,0x63,0xE0,0xFF,0x99,0xAE,0x3A,0x3C,
+        0xD0,0x95,0x27,0x7C,0xDF,0x03,0x06,0xFD,0xC1,0xFE,0x3A,0x78,0x0D,0x6F,0x97,0x55,
+        0x44,0x41,0xA2,0xFF,0x07,0x88,0x8D,0x40,0xE8,0x91,0x62,0x19,0xF7,0x14,0x7C,0xCA,
+        0xA1,0xA7,0xD1,0x27,0xA2,0x4E,0x90,0xF5,0x95,0x46,0xE2,0xEE,0x9C,0x71,0x37,0x9C,
+        0x6C,0xE9,0x0A,0x3A,0xEC,0x6E,0xCB,0x5B,0x28,0xE5,0x1E,0x4A,0x97,0x82,0xE9,0xDA,
+        0xF6,0xF3,0xA3,0xB3,0x8A,0x17,0x3D,0x1B,0x43,0x51,0x41,0x13,0x40,0x32,0xBE,0xC9,
+        0x7C,0x8E,0xD6,0xDA,0xFF,0x19,0x80,0x94,0x15,0x02,0xEB,0xF8,0x83,0x6F,0x5E,0x1B,
+        0xB5,0x7B,0x7C,0x9C,0x30,0x06,0x98,0xA4,0x51,0x2B,0x1F,0xF8,0x6A,0x1A,0xEF,0x68,
+        0xBA,0xD2,0x94,0x5D,0xF3,0xC3,0x8B,0xBB,0x58,0xC7,0xAF,0xFE,0x8B,0x63,0xBC,0x65,
+        0xF3,0x09,0x98,0xC9,0x15,0x50,0x2F,0xC9,0xE7,0x78,0x4D,0x7C,0x2D,0x8D,0x0D,0x74,
+        0x0D,0x48,0x4C,0x66,0x00,0x7D,0xA3,0x2B,0x1D,0x52,0xB7,0x45,0x53,0xC4,0x61,0x42,
+        0x34,0xC3,0x7E,0xD0,0xD3,0xFD,0xF4,0x5C,0x1C,0x24,0x9A,0x6C,0x6C,0x44,0x4E,0x8C,
+        0x01,0x68,0x35,0x16,0x56,0x77,0x7C,0xE8,0xF1,0x19,0x7E,0x40,0x73,0x30,0xAB,0xD8,
+        0x40,0xAD,0xA5,0xBE,0xD0,0xF2,0x99,0x67,0x4E,0x47,0x61,0xE4,0xE8,0x7D,0x90,0x40,
+        0xA8,0x73,0xD5,0xA7,0x8C,0xBB,0x1C,0x65,0x9C,0x6E,0x91,0x56,0x7F,0xCC,0xD5,0x20,
+        0x4E,0xF5,0x5D,0x9E,0xFF,0xB6,0x42,0xD1,0xC5,0x8F,0xA5,0xFE,0xDA,0x2E,0x1D,0xA5,
+        0x1D,0x7B,0xCF,0x96,0xC8,0xF7,0x65,0x69,0xDC,0xC7,0x7A,0xF8,0xF5,0xE4,0xFE,0x0F,
+        0x65,0x11,0x7A,0x49,0xAE,0x41,0xB6,0xAB,0xC3,0xB3,0x43,0x85,0xEA,0x6D,0x83,0x82,
+        0x9D,0x3E,0xB4,0xDB,0xC5,0x68,0xA5,0xAB,0x59,0x70,0xF3,0x47,0x92,0x57,0x48,0x5A,
+        0x99,0x94,0x1B,0xDE,0x02,0x86,0x71,0xB0,0x40,0x85,0xB7,0xC0,0xF9,0xA1,0x1E,0xDD,
+        0x00,0x7C,0x8E,0x57,0xAD,0x86,0x71,0xF4,0x64,0x9D,0xD4,0xC7,0xEF,0x17,0x0C,0xEE,
+        0x7D,0x2B,0x20,0xD7,0xCC,0xA3,0xF9,0x90,0xD3,0x04,0x85,0xEE,0xBA,0x50,0x71,0x12,
+        0x84,0x4A,0xC4,0x2C,0x10,0x73,0x17,0xC9,0x90,0x7D,0x3B,0xB6,0xFA,0xD4,0xC2,0x86,
+        0x0F,0xB2,0xC2,0x9B,0x76,0x93,0x07,0x16,0xE4,0xA4,0x74,0x4F,0x6C,0x16,0x84,0xF0,
+        0x82,0x25,0xEF,0x09,0x39,0x58,0x24,0x94,0x7F,0xB6,0x4F,0x19,0xF0,0x2F,0x60,0x77,
+        0x40,0xC8,0xFA,0x99,0xAA,0x27,0x6D,0x1E,0x9A,0x13,0xE4,0xCC,0x6F,0xBE,0xE1,0x3C,
+        0x7B,0xC0,0xE4,0xB6,0x09,0xC9,0xC9,0x4B,0x4F,0x76,0x89,0xD8,0x43,0xC7,0xAD,0xC6,
+        0xC2,0x7B,0x38,0x1D,0x8F,0x69,0x72,0xB4,0x12,0x7B,0x8F,0x2C,0xE1,0x2D,0x09,0x96,
+        0x42,0x65,0xD4,0x3B,0xE7,0x40,0xBB,0x18,0x9E,0xD6,0x60,0x9F,0xFB,0x9A,0xEB,0x3C,
+        0x93,0xC9,0x90,0x0E,0x73,0x24,0xDF,0xFB,0xB7,0x38,0x1D,0x36,0x16,0xBE,0x8A,0x0C,
+        0xAB,0xC1,0x64,0xA3,0xE7,0x21,0x8F,0x42,0xAF,0xE1,0xC5,0x3E,0xA3,0x8B,0xA5,0x86,
+        0xAA,0x27,0xFA,0x8B,0x19,0x0A,0x0B,0x97,0x6B,0x02,0x80,0x3F,0x3D,0x2E,0xDF,0x52,
+        0x96,0x97,0x1A,0x15,0xC2,0x1C,0x0C,0x00,0x82,0x8D,0xC0,0x99,0x16,0xCB,0xF0,0xEA,
+        0x51,0xCA,0x08,0x6F,0x33,0x21,0xE8,0x29,0x43,0xAD,0x0C,0x12,0x6A,0x4A,0xC3,0x46,
+        0x04,0x39,0xF7,0xDE,0x5B,0x50,0xEC,0xD1,0x32,0x66,0xAF,0xBA,0x3E,0x42,0x67,0x47,
+        0x9C,0x95,0xF2,0x36,0x98,0x53,0xA9,0xC6,0x96,0xD4,0x65,0x8E,0x04,0xD0,0x15,0xE7,
+        0xAB,0xA6,0x93,0x76,0x47,0x6D,0x9D,0xD6,0xC3,0xF5,0xE7,0x6F,0x48,0xD2,0xD2,0x25,
+        0x04,0xA5,0x62,0xA2,0x21,0x99,0x9B,0xF6,0x81,0x64,0x95,0x13,0xAF,0x76,0x78,0x62,
+        0x08,0xF0,0xDF,0x4D,0x9B,0x69,0x18,0x36,0x37,0x9C,0x2D,0x04,0x69,0xE7,0xDC,0x20,
+        0x0C,0x1E,0xB1,0x76,0x25,0xEC,0x5D,0xBB,0xA8,0xA0,0xC4,0x4C,0xFA,0x51,0xAE,0x69,
+        0x45,0x28,0x60,0xE4,0x52,0xBF,0xD5,0xE2,0x0F,0x2F,0xE5,0x29,0x44,0xA3,0xDD,0x30,
+        0x88,0xFE,0x0C,0x0F,0xA8,0xC0,0xD3,0x93,0x7E,0x72,0x41,0xC1,0xFB,0xD0,0x8F,0x3A,
+        0x48,0x54,0x2E,0x2C,0x1D,0x1C,0x9E,0x50,0xBB,0xA9,0xF8,0x08,0x36,0xFD,0x2C,0x02,
+        0xBE,0x4F,0x79,0xF8,0x7C,0x4C,0xC8,0x0D,0x73,0x89,0xDE,0xC6,0x8E,0x0E,0x32,0xE3,
+        0xD7,0xE4,0x75,0x88,0x0C,0xDE,0x2C,0xAF,0x52,0x0B,0x38,0x12,0x2B,0x16,0x24,0x03,
+        0xAA,0x01,0x31,0x55,0xEB,0x89,0x51,0xB6,0x81,0x53,0xAC,0x65,0x62,0x9B,0xFD,0x3E,
+        0xE0,0xDA,0x52,0x4A,0x9C,0xC1,0x96,0x92,0x1F,0x66,0xEA,0x1B,0x00,0x18,0xE3,0xE2,
+        0x75,0x31,0x3E,0x8F,0xBC,0x09,0x68,0xF6,0xAF,0x69,0x0C,0xA0,0x50,0x06,0xBB,0xC9,
+        0x70,0xBF,0x2A,0x50,0x08,0x00,0x2F,0x6C,0xAA,0x3A,0xA2,0x33,0xB9,0x97,0xCC,0x5F,
+        0x55,0xEE,0x63,0xAB,0x00,0x7E,0xCE,0xC2,0xB6,0x93,0x05,0x31,0xA0,0x43,0x82,0x5B,
+        0x38,0x5A,0x8B,0x27,0x0A,0x88,0xFF,0x0F,0xF3,0x14,0x03,0x97,0x72,0x85,0xD7,0xF5,
+        0xC8,0x56,0xE4,0x50,0x41,0x47,0xF8,0xDC,0xC3,0xEE,0x61,0x7E,0xDA,0x02,0x39,0x76,
+        0x71,0x66,0xAC,0x42,0xCF,0x28,0x41,0x0C,0x7A,0x7E,0x7D,0xAE,0xD8,0x37,0x8F,0x78,
+        0x33,0x2D,0x15,0x54,0x3B,0x5E,0x0A,0x3F,0x71,0xFA,0x23,0x34,0xF1,0x15,0x9C,0x30,
+        0xFD,0x71,0x01,0xF3,0xD7,0xCE,0xCF,0x90,0x54,0x54,0x92,0x94,0x28,0xFE,0x18,0x56,
+        0xFB,0x08,0xE3,0xFF,0x70,0x03,0x08,0x64,0xE3,0xB4,0x79,0x82,0xBE,0x98,0xAF,0x2A,
+        0xE1,0xFA,0x61,0x3B,0x76,0x34,0x0D,0x90,0xE7,0xF2,0x6D,0x88,0x7E,0x66,0x11,0x6A,
+        0xDA,0x15,0xF0,0x51,0xE8,0x02,0xD6,0xAB,0xCA,0xDC,0x49,0x30,0x3F,0x0B,0x58,0xE3,
+        0x0C,0x08,0xB1,0xAC,0x8C,0xED,0xF1,0xD6,0xD9,0x71,0xBD,0x23,0x65,0x22,0xCB,0x14,
+        0x26,0xB9,0x30,0x29,0x04,0x55,0xE7,0x12,0x97,0xC4,0x98,0xFE,0x8F,0x5A,0x92,0x1C,
+        0x6F,0xD5,0xC8,0x22,0xC7,0xC5,0x20,0xEB,0x27,0xC7,0x8E,0xFB,0x99,0x48,0xA0,0xC5,
+        0x18,0x2D,0x59,0xB3,0x93,0x93,0xA1,0x5A,0x95,0xDD,0xA3,0x93,0xB8,0x40,0xE9,0x32,
+        0xCA,0x54,0x70,0xE5,0x83,0x9F,0xC5,0xEF,0xAA,0xAD,0xB6,0x3F,0x54,0x91,0x29,0x72,
+        0xAC,0xE2,0x7C,0x3D,0x91,0xE7,0x6D,0x69,0x27,0x91,0x10,0xA7,0xEE,0x62,0xDF,0x5F,
+        0x38,0xF6,0x40,0xD5,0x1C,0xC5,0x17,0xF4,0xB6,0x68,0x8B,0xED,0x32,0x8B,0xC5,0x0B,
+        0xD2,0x67,0x06,0xB8,0xBD,0xE1,0x76,0x5E,0x21,0x84,0x59,0x83,0xAC,0x2D,0x88,0x64,
+        0xE0,0x0D,0xED,0x62,0xE4,0x28,0xD6,0x6B,0x7E,0xC9,0x45,0x94,0x07,0x26,0x2C,0x63,
+        0x76,0x1A,0xE2,0x26,0xC5,0xE3,0xB5,0xED,0x20,0xBF,0x3C,0x9B,0x1F,0xF0,0x1E,0x49,
+        0xB4,0xEA,0x74,0x94,0xA2,0x51,0xEA,0xAC,0xA6,0x3D,0xAA,0x2C,0x4F,0xD5,0x0F,0xE5,
+        0x62,0x55,0xA3,0x36,0x78,0xC6,0xB9,0x6F,0xDF,0xAD,0x03,0xF3,0x81,0xFC,0x6A,0x24,
+        0x42,0x59,0x98,0x0C,0x17,0x72,0x97,0x9C,0xD7,0xE5,0xA6,0x31,0x28,0x64,0x96,0xE1,
+        0xCC,0x12,0x64,0x4C,0x4D,0x43,0x4E,0x12,0x58,0x53,0xCC,0x37,0x2F,0x16,0xFC,0xFC,
+        0xDA,0xA0,0x52,0x03,0xB1,0xA8,0x8E,0x0D,0xB1,0x1A,0xDE,0xC3,0x6A,0x46,0x91,0x32,
+        0xDB,0xFD,0xAA,0x86,0xEF,0xE1,0x5A,0x09,0x94,0x50,0xE9,0xE7,0x3A,0x69,0x55,0xFA,
+        0x58,0x47,0x60,0xE6,0x2A,0xFE,0x1C,0x81,0x48,0xDB,0x26,0xEC,0x4C,0x03,0x6E,0x29,
+        0x10,0x2E,0x0E,0x8B,0x31,0xE6,0x89,0x19,0x6D,0xF0,0x5B,0xEE,0x7C,0x2C,0x99,0x58,
+        0x17,0x71,0x31,0x09,0xAD,0x50,0x92,0x89,0xC3,0x4A,0x81,0x60,0x73,0x8C,0x76,0x42,
+        0x8B,0x18,0xCB,0x83,0x1C,0x71,0xE8,0x80,0x77,0xA9,0x5B,0xF1,0xE8,0x49,0x62,0x67,
+        0xCA,0xFF,0x9C,0x9E,0x45,0xED,0xCC,0x3A,0xB2,0x9D,0x37,0x02,0xB3,0x5D,0xB8,0xDF};
+
+const ALIGN uint8_t expectedCMAC[CRL_AES_BLOCK] = {
+    0xA6,0x64,0xD8,0x80, 0x5F,0xE2,0x89,0x26,
+    0x32,0xD5,0x0C,0x3F, 0xD0,0xBE,0x72,0x5C};
+
+
+static int CSE_AES_HW_CBC_test(int verbose) {
+  /* NIST vectors examples for CBC are taken from:
+   "Recommendation for Block Cipher Modes of Operation"
+   Available at:
+   http://csrc.nist.gov/publications/nistpubs/800-38a/addendum-to-nist_sp800-38A.pdf
+   base url:
+   http://csrc.nist.gov/publications/PubsSPs.html
+   */
+
+  /* number of NIST blocks */
+#define TEST_BLOCKS_NUMBER  4
+  /* length of NIST test vectors */
+#define TEST_MESSAGES_LENGTH  TEST_BLOCKS_NUMBER*CRL_AES_BLOCK
+
+  /* NIST plaintext vector: in decryption test we expect this vector as result */
+  const uint8_t expectedPlainText[TEST_MESSAGES_LENGTH] __attribute__ ((aligned (4))) = {
+							   0x6b, 0xc1, 0xbe,
+                                                           0xe2, 0x2e, 0x40,
+                                                           0x9f, 0x96, 0xe9,
+                                                           0x3d, 0x7e, 0x11,
+                                                           0x73, 0x93, 0x17,
+                                                           0x2a, 0xae, 0x2d,
+                                                           0x8a, 0x57, 0x1e,
+                                                           0x03, 0xac, 0x9c,
+                                                           0x9e, 0xb7, 0x6f,
+                                                           0xac, 0x45, 0xaf,
+                                                           0x8e, 0x51, 0x30,
+                                                           0xc8, 0x1c, 0x46,
+                                                           0xa3, 0x5c, 0xe4,
+                                                           0x11, 0xe5, 0xfb,
+                                                           0xc1, 0x19, 0x1a,
+                                                           0x0a, 0x52, 0xef,
+                                                           0xf6, 0x9f, 0x24,
+                                                           0x45, 0xdf, 0x4f,
+                                                           0x9b, 0x17, 0xad,
+                                                           0x2b, 0x41, 0x7b,
+                                                           0xe6, 0x6c, 0x37,
+                                                           0x10};
+
+  /* NIST given key */
+  const uint8_t key[CRL_AES128_KEY] __attribute__ ((aligned (4))) = {
+				       0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2,
+                                       0xa6, 0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf,
+                                       0x4f, 0x3c};
+
+  /* NIST given IV */
+  const uint8_t IV[CRL_AES_BLOCK] __attribute__ ((aligned (4))) = {
+				     0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+                                     0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d,
+                                     0x0e, 0x0f};
+
+  /* NIST ciphertext vector: in encryption we expect this vector as result */
+  const uint8_t expectedCipherText[TEST_MESSAGES_LENGTH] __attribute__ ((aligned (4))) = {
+							    0x76, 0x49, 0xab,
+                                                            0xac, 0x81, 0x19,
+                                                            0xb2, 0x46, 0xce,
+                                                            0xe9, 0x8e, 0x9b,
+                                                            0x12, 0xe9, 0x19,
+                                                            0x7d, 0x50, 0x86,
+                                                            0xcb, 0x9b, 0x50,
+                                                            0x72, 0x19, 0xee,
+                                                            0x95, 0xdb, 0x11,
+                                                            0x3a, 0x91, 0x76,
+                                                            0x78, 0xb2, 0x73,
+                                                            0xbe, 0xd6, 0xb8,
+                                                            0xe3, 0xc1, 0x74,
+                                                            0x3b, 0x71, 0x16,
+                                                            0xe6, 0x9e, 0x22,
+                                                            0x22, 0x95, 0x16,
+                                                            0x3f, 0xf1, 0xca,
+                                                            0xa1, 0x68, 0x1f,
+                                                            0xac, 0x09, 0x12,
+                                                            0x0e, 0xca, 0x30,
+                                                            0x75, 0x86, 0xe1,
+                                                            0xa7};
+
+  unsigned short int check; /* check whether obtained ciphertext during encryption
+   * and obtained plaintext during decryption are equal
+   * to expected vectors */
+  uint8_t plainText[TEST_MESSAGES_LENGTH]; /* calculated plaintext */
+  uint8_t cipherText[TEST_MESSAGES_LENGTH]; /* calculated ciphertext */
+  int32_t status = AES_SUCCESS; /* AES status */
+  int i;
+
+  if (verbose) {
+    printf("AES CBC encryption\n\r");
+    display_buf("Key      : ", (uint8_t*)key, CRL_AES128_KEY);
+    display_buf("PlainText: ", (uint8_t*)expectedPlainText,
+    TEST_MESSAGES_LENGTH);
+  }
+
+  for(i=0; i<TEST_MESSAGES_LENGTH; i++ )
+  {
+      cipherText[i] = 0;
+  }
+  /* Encrypt DATA with AES in CBC mode */
+  status = AES_CBC_Encrypt_HW(expectedPlainText, TEST_MESSAGES_LENGTH, key,
+                              CRL_AES128_KEY, IV, cipherText);
+
+  if (verbose) {
+    printf("Status =%x\n\r", status);
+    display_buf("CipherTxt: ", (uint8_t*)cipherText, TEST_MESSAGES_LENGTH);
+    display_buf("Expected : ", (uint8_t*)expectedCipherText,
+    TEST_MESSAGES_LENGTH);
+  }
+
+  if (status == AES_SUCCESS) {
+    /* do a memory compare for check accordance between calculated ciphertext
+     * and expected ciphertext */
+    check = memcmp(cipherText, expectedCipherText, TEST_MESSAGES_LENGTH);
+    if (verbose) {
+      printf("Encryption check: %d (1 = OK)\n", check == 0);
+
+      printf("AES CBC decryption\n\r");
+      display_buf("Key      : ", (uint8_t*)key, CRL_AES128_KEY);
+      display_buf("CipherTxt: ", (uint8_t*)expectedCipherText,
+      TEST_MESSAGES_LENGTH);
+    }
+
+    /* Decrypt DATA with AES in CBC mode */
+    for(i=0; i<TEST_MESSAGES_LENGTH; i++ )
+    {
+        plainText[i] = 0;
+    }
+
+    status = AES_CBC_Decrypt_HW(expectedCipherText, TEST_MESSAGES_LENGTH, key,
+                                CRL_AES128_KEY, IV, plainText);
+
+    if (verbose) {
+      serialprintf("Status =%x\n\r", status);
+      display_buf("PlainText: ", (uint8_t*)plainText, TEST_MESSAGES_LENGTH);
+      display_buf("Expected : ", (uint8_t*)expectedPlainText,
+      TEST_MESSAGES_LENGTH);
+    }
+
+    if (status == AES_SUCCESS) {
+      /* do a memory compare for check accordance between calculated plaintext
+       * and expected plaintext */
+      check = memcmp(plainText, expectedPlainText, TEST_MESSAGES_LENGTH);
+      if (verbose) {
+        printf("Decryption check: %d (1 = OK)\n", check == 0);
+      }
+    }
+    else if (verbose) {
+      printf("AES operation failed\n\r");
+    }
+  }
+  else if (verbose) {
+    printf("AES operation failed\n\r");
+  }
+  return ((status == AES_SUCCESS ) && (check == 0));
+}
+
+
+static int CSE_AES_HW_CBC_large_block_test(int verbose)
+{
+  unsigned short int check; /* check whether obtained ciphertext during encryption
+   * and obtained plaintext during decryption are equal
+   * to expected vectors */
+  int32_t status = AES_SUCCESS; /* AES status */
+  int i = 0;
+  int j = 0;
+
+  /* Initialize vectors from small buffer */
+  for(i=0;i<32;i++)
+  {
+	  for(j=0; j<TEST_MESSAGES_LENGTH; j++)
+	  {
+		  expectedPlainText[i*TEST_MESSAGES_LENGTH + j] = expectedPlainText_small[j];
+		  computed[i*TEST_MESSAGES_LENGTH + j] = 0;
+	  }
+  }
+
+  if (verbose) {
+    printf("AES CBC encryption of a large block (%d bytes)\n\r", 32*TEST_MESSAGES_LENGTH);
+    display_buf("Key      : ", (uint8_t*)key, CRL_AES128_KEY);
+    display_buf("PlainText 32x: ", (uint8_t*)expectedPlainText,
+    TEST_MESSAGES_LENGTH);
+  }
+
+  /* Encrypt DATA with AES in ECB mode */
+    status = AES_CBC_Encrypt_HW(expectedPlainText, 32*TEST_MESSAGES_LENGTH, key,
+                              CRL_AES128_KEY, IV, computed);
+
+  if (verbose) {
+    printf("Status =%x\n\r", status);
+    printf("Only the 64 first bytes are displayed\n");
+    display_buf("CypherTxt: ", (uint8_t*)computed, TEST_MESSAGES_LENGTH);
+    display_buf("Expected : ", (uint8_t*)expectedCipherText_CBC,
+    TEST_MESSAGES_LENGTH);
+  }
+
+#if 0
+  printf("\n\n");
+  for(i=0; i<32*TEST_MESSAGES_LENGTH; i++)
+  {
+	  if(i%16 == 0)
+	  {
+		  printf("\n");
+	  }
+
+	  printf("0x%02X,", computed[i] );
+  }
+
+  printf("\n\n");
+#endif
+
+  if (status == AES_SUCCESS) {
+    /* do a memory compare for check accordance between calculated ciphertext
+     * and expected ciphertext */
+    check = memcmp(computed, expectedCipherText_CBC, 32*TEST_MESSAGES_LENGTH);
+    if (verbose) {
+      printf("Encryption check: %d (1 = OK)\n", check == 0);
+
+      printf("AES CBC decryption of a large block (%d bytes)\n\r", 32*TEST_MESSAGES_LENGTH);
+      display_buf("Key      : ", (uint8_t*)key, CRL_AES128_KEY);
+      display_buf("CypherTxt: ", (uint8_t*)expectedCipherText_CBC,
+      TEST_MESSAGES_LENGTH);
+    }
+
+    /* Decrypt DATA with AES in ECB mode */
+    for(i=0;i<32;i++)
+    {
+   	  for(j=0; j<TEST_MESSAGES_LENGTH; j++)
+   	  {
+   		computed[i*32+j] = 0;
+      }
+    }
+    status = AES_CBC_Decrypt_HW(expectedCipherText_CBC, 32*TEST_MESSAGES_LENGTH, key,
+                                CRL_AES128_KEY, IV, computed);
+
+
+    if (verbose) {
+      serialprintf("Status =%x\n\r", status);
+      display_buf("PlainText: ", (uint8_t*)computed, TEST_MESSAGES_LENGTH);
+      display_buf("Expected : ", (uint8_t*)expectedPlainText,
+      TEST_MESSAGES_LENGTH);
+    }
+
+    if (status == AES_SUCCESS) {
+      /* do a memory compare for check accordance between calculated plaintext
+       * and expected plaintext */
+      check = memcmp(computed, expectedPlainText, 32*TEST_MESSAGES_LENGTH);
+      if (verbose) {
+        printf("Decryption check: %d (1 = OK)\n", check == 0);
+      }
+    }
+    else if (verbose) {
+      printf("AES operation failed\n\r");
+    }
+  }
+  else if (verbose) {
+    printf("AES operation failed\n\r");
+  }
+
+  return ((status == AES_SUCCESS ) && (check == 0));
+}
+
+static int CSE_AES_HW_ECB_large_block_test(int verbose)
+{
+  /* NIST vectors examples for ECB are taken from:
+   "Recommendation for Block Cipher Modes of Operation"
+   Available at:
+   http://csrc.nist.gov/publications/nistpubs/800-38a/addendum-to-nist_sp800-38A.pdf
+   base url:
+   http://csrc.nist.gov/publications/PubsSPs.html
+   */
+
+  /* number of NIST blocks */
+#define TEST_BLOCKS_NUMBER  4
+  /* length of NIST test vectors */
+#define TEST_MESSAGES_LENGTH  TEST_BLOCKS_NUMBER*CRL_AES_BLOCK
+
+  /* Private macro -------------------------------------------------------------*/
+  /* Private variables ---------------------------------------------------------*/
+
+
+
+  unsigned short int check; /* check whether obtained ciphertext during encryption
+   * and obtained plaintext during decryption are equal
+   * to expected vectors */
+  int32_t status = AES_SUCCESS; /* AES status */
+  int i = 0;
+  int j = 0;
+
+  /* Initialize vectors from small buffer */
+  for(i=0;i<32;i++)
+  {
+	  for(j=0; j<TEST_MESSAGES_LENGTH; j++)
+	  {
+		  expectedPlainText[i*TEST_MESSAGES_LENGTH + j] = expectedPlainText_small[j];
+		  expectedCipherText[i*TEST_MESSAGES_LENGTH + j] = expectedCipherText_small[j];
+		  computed[i*TEST_MESSAGES_LENGTH + j] = 0;
+	  }
+  }
+
+  if (verbose) {
+    printf("AES ECB encryption of a large block (%d bytes)\n\r", 32*TEST_MESSAGES_LENGTH);
+    display_buf("Key      : ", (uint8_t*)key, CRL_AES128_KEY);
+    display_buf("PlainText 32x: ", (uint8_t*)expectedPlainText,
+    TEST_MESSAGES_LENGTH);
+  }
+
+  /* Encrypt DATA with AES in ECB mode */
+    status = AES_ECB_Encrypt_HW(expectedPlainText, 32*TEST_MESSAGES_LENGTH, key,
+                              CRL_AES128_KEY, computed);
+
+  if (verbose) {
+    printf("Status =%x\n\r", status);
+    printf("Only the 64 first bytes are displayed\n");
+    display_buf("CypherTxt: ", (uint8_t*)computed, TEST_MESSAGES_LENGTH);
+    display_buf("Expected : ", (uint8_t*)expectedCipherText,
+    TEST_MESSAGES_LENGTH);
+  }
+
+  if (status == AES_SUCCESS) {
+    /* do a memory compare for check accordance between calculated ciphertext
+     * and expected ciphertext */
+    check = memcmp(computed, expectedCipherText, 32*TEST_MESSAGES_LENGTH);
+    if (verbose) {
+      printf("Encryption check: %d (1 = OK)\n", check == 0);
+
+      printf("AES ECB decryption of a large block (%d bytes)\n\r", 32*TEST_MESSAGES_LENGTH);
+      display_buf("Key      : ", (uint8_t*)key, CRL_AES128_KEY);
+      display_buf("CypherTxt: ", (uint8_t*)expectedCipherText,
+      TEST_MESSAGES_LENGTH);
+    }
+
+    /* Decrypt DATA with AES in ECB mode */
+    for(i=0;i<32;i++)
+    {
+   	  for(j=0; j<TEST_MESSAGES_LENGTH; j++)
+   	  {
+   		computed[i*32+j] = 0;
+      }
+    }
+    status = AES_ECB_Decrypt_HW(expectedCipherText, 32*TEST_MESSAGES_LENGTH, key,
+                                CRL_AES128_KEY, computed);
+
+    if (verbose) {
+      serialprintf("Status =%x\n\r", status);
+      display_buf("PlainText: ", (uint8_t*)computed, TEST_MESSAGES_LENGTH);
+      display_buf("Expected : ", (uint8_t*)expectedPlainText,
+      TEST_MESSAGES_LENGTH);
+    }
+
+    if (status == AES_SUCCESS) {
+      /* do a memory compare for check accordance between calculated plaintext
+       * and expected plaintext */
+      check = memcmp(computed, expectedPlainText, 32*TEST_MESSAGES_LENGTH);
+      if (verbose) {
+        printf("Decryption check: %d (1 = OK)\n", check == 0);
+      }
+    }
+    else if (verbose) {
+      printf("AES operation failed\n\r");
+    }
+  }
+  else if (verbose) {
+    printf("AES operation failed\n\r");
+  }
+
+  return ((status == AES_SUCCESS ) && (check == 0));
+}
+
+static int CSE_AES_HW_ECB_test(int verbose) {
+  /* NIST vectors examples for ECB are taken from:
+   "Recommendation for Block Cipher Modes of Operation"
+   Available at:
+   http://csrc.nist.gov/publications/nistpubs/800-38a/addendum-to-nist_sp800-38A.pdf
+   base url:
+   http://csrc.nist.gov/publications/PubsSPs.html
+   */
+
+  /* number of NIST blocks */
+#define TEST_BLOCKS_NUMBER  4
+  /* length of NIST test vectors */
+#define TEST_MESSAGES_LENGTH  TEST_BLOCKS_NUMBER*CRL_AES_BLOCK
+
+  /* Private macro -------------------------------------------------------------*/
+  /* Private variables ---------------------------------------------------------*/
+
+  /* NIST plaintext vector: in decryption test we expect this vector as result */
+  const uint8_t expectedPlainText[TEST_MESSAGES_LENGTH] __attribute__ ((aligned (4))) = {
+							   0x6b, 0xc1, 0xbe,
+                                                           0xe2, 0x2e, 0x40,
+                                                           0x9f, 0x96, 0xe9,
+                                                           0x3d, 0x7e, 0x11,
+                                                           0x73, 0x93, 0x17,
+                                                           0x2a, 0xae, 0x2d,
+                                                           0x8a, 0x57, 0x1e,
+                                                           0x03, 0xac, 0x9c,
+                                                           0x9e, 0xb7, 0x6f,
+                                                           0xac, 0x45, 0xaf,
+                                                           0x8e, 0x51, 0x30,
+                                                           0xc8, 0x1c, 0x46,
+                                                           0xa3, 0x5c, 0xe4,
+                                                           0x11, 0xe5, 0xfb,
+                                                           0xc1, 0x19, 0x1a,
+                                                           0x0a, 0x52, 0xef,
+                                                           0xf6, 0x9f, 0x24,
+                                                           0x45, 0xdf, 0x4f,
+                                                           0x9b, 0x17, 0xad,
+                                                           0x2b, 0x41, 0x7b,
+                                                           0xe6, 0x6c, 0x37,
+                                                           0x10};
+
+  /* NIST given key */
+  const uint8_t key[CRL_AES128_KEY] __attribute__ ((aligned (4))) = {
+				       0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2,
+                                       0xa6, 0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf,
+                                       0x4f, 0x3c};
+
+  /* NIST ciphertext vector: in encryption we expect this vector as result */
+  const uint8_t expectedCipherText[TEST_MESSAGES_LENGTH] __attribute__ ((aligned (4))) = {
+						            0x3a, 0xd7, 0x7b,
+                                                            0xb4, 0x0d, 0x7a,
+                                                            0x36, 0x60, 0xa8,
+                                                            0x9e, 0xca, 0xf3,
+                                                            0x24, 0x66, 0xef,
+                                                            0x97, 0xf5, 0xd3,
+                                                            0xd5, 0x85, 0x03,
+                                                            0xb9, 0x69, 0x9d,
+                                                            0xe7, 0x85, 0x89,
+                                                            0x5a, 0x96, 0xfd,
+                                                            0xba, 0xaf, 0x43,
+                                                            0xb1, 0xcd, 0x7f,
+                                                            0x59, 0x8e, 0xce,
+                                                            0x23, 0x88, 0x1b,
+                                                            0x00, 0xe3, 0xed,
+                                                            0x03, 0x06, 0x88,
+                                                            0x7b, 0x0c, 0x78,
+                                                            0x5e, 0x27, 0xe8,
+                                                            0xad, 0x3f, 0x82,
+                                                            0x23, 0x20, 0x71,
+                                                            0x04, 0x72, 0x5d,
+                                                            0xd4};
+
+  unsigned short int check; /* check whether obtained ciphertext during encryption
+   * and obtained plaintext during decryption are equal
+   * to expected vectors */
+  uint8_t plainText[TEST_MESSAGES_LENGTH]; /* calculated plaintext */
+  uint8_t cipherText[TEST_MESSAGES_LENGTH]; /* calculated ciphertext */
+  int32_t status = AES_SUCCESS; /* AES status */
+  int i;
+
+  if (verbose) {
+    printf("AES ECB encryption\n\r");
+    display_buf("Key      : ", (uint8_t*)key, CRL_AES128_KEY);
+    display_buf("PlainText: ", (uint8_t*)expectedPlainText,
+    TEST_MESSAGES_LENGTH);
+  }
+
+  /* Encrypt DATA with AES in ECB mode */
+  for(i=0; i<TEST_MESSAGES_LENGTH; i++ )
+	{
+		cipherText[i] = 0;
+	}
+  status = AES_ECB_Encrypt_HW(expectedPlainText, TEST_MESSAGES_LENGTH, key,
+                              CRL_AES128_KEY, cipherText);
+
+  if (verbose) {
+    printf("Status =%x\n\r", status);
+    display_buf("CypherTxt: ", (uint8_t*)cipherText, TEST_MESSAGES_LENGTH);
+    display_buf("Expected : ", (uint8_t*)expectedCipherText,
+    TEST_MESSAGES_LENGTH);
+  }
+
+  if (status == AES_SUCCESS) {
+    /* do a memory compare for check accordance between calculated ciphertext
+     * and expected ciphertext */
+    check = memcmp(cipherText, expectedCipherText, TEST_MESSAGES_LENGTH);
+    if (verbose) {
+      printf("Encryption check: %d (1 = OK)\n", check == 0);
+
+      printf("AES ECB decryption\n\r");
+      display_buf("Key      : ", (uint8_t*)key, CRL_AES128_KEY);
+      display_buf("CypherTxt: ", (uint8_t*)expectedCipherText,
+      TEST_MESSAGES_LENGTH);
+    }
+
+    /* Decrypt DATA with AES in ECB mode */
+    for(i=0; i<TEST_MESSAGES_LENGTH; i++ )
+      {
+      	plainText[i] = 0;
+      }
+    status = AES_ECB_Decrypt_HW(expectedCipherText, TEST_MESSAGES_LENGTH, key,
+                                CRL_AES128_KEY, plainText);
+
+    if (verbose) {
+      serialprintf("Status =%x\n\r", status);
+      display_buf("PlainText: ", (uint8_t*)plainText, TEST_MESSAGES_LENGTH);
+      display_buf("Expected : ", (uint8_t*)expectedPlainText,
+      TEST_MESSAGES_LENGTH);
+    }
+
+    if (status == AES_SUCCESS) {
+      /* do a memory compare for check accordance between calculated plaintext
+       * and expected plaintext */
+      check = memcmp(plainText, expectedPlainText, TEST_MESSAGES_LENGTH);
+      if (verbose) {
+        printf("Decryption check: %d (1 = OK)\n", check == 0);
+      }
+    }
+    else if (verbose) {
+      printf("AES operation failed\n\r");
+    }
+  }
+  else if (verbose) {
+    printf("AES operation failed\n\r");
+  }
+
+  return ((status == AES_SUCCESS ) && (check == 0));
+}
+
+static int CSE_AES_HW_CMAC_test(int verbose) {
+  /* NIST vectors examples for CMAC are taken from:
+   "Recommendation for Block Cipher Modes of Operation:
+   The CMAC Mode for Authentication" - Updated Examples
+   Available at:
+   http://csrc.nist.gov/publications/nistpubs/800-38B/Updated_CMAC_Examples.pdf
+   base url:
+   http://csrc.nist.gov/publications/PubsSPs.html
+   */
+
+	/* number of NIST blocks */
+	#define EXAMPLE_1_LENGTH 0
+	#define EXAMPLE_2_LENGTH 16
+	#define EXAMPLE_3_LENGTH 40
+	#define EXAMPLE_4_LENGTH 64
+
+	#define EXAMPLE_5_LENGTH	48
+
+
+		const uint8_t m3_input[48] __attribute__ ((aligned (4))) = {
+								  0x04,0x09,0x08,0x08, 0x00,0x16,0x08,0x00,
+								  0x0F,0xF0,0x0F,0xF0, 0x00,0x00,0x00,0xBB,
+								  0xFF,0x8B,0x75,0xF7, 0x3E,0x6A,0xD5,0xA1,
+								  0x72,0x94,0x23,0xC6, 0xE9,0x31,0x1F,0x1A,
+								  0x67,0x9B,0xA7,0xEC, 0xCB,0xDB,0x01,0x60,
+								  0xB7,0x47,0x66,0x5F, 0xF9,0xF6,0xBF,0x8F};
+
+		const uint8_t K2[16] __attribute__ ((aligned (4))) = {
+								  0x79,0x09,0xB6,0x51, 0x65,0x1A,0x59,0xC5,
+								  0x89,0x4A,0xEA,0xD1, 0x2A,0x2F,0x4D,0x1B };
+
+		const uint8_t expected_m3[16] __attribute__ ((aligned (4))) = {
+								  0xC7,0xFC,0x3F,0xB7, 0x6F,0x2E,0x3A,0xCD,
+								  0xC5,0x02,0x5F,0xC9, 0xDE,0x83,0xE7,0xF9 };
+
+
+
+	  /* number for NIST examples */
+	#define NIST_EXAMPLES_NUMBER	4
+
+  /* NIST plaintext vector: in decryption test we expect this vector as result */
+
+  /* This represent an empty array. It can't be actually empty, otherwise the
+   * compiler will complain */
+  const uint8_t empty[1];
+
+  const uint8_t expectedPlainTextExample2[EXAMPLE_2_LENGTH] __attribute__ ((aligned (4))) = {
+		  0x6b,0xc1,0xbe,0xe2,0x2e,0x40,0x9f,0x96,
+		  0xe9,0x3d,0x7e,0x11,0x73,0x93,0x17,0x2a};
+
+  const uint8_t expectedPlainTextExample3[EXAMPLE_3_LENGTH] __attribute__ ((aligned (4))) = {
+		  0x6b,0xc1,0xbe,0xe2,0x2e,0x40,0x9f,0x96,
+		  0xe9,0x3d,0x7e,0x11,0x73,0x93,0x17,0x2a,
+		  0xae,0x2d,0x8a,0x57,0x1e,0x03,0xac,0x9c,
+		  0x9e,0xb7,0x6f,0xac,0x45,0xaf,0x8e,0x51,
+		  0x30,0xc8,0x1c,0x46,0xa3,0x5c,0xe4,0x11};
+  const uint8_t expectedPlainTextExample4[EXAMPLE_4_LENGTH] __attribute__ ((aligned (4))) = {
+		  0x6b,0xc1,0xbe,0xe2,0x2e,0x40,0x9f,0x96,
+		  0xe9,0x3d,0x7e,0x11,0x73,0x93,0x17,0x2a,
+		  0xae,0x2d,0x8a,0x57,0x1e,0x03,0xac,0x9c,
+		  0x9e,0xb7,0x6f,0xac,0x45,0xaf,0x8e,0x51,
+		  0x30,0xc8,0x1c,0x46,0xa3,0x5c,0xe4,0x11,
+		  0xe5,0xfb,0xc1,0x19,0x1a,0x0a,0x52,0xef,
+		  0xf6,0x9f,0x24,0x45,0xdf,0x4f,0x9b,0x17,
+		  0xad,0x2b,0x41,0x7b,0xe6,0x6c,0x37,0x10};
+
+  /* NIST given key */
+  const uint8_t key[CRL_AES128_KEY] __attribute__ ((aligned (4))) = {
+	   0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6,
+	   0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf, 0x4f, 0x3c};
+
+  /* NIST tag vector: in encryption we expect this vector as result */
+  const uint8_t expectedTags[NIST_EXAMPLES_NUMBER][CRL_AES_BLOCK] __attribute__ ((aligned (4))) = {
+      {0xbb, 0x1d, 0x69, 0x29, 0xe9, 0x59, 0x37, 0x28, 0x7f, 0xa3, 0x7d, 0x12,
+       0x9b, 0x75, 0x67, 0x46},
+      {0x07, 0x0a, 0x16, 0xb4, 0x6b, 0x4d, 0x41, 0x44, 0xf7, 0x9b, 0xdd, 0x9d,
+       0xd0, 0x4a, 0x28, 0x7c},
+      {0xdf, 0xa6, 0x67, 0x47, 0xde, 0x9a, 0xe6, 0x30, 0x30, 0xca, 0x32, 0x61,
+       0x14, 0x97, 0xc8, 0x27},
+      {0x51, 0xf0, 0xbe, 0xbf, 0x7e, 0x3b, 0x9d, 0x92, 0xfc, 0x49, 0x74, 0x17,
+       0x79, 0x36, 0x3c, 0xfe}};
+
+  unsigned short int check; /* check whether obtained ciphertext during encryption
+   * and obtained plaintext during decryption are equal
+   * to expected vectors */
+  uint8_t tag[CRL_AES_BLOCK]; /* calculated tag */
+  int32_t status = AES_SUCCESS; /* AES status */
+
+  int pass = 1;
+
+	#define NB_OF_TESTS 6//5//4
+	typedef struct
+	{
+		uint8_t* key;
+		uint8_t* PT;
+		uint32_t PT_size;
+		uint8_t* tag;
+	} testcase_t;
+
+	testcase_t test[NB_OF_TESTS] = {
+		{ 	(uint8_t*)key,
+			(uint8_t*)empty, EXAMPLE_1_LENGTH,
+			(uint8_t*)expectedTags[0]},
+		{ 	(uint8_t*)key,
+			(uint8_t*)expectedPlainTextExample2, EXAMPLE_2_LENGTH,
+			(uint8_t*)expectedTags[1]},
+		{ 	(uint8_t*)key,
+			(uint8_t*)expectedPlainTextExample3, EXAMPLE_3_LENGTH,
+			(uint8_t*)expectedTags[2]},
+		{ 	(uint8_t*)key,
+			(uint8_t*)expectedPlainTextExample4, EXAMPLE_4_LENGTH,
+			(uint8_t*)expectedTags[3]},
+		{ 	(uint8_t*)K2,
+			(uint8_t*)m3_input, EXAMPLE_5_LENGTH,
+			(uint8_t*)expected_m3},
+
+		{ 	(uint8_t*)key,
+			(uint8_t*)expectedPlainText, 32*TEST_MESSAGES_LENGTH,
+			(uint8_t*)expectedCMAC}
+	};
+
+	int test_nb = 0;
+
+	for(test_nb = 0; test_nb< NB_OF_TESTS; test_nb ++)
+	{
+	  if (verbose) {
+		printf("\n");
+		printf("NIST Example %d\n", test_nb+1 );
+		printf("\n");
+	    printf("AES CMAC encryption\n\r");
+	    display_buf("Key      : ", test[test_nb].key, CRL_AES128_KEY);
+	    display_buf("PlainText: ", test[test_nb].PT, test[test_nb].PT_size);
+	  }
+
+	  /* Encrypt DATA with AES in CMAC mode */
+	  status = AES_CMAC_Encrypt_HW(test[test_nb].PT, test[test_nb].PT_size,
+			  	  	  	  	  	  test[test_nb].key, CRL_AES128_KEY,
+	                               (uint32_t)CRL_AES_BLOCK, (uint8_t*)tag);
+	  pass = pass && (status == AES_SUCCESS );
+	  if (verbose) {
+	    printf("Status =%x (%x:OK)\n\r", status, AES_SUCCESS );
+	    display_buf("Tag      : ", (uint8_t*)tag, CRL_AES_BLOCK);
+	    display_buf("Expected : ", test[test_nb].tag, CRL_AES_BLOCK);
+	  }
+	  if (status == AES_SUCCESS) {
+	    /* do a memory compare for check accordance between calculated ciphertext
+	     * and expected ciphertext */
+	    check = memcmp(tag, test[test_nb].tag, CRL_AES_BLOCK);
+	    pass = pass && (check == 0);
+	    if (verbose) {
+	      printf("Tag generation check: %d (1:OK)\n", check == 0);
+	    }
+
+
+	    if (verbose) {
+	      printf("\n");
+	      printf("AES CMAC verification\n\r");
+	      display_buf("Key      : ", test[test_nb].key, CRL_AES128_KEY);
+	      display_buf("PlainText: ", test[test_nb].PT, test[test_nb].PT_size);
+	      display_buf("Tag      : ", test[test_nb].tag, CRL_AES_BLOCK);
+	    }
+
+	    /* Decrypt DATA with AES in CMAC mode */
+	    status = AES_CMAC_Decrypt_HW(	test[test_nb].PT, test[test_nb].PT_size,
+	    								test[test_nb].key,CRL_AES128_KEY,
+	    								test[test_nb].tag, CRL_AES_BLOCK);
+
+	    pass = pass && (status == AUTHENTICATION_SUCCESSFUL );
+	    /* Check if authentication is good */
+	    if (verbose) {
+	      printf("Status =%x (%x:OK)\n\r", status, AUTHENTICATION_SUCCESSFUL);
+	      printf("Authentication: %d\n", status == AUTHENTICATION_SUCCESSFUL);
+	    }
+	  }
+	  else if (verbose) {
+	    printf("CMAC generation operation failed\n\r");
+	  }
+	}
+
+	return (pass);
+}
+
+
+/*================================================================================================*/
+/**
+ * @brief          Performs AES ECB, CBC, CMAC tests with NIST reference vectors
+ * @details        Test the CSE driver AES computation functions using the RAM key
+ *
+ * @param[in]      verbose		enable display of input, computed and expected values when set to 1
+ *
+ * @return         Error code
+ * @retval 0  	  When test failed
+ * @retval 1   	  When test succeeded
+ *
+ */
+int CSE_AES_HW_test(int verbose) {
+  int success = 1;
+  int pass = 1;
+
+  if (verbose) {
+    printf("\nTesting AES HW engine with NIST reference vectors\n\r");
+    printf("CBC mode\n\r");
+  }
+  pass = CSE_AES_HW_CBC_test(verbose);
+  if (verbose) {
+    display_pass_fail(pass);
+  }
+  success &= pass;
+
+  if (verbose) {
+    printf("ECB mode\n");
+  }
+  pass = CSE_AES_HW_ECB_test(verbose);
+  if (verbose) {
+    display_pass_fail(pass);
+  }
+  success &= pass;
+
+  if (verbose) {
+	  printf("ECB mode large block\n");
+  }
+	pass = CSE_AES_HW_ECB_large_block_test(verbose);
+	if (verbose) {
+	  display_pass_fail(pass);
+	}
+	success &= pass;
+
+	if (verbose) {
+	  printf("CBC mode large block\n");
+  }
+	pass = CSE_AES_HW_CBC_large_block_test(verbose);
+	if (verbose) {
+	  display_pass_fail(pass);
+	}
+	success &= pass;
+
+
+#if 1
+  if (verbose) {
+    printf("CMAC mode\n");
+  }
+  pass = CSE_AES_HW_CMAC_test(verbose);
+  if (verbose) {
+    display_pass_fail(pass);
+  }
+  success &= pass;
+#endif
+
+
+  if (verbose) {
+    printf("AES HW engine test ");
+    display_pass_fail(success);
+  }
+  return (success);
+}
+
+static void flip_bit( uint8_t* dstTag, uint32_t bit_index )
+{
+	uint32_t byte_index = 0;
+	uint8_t bit_mask[8] = { 0x80, 0x40, 0x20, 0x10, 0x08, 0x04, 0x02, 0x01 };
+	uint32_t bit_nb;
+
+	/* flip bit */
+	byte_index = bit_index / 8;
+	bit_nb  = bit_index - byte_index * 8;
+
+	if( dstTag[byte_index] & bit_mask[bit_nb] )
+	{
+		/* bit is set --> clear it */
+		dstTag[byte_index] = dstTag[byte_index] & ~bit_mask[bit_nb];
+	}
+	else
+	{
+		/* bit is clear --> set it */
+		dstTag[byte_index] = dstTag[byte_index] | bit_mask[bit_nb];
+	}
+
+}
+
+/**
+ * @brief          Performs CMAC tests to check support for bit granularity for message length
+ * @details        Performs tests of generation and verification with variable message length
+ *
+ * @param[in]      verbose		enable display of input, computed and expected values when set to 1
+ *
+ * @return         Error code
+ * @retval 0  	   When test failed
+ * @retval 1   	   When test succeeded
+ *
+ */
+uint32_t test_CMAC_msg_bit_length( uint32_t verbose )
+{
+	uint32_t loc_empty_key[4] = { 0x00000000, 0x00000000, 0x00000000, 0x00000000 };
+	uint32_t src[8] = 			{ 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+								  0x00000000, 0x00000000, 0x00000000, 0x00000000 };
+	uint32_t OutputTag[4] =	    { 0x00000000, 0x00000000, 0x00000000, 0x00000000 };
+
+	uint64_t msg_bit_size;
+	uint32_t mac_bit_size;
+	uint32_t expected_status;
+	uint32_t status;
+	uint32_t ret;
+
+	uint32_t test_nb;
+
+	uint32_t pass = 1;
+
+	int i;
+#define NB_TESTS 2
+
+	if(verbose)
+	{
+		printf("\n");
+		printf("Load RAM key \n");
+	}
+	ret = CSE_LoadRamKey((uint8_t*)loc_empty_key);
+	if(verbose)
+	{
+		printf("ret = %02x (%2x expected)\n", ret, CSE_NO_ERR);
+
+		printf("\n");
+		printf("Generate and verify MAC with variable message length - bit granularity\n");
+	}
+
+
+
+	/* Try to generate MAC with all possible bit length for 1 or 2 blocks (0->256 bits) */
+	/* They must be different */
+	for(test_nb=0; test_nb<NB_TESTS; test_nb ++)
+	{
+		mac_bit_size = 128;
+		expected_status = 0; /* MAC comparison success */
+
+		if(test_nb == 1)
+		{
+			for(i=0;i<8;i++)
+			{
+				src[i] = 0xFFFFFFFF;
+			}
+		}
+
+		if(verbose)
+		{
+			printf("\n test %d\n ", test_nb);
+			display_buf("key : ", (uint8_t*)loc_empty_key, 16);
+			display_buf("msg : ", (uint8_t*)src, 32);
+			printf("\n");
+		}
+
+		for(msg_bit_size=0; msg_bit_size<=256; msg_bit_size++ )
+		{
+			if(verbose)
+			{
+				printf("msg_bit_size : %3d,",(uint32_t)msg_bit_size );
+			}
+			ret = CSE_AES_generate_MAC(CSE_RAM_KEY, &msg_bit_size,
+													  (uint32_t*)src,
+													  (uint32_t*)OutputTag, 0);
+			/* Try with correct reference mac --> should succeed */
+			ret = CSE_AES_verify_MAC(	CSE_RAM_KEY, &msg_bit_size,
+									  (uint32_t*)src,(uint32_t*)OutputTag,
+									  mac_bit_size, &status, 0);
+			if(verbose)
+			{
+				printf(" verif : %d (%d expected), ", status, expected_status );
+			}
+			if(verbose)
+			{
+				display_buf("MAC : ", (uint8_t*)OutputTag, 16);
+			}
+			pass = pass && (status == expected_status);
+		}
+	}
+	return(pass);
+}
+
+/**
+ * @brief          Performs CMAC tests to check support for bit granularity for verification MAC length
+ * @details        Performs tests of verification of MAC with variable mac length, with and without modified tag
+ * 				   The modified tags are tests bit per bit, checking that only the specified ones are considered,
+ * 				   the others are ignored
+ *
+ * @param[in]      verbose		enable display of input, computed and expected values when set to 1
+ *
+ * @return         Error code
+ * @retval 0  	   When test failed
+ * @retval 1   	   When test succeeded
+ *
+ */
+uint32_t test_CMAC_verify_mac_bit_length( uint32_t verbose )
+{
+	uint32_t loc_empty_key[4] = { 0x00000000, 0x00000000, 0x00000000, 0x00000000 };
+
+	uint32_t src[8] = 			{ 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+								  0x00000000, 0x00000000, 0x00000000, 0x00000000 };
+	uint32_t refOutputTag[4] =	{ 0x00000000, 0x00000000, 0x00000000, 0x00000000 };
+	uint8_t modifiedTag[16] =	{ 0x00,0x00,0x00,0x00, 0x00,0x00,0x00,0x00,
+								  0x00,0x00,0x00,0x00, 0x00,0x00,0x00,0x00 };
+	uint64_t msg_bit_size;
+	uint32_t mac_bit_size;
+	uint32_t mod_bit_index;
+	uint32_t bit_index;
+	uint32_t expected_status;
+	uint32_t status;
+	uint32_t ret;
+	uint32_t pass = 1;
+
+
+	if(verbose)
+	{
+		printf("Test CMAC verification with all mac length values - bit granularity\n");
+		display_buf("key : ", (uint8_t*)loc_empty_key, 16);
+		display_buf("msg : ", (uint8_t*)src, 16);
+	}
+
+	if(verbose)
+	{
+		printf("\n");
+		printf("Load RAM key \n");
+	}
+	ret = CSE_LoadRamKey((uint8_t*)loc_empty_key);
+	if(verbose)
+	{
+		printf("ret = %02x (%2x expected)\n", ret, CSE_NO_ERR);
+	}
+
+	/*
+	 * Check comparison for all bit sizes with / without modification in the mac_length to be checked
+	 */
+	msg_bit_size = 128;
+	ret = CSE_AES_generate_MAC(CSE_RAM_KEY, &msg_bit_size,
+							  (uint32_t*)src,
+							  (uint32_t*)refOutputTag, 0);
+
+	/*
+	 * particular case - mac_length = 0 --> all bits must be compared and any change should lead to comparison failure
+	 */
+	if(verbose)
+	{
+		printf("\n");
+		printf("Verify modified MAC with 0 bit MAC_length (ie. all 128 bits form MAC must be compared) --> all attempts must fail\n");
+		printf("msg_bit_size : %d\n",(uint32_t)msg_bit_size );
+	}
+	memcpy( modifiedTag, refOutputTag, 16);
+	mac_bit_size = 0;
+	expected_status = 1; /* fail */
+	for(bit_index=0; bit_index<128; bit_index++ )
+	{
+		flip_bit( modifiedTag, bit_index );
+
+		ret = CSE_AES_verify_MAC(	CSE_RAM_KEY, &msg_bit_size,
+								  (uint32_t*)src,(uint32_t*)modifiedTag,
+								  mac_bit_size, &status, 0);
+		if(verbose)
+		{
+			if(status != expected_status)
+			{
+				printf("error for bit index = %d, verif status : %d (%d expected)\n", bit_index, status, expected_status );
+			}
+		}
+		pass = pass && (status == expected_status);
+
+		/* restore good value */
+		flip_bit( modifiedTag, bit_index );
+	}
+
+	if (verbose) {
+		printf("subtest ");
+		display_pass_fail(pass);
+	}
+
+	/*
+	 * other cases
+	 */
+	memcpy( modifiedTag, refOutputTag, 16);
+	if(verbose)
+	{
+		printf("\n");
+		printf("Verify MAC with variable Mac bit length (1..128), with & without modification in reference MAC - bit granularity\n");
+		printf("msg_bit_size : %d\n", (uint32_t)msg_bit_size);
+		display_buf("ref tag : ", (uint8_t*)modifiedTag, 16);
+	}
+
+
+	for(mac_bit_size=1; mac_bit_size<=128; mac_bit_size++ )
+	{
+
+		/* Try with correct reference mac --> should succeed */
+		expected_status = 0; /* success */
+		ret = CSE_AES_verify_MAC(	CSE_RAM_KEY, &msg_bit_size,
+				  	  	  	  	  (uint32_t*)src,(uint32_t*)modifiedTag,
+								  mac_bit_size, &status, 0);
+		if(verbose)
+		{
+			if(status != expected_status)
+			{
+				printf(" ! error for ref mac,  bit length = %d, verif status : %d (%d expected)\n", mac_bit_size, status, expected_status );
+			}
+		}
+		pass = pass && (status == expected_status);
+
+		/* Try with corrupted reference mac, but within the number of bits to compare --> should fail */
+		for(mod_bit_index = 0; mod_bit_index < 128; mod_bit_index ++)
+		{
+			flip_bit( modifiedTag, mod_bit_index );
+			ret = CSE_AES_verify_MAC(	CSE_RAM_KEY, &msg_bit_size,
+									  (uint32_t*)src,(uint32_t*)modifiedTag,
+									  mac_bit_size, &status, 0);
+
+			/*
+			 * if modified bit_index is in [0 .. mac_bit_size[, then bit flipping must be trapped
+			 *
+			 * if modified bit_index is in [mac_bit_size .. 127], then it should not be detected
+			 */
+			if( mod_bit_index < mac_bit_size )
+			{
+				/* corrupted bit is within the compared ones --> verification should fail */
+				expected_status = 1; /* fail */
+			}
+			else
+			{
+				/* corrupted bit is not within the compared ones --> verification should pass */
+				expected_status = 0; /* success */
+			}
+
+			if(verbose)
+			{
+				if(status != expected_status)
+				{
+					printf(" error for mod mac bit length = %d, bit_index = %d, verif status : %d (%d expected)\n", mac_bit_size, bit_index, status, expected_status );
+				}
+			}
+			pass = pass && (status == expected_status);
+
+			/* restore original value */
+			flip_bit( modifiedTag, mod_bit_index );
+		}
+	}
+
+	if (verbose) {
+		printf("subtest ");
+		display_pass_fail(pass);
+	}
+
+	/*
+	 * Test with message length not byte aligned
+	 */
+	msg_bit_size = 125;
+	ret = CSE_AES_generate_MAC(CSE_RAM_KEY, &msg_bit_size,
+								  (uint32_t*)src,
+								  (uint32_t*)refOutputTag, 0);
+
+	memcpy( modifiedTag, refOutputTag, 16);
+	if(verbose)
+	{
+		printf("\n");
+		printf("Verify MAC for msglen = 125 bits with variable Mac bit length (1..128), with & without modification in reference MAC\n");
+		printf("msg_bit_size : %d\n", (uint32_t)msg_bit_size);
+		display_buf("ref tag : ", (uint8_t*)modifiedTag, 16);
+	}
+
+	for(mac_bit_size=0; mac_bit_size<=128; mac_bit_size++ )
+	{
+		/* Try with correct reference mac --> should succeed */
+		expected_status = 0; /* success */
+		ret = CSE_AES_verify_MAC(	CSE_RAM_KEY, &msg_bit_size,
+				  	  	  	  	  (uint32_t*)src,(uint32_t*)modifiedTag,
+								  mac_bit_size, &status, 0);
+		if(verbose)
+		{
+			if(status != expected_status)
+			{
+				printf(" ! error for ref mac,  bit length = %d, verif status : %d (%d expected)\n", mac_bit_size, status, expected_status );
+			}
+		}
+		pass = pass && (status == expected_status);
+
+		/* Try with corrupted reference mac, but within the number of bits to compare --> should fail */
+		for(mod_bit_index = 0; mod_bit_index < 128; mod_bit_index ++)
+		{
+			flip_bit( modifiedTag, mod_bit_index );
+			ret = CSE_AES_verify_MAC(	CSE_RAM_KEY, &msg_bit_size,
+									  (uint32_t*)src,(uint32_t*)modifiedTag,
+									  mac_bit_size, &status, 0);
+
+			if(mac_bit_size == 0)
+			{
+				expected_status = 1; /* mac_len =0 is considered as maclen = 128 bits --> any bit change will fail */
+			}
+			else
+			{
+				/*
+				 * if modified bit_index is in [0 .. mac_bit_size[, then bit flipping must be trapped
+				 *
+				 * if modified bit_index is in [mac_bit_size .. 127], then it should not be detected
+				 */
+				if( mod_bit_index < mac_bit_size )
+				{
+					/* corrupted bit is within the compared ones --> verification should fail */
+					expected_status = 1; /* fail */
+				}
+				else
+				{
+					/* corrupted bit is not within the compared ones --> verification should pass */
+					expected_status = 0; /* success */
+				}
+			}
+
+			if(verbose)
+			{
+				if(status != expected_status)
+				{
+					printf(" error for mod mac bit length = %d, bit_index = %d, verif status : %d (%d expected)\n", mac_bit_size, bit_index, status, expected_status );
+				}
+			}
+			pass = pass && (status == expected_status);
+
+			/* restore original value */
+			flip_bit( modifiedTag, mod_bit_index );
+		}
+	}
+
+	if (verbose) {
+		printf("subtest ");
+		display_pass_fail(pass);
+	}
+
+	return(pass);
+}
+
+/**
+ * @brief          Performs CMAC tests to check support for bit granularity
+ * @details        Calls the message and mac length bit granularity dedicated tests
+ *
+ * @param[in]      verbose		enable display of input, computed and expected values when set to 1
+ *
+ * @return         Error code
+ * @retval 0  	   When test failed
+ * @retval 1   	   When test succeeded
+ *
+ */
+uint32_t test_MAC(uint32_t verbose)
+{
+	int success = 1;
+	int pass = 1;
+
+
+	if(0)
+	{
+	uint32_t empty_key[4] = { 0x00000000, 0x00000000, 0x00000000, 0x00000000 };
+	uint32_t src[4] = 		{ 0x00000000, 0x00000000, 0x00000000, 0x00000000 };
+	uint32_t exp_mac[4] = 	{ 0x763CBCDE, 0x81DF9131, 0xBF897712, 0xC088EDAD };
+	uint32_t wrong_mac[4] = { 0x763CBCDE, 0x81DF9131, 0xBF897712, 0x00000000 };
+	uint64_t bit_size;
+	uint32_t status;
+	uint32_t ret;
+
+		uint8_t key1[16] = { 0x2b,0x7e,0x15,0x16,0x28,0xae,0xd2,0xa6,0xab,0xf7,0x15,0x88,0x09,0xcf,0x4f,0x3c };
+		uint8_t mac[16];
+
+		/* INIT -> Load RAM key */
+		printf("\n");
+		printf("Load RAM key \n");
+		ret = CSE_LoadRamKey((uint8_t*)key1);
+		printf("ret = %02x (%2x expected)\n", ret, CSE_NO_ERR);
+
+		printf(" CMAC calc\n");
+
+		printf("Reference\n");
+		display_buf("key1   : ", key1, 16);
+
+		bit_size = 0;
+		printf("bit_size : %d\n", (uint32_t)bit_size);
+		ret = CSE_AES_generate_MAC(CSE_RAM_KEY, &bit_size, src, (uint32_t*)mac, 0);
+
+		display_buf("mac   : ", mac, 16);
+		printf("\n");
+
+	/* INIT -> Load RAM key */
+	printf("\n");
+	printf("Load RAM key \n");
+	ret = CSE_LoadRamKey((uint8_t*)empty_key);
+	printf("ret = %02x (%2x expected)\n", ret, CSE_NO_ERR);
+
+	bit_size = 128;
+
+	printf("\n");
+	printf("Checking MAC with correct message & ref \n");
+	ret = CSE_AES_verify_MAC(CSE_RAM_KEY, &bit_size, src, exp_mac, 128, &status, 0);
+	printf("ret = %02x (00 expected)\n", ret);
+	printf("verification result : %d (0 expected -> mac match expected one)\n", status);
+
+	printf("\n");
+	printf("Checking MAC with corrupted ref mac \n");
+	ret = CSE_AES_verify_MAC(CSE_RAM_KEY, &bit_size, src, wrong_mac, 128, &status, 0);
+	printf("ret = %02x (00 expected)\n", ret);
+	printf("verification result : %d (1 expected -> mac does not match expected one)\n", status);
+
+	printf("\n");
+	printf("Checking MAC with wrong message size\n");
+	bit_size = 64;
+	ret = CSE_AES_verify_MAC(CSE_RAM_KEY, &bit_size, src, exp_mac, 128, &status, 0);
+	printf("ret = %02x (00 expected)\n", ret);
+	printf("verification result : %d (1 expected -> mac does not match expected one)\n", status);
+	}
+
+	  if (verbose) {
+	    printf("\nTesting AES CMAC engine with bit granularity\n\r");
+	  }
+
+	  pass = test_CMAC_msg_bit_length(verbose);
+	  if (verbose) {
+	    display_pass_fail(pass);
+	  }
+	  success &= pass;
+
+	  pass = test_CMAC_verify_mac_bit_length(verbose);
+	  if (verbose) {
+	    display_pass_fail(pass);
+	  }
+	  success &= pass;
+	  return (success);
+}
+
+
+/**
+ * @}
+ */
+/**
+ * @}
+ */

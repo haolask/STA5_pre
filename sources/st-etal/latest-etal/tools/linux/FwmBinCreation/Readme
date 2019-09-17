@@ -1,0 +1,9 @@
+This script allow to generate binary file from XXX.boot.h file to XXX.boot.bin.
+This binary file is used by the early tuner to DL CMOST FWM.
+
+Use example:
+
+./fwm_bin_creation.sh TDA7707_OM_CUT_EB.boot.h
+
+
+This command will create TDA7707_OM_CUT_EB.boot.bin file from TDA7707_OM_CUT_EB.boot.h file.

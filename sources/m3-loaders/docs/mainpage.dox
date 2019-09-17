@@ -1,0 +1,55 @@
+/**
+@mainpage
+
+@section intro_sec Introduction
+
+Welcome to the ST-Microelectronics Cortex-M3 documentation.<br/>
+
+This documentation has been generated thanks to comments present in the source
+tree.<br/>
+This documentation is not a user guide and is only provided as a technical
+guide to write source code that can be used in the Cortex-M3
+environment.<br/><br/>
+
+It describes the 4 (exclusives) binaries to be executed by the Cortex-M3
+processor which are <b>Cortex-M3 Xloader</b>, <b>Cortex-M3 car radio application OS</b>, <b>Cortex-M3 telematics application</b> and <b>Cortex-M3 U-boot loader</b>.
+For more details on the architecture, please refer to the official User Manual.<br/>
+
+@section intro_xl_sec Cortex-M3 Xloader (XLOADER)
+
+<b>sta_xloader</b> is the main entry point for the Cortex-M3 bootloader in
+charge of preparing all necessary drivers and services to be able to load
+and execute the M3 OS application part and the Application Processor
+(Cortex-A7) bootloader which is basically U-boot or ATF. This module is also
+responsible for starting the scheduler and all needed tasks.
+
+@section intro_car_radio_sec Cortex-M3 car radio app OS (OS_CAR_RADIO)
+
+<b>sta_car_radio</b> is the main entry point for the Cortex-M3 car radio
+application in charge of M3 application part of a car radio system.
+It may also initialise, load and start U-boot in Cortex A7 AP.
+It relies on FreeRTOS services.
+
+@section intro_telematics_sec Cortex-M3 car telematics app OS (OS_TELEMATICS)
+
+<b>sta_telematics</b> is the main entry point for the Cortex-M3 car telematics
+application in charge of M3 application part of a car telematics system.
+It may also initialise, load and start U-boot/ATF in Cortex A7 AP.
+It relies on FreeRTOS services.
+
+@section intro_xlu_sec Cortex-M3 U-boot loader (XL_UFLASHLOADER)
+
+<b>sta_xl_uflashloader</b> is the main entry point for the Cortex-M3 bootloader in
+charge of preparing all necessary drivers and services to be able to load
+and execute the Application Processor bootloader. There are 2 differents
+ways:
+<ul>
+<li> USB DFU: in such case, the XL_UFLASHLOADER unzips and decodes the content
+of the archive containing compressed U-boot. Then U-boot is executed.
+<li> UART: the XL_UFLASHLOADER establishes an UART connection with the PC
+Flasher and starts the transfer of the uboot.bin file, then U-boot is
+executed.
+</ul>
+*/
+
+

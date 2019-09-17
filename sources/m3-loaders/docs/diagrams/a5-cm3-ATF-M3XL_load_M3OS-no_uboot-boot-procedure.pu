@@ -1,0 +1,97 @@
+'-----------------------------------------------------
+'
+' XLOADER
+' Sequence diagram: describes dynamic components
+' interactions, ATF scenario with M3XL load and start M3OS
+' for with Linux as BL33 (eg without U-boot)
+'
+'-----------------------------------------------------
+@startuml
+!include diagrams/st_colors.pu
+
+participant BootROM as br
+participant "m3-xloader" as xl
+participant "m3-os" as os
+participant "ATF-BL2" as bl2
+participant "ATF-BL32" as bl32
+participant "Linux" as bl33
+participant "CAN task" as can
+
+title M3 with ATF boot sequence
+
+br->br: looking for bootable devices
+note over br
+	Depending on the REMAP switch configuration, the BootROM
+	will poll for a "bootable" device (USB DFU, UART, NAND, etc.)
+	In that case, we assume that REMAP switch are configured
+	to boot from a memory (MMC, NAND or SQI)
+	Once found, the BootROM "shadows" the code found in "bootable"
+	device into the ESRAM and triggers the boot.
+end note
+
+br->br: shadowing m3-xloader from bootable device at start of M3 ESRAM
+
+br->xl: start
+xl->xl: Relocate code and data at end of M3 ESRAM
+xl->xl: core drivers initialization
+
+note over xl
+	SOC and board IDs auto detection
+	initialize Cortex-M3 core and peripherals controllers:
+		- AHB-APB settings
+		- NIC security settings
+		- QoS DMA settings
+		- SRC (M3 and A7)
+		- NVIC, MTU
+		- Detect board and SoC info and save them in shared_data
+		- UART for traces
+		- Memory boot device (MMC, NAND or SQI)
+		  Save memory boot dev info in shared_data for next stages
+		- DDR
+	Recopy TOC from @0x200 to end of M3 ESRAM for next M3 stage
+end note
+
+xl->xl: Shadowing AP ATF BL2 from boot device at start of AP ESRAM
+xl->os: Shadowing M3OS from boot device at start of M3 ESRAM
+xl->os: Shadowing M3 OS Part2 from boot device in AP ESRAM (optionnal)
+xl->bl2: Start
+xl->os: Start
+os->os: core drivers initialization
+
+note over os
+	initialize controllers:
+		- NVIC, MTU, Trace
+		- Reuse boot dev info in shared_data for memory boot re-init
+	initialize PMU & IPC
+	initialize application specific peripherals:
+		- LCD, VIP, G1, audio/DSP... for car radio
+		- modem, accelerometer ... for car telematics 
+end note
+
+os->can : xTaskCreate
+os->Bootflow : xTaskCreate
+note over Bootflow
+	Shadowing of needed images
+end note
+os->RpMsg : xTaskCreate
+os->Accelerometer : xTaskCreate
+os->prm : xTaskCreate
+os->i2c : xTaskCreate
+
+note over bl2
+	Minimal AP and platform init (MMU, boot device...)
+	Reuse boot dev info in shared_data for memory boot init
+end note
+bl2->bl2: Shadowing AP ATF BL32 (secure monitor) from boot device in AP ESRAM
+bl2->bl32: Start
+bl2->bl2: Shadowing DTB (NS_FW_CONFIG in ATF) from boot device in DDRAM
+bl2->bl2: Shadowing Linux (BL33 in ATF) from boot device in DDRAM
+bl2->bl33: Start
+note over bl33
+	launch Linux Kernel...
+end note
+bl2->RPMSG: Init RPMSG communication with M3 OS
+bl33->bl33:	Linux ready and running...
+
+@enduml
+

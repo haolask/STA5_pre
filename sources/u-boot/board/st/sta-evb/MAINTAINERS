@@ -1,0 +1,7 @@
+STA EVB BOARD
+M:	STMicroelectronics
+M:	Philippe Langlais <philippe.langlais@st.com>
+S:	Maintained
+F:	board/st/sta/
+F:	include/configs/sta-common.h
+F:	configs/sta-nand-flashloader_defconfig

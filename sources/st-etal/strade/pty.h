@@ -1,0 +1,76 @@
+#ifndef PTY_H
+#define PTY_H
+
+#include <QString>
+#include <QList>
+
+namespace pty
+{
+    const QList<QString> ptyEuList = QList<QString>() << "None"
+                                                      << "News"
+                                                      << "Current affairs"
+                                                      << "Information"
+                                                      << "Sport"
+                                                      << "Education"
+                                                      << "Drama"
+                                                      << "Culture"
+                                                      << "Science"
+                                                      << "Varied"
+                                                      << "Pop music"
+                                                      << "Rock music"
+                                                      << "Easy listening"
+                                                      << "Light classical"
+                                                      << "Serious classical"
+                                                      << "Other music"
+                                                      << "Weather"
+                                                      << "Finance"
+                                                      << "Children's programmes"
+                                                      << "Social affairs"
+                                                      << "Religion"
+                                                      << "Phone-in"
+                                                      << "Travel"
+                                                      << "Leisure"
+                                                      << "Jazz music"
+                                                      << "Country music"
+                                                      << "National music"
+                                                      << "Oldies music"
+                                                      << "Folk music"
+                                                      << "Documentary"
+                                                      << "Alarm Test"
+                                                      << "Alarm";
+
+    const QList<QString> ptyUsList = QList<QString>() << "None"
+                                                      << "News"
+                                                      << "Information"
+                                                      << "Sports"
+                                                      << "Talk"
+                                                      << "Rock"
+                                                      << "Classic rock"
+                                                      << "Adult Hits"
+                                                      << "Soft rock"
+                                                      << "Top 40"
+                                                      << "Country"
+                                                      << "Oldies"
+                                                      << "Soft"
+                                                      << "Nostalgia"
+                                                      << "Jazz"
+                                                      << "Classical"
+                                                      << "Rhythm and Blues"
+                                                      << "Soft Rhythm and Blues"
+                                                      << "Foreign language"
+                                                      << "Religious music"
+                                                      << "Religious talk"
+                                                      << "Personality"
+                                                      << "Public"
+                                                      << "College"
+                                                      << "Unassigned"
+                                                      << "Unassigned"
+                                                      << "Unassigned"
+                                                      << "Unassigned"
+                                                      << "Unassigned"
+                                                      << "Weather"
+                                                      << "Emergency test"
+                                                      << "Alert Alert!";
+}
+
+#endif // PTY_H

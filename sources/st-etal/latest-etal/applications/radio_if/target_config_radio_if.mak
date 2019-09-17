@@ -1,0 +1,23 @@
+#
+# Automatically generated make config: don't edit
+# Linux kernel version: 
+# Thu Apr  6 18:41:07 2017
+#
+CONFIG_APP_RADIO_IF=y
+
+#
+# radio_if options
+#
+# CONFIG_RADIO_IF_HAVE_ALL is not set
+CONFIG_BUILD_DRIVER=y
+CONFIG_COMM_STECI_UART=y
+CONFIG_COMM_MCP=y
+
+#
+# Maximum Trace Level Configuration
+#
+CONFIG_TRACE_CLASS_MCP=1
+CONFIG_TRACE_CLASS_STECI_UART=1
+CONFIG_TRACE_CLASS_RIF_PROTOCOL_ROUTER=1
+CONFIG_TRACE_CLASS_RIF_RIMW=1
+CONFIG_TRACE_CLASS_RIF_MSG_QUEUE=1

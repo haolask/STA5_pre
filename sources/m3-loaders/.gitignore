@@ -1,0 +1,17 @@
+.stamp_*
+*.mak
+*.ori*
+*.*~
+*.swp
+*.depend
+*.layout
+*.patch
+src/bin/
+src/output/
+tags
+TAGS.LST
+ID
+cscope.out
+build/
+oe-*
+middleware/st-etal/

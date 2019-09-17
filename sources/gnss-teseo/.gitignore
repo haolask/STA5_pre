@@ -1,0 +1,54 @@
+# Teseo files
+bin/
+build/.build_linux/
+build/makefiles/config.mak
+build/makefiles/toolchain.mak
+hbp/linux/linuxapp/gnu/m2m_data.asm
+include/generic/c2c.h
+include/generic/frontend.h
+include/generic/gnssapp.h
+include/generic/gpOS_porting_*.h
+include/generic/gpsconfig.h
+include/generic/in_out.h
+include/generic/m2m_hbp.h
+include/generic/messagei.h
+include/generic/mutexi.h
+include/generic/nmea.h
+include/generic/nmea_support.h
+include/generic/platform.h
+include/generic/platform_linux.h
+include/generic/remote_*.h
+include/generic/rtc_hbp.h
+include/generic/semaphorei.h
+include/generic/server_sock.h
+include/generic/stagps_plugin.h
+include/generic/svc_*.h
+include/generic/taski.h
+include/generic/uart.h
+include/generic/waas_plugin.h
+libs/generic_mst_hbp_*_linux.lib
+libs/generic_mst_gnssapp_plugins_linux.lib
+libs/generic_mst_nmea_linux.lib
+.stamp_*
+
+#DRAW files
+build/scripts/ConfigUpdate/DR_config.txt
+docs/*DRAW*
+docs/*_DR_*
+gnss-teseo-*_DR.tar.gz
+modules/gnssapp_plugins/dr_*
+include/generic/dr_*.h
+libs/generic_mst_dr_linux.lib
+libs/generic_mst_dr_sensors_linux.lib
+libs/generic_mst_sw_config_dr_linux.lib
+
+# ctags & cscope files
+tags
+cscope.out
+ID
+TAGS.LST
+
+#Yocto environment files
+oe-*
+
+

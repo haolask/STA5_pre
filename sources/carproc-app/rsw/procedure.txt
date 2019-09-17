@@ -1,0 +1,51 @@
+Build
+
+bitbake virtual/kernel -c devshell
+
+cd ..../rsw
+make 
+
+========================================================================
+
+
+
+
+echo 1 > /sys/devices/platform/soc/48440000.usb-phy/usb_id
+echo ON > /sys/devices/platform/soc/48440000.usb-phy/drvvbus_on_device_mode
+echo HOST > /sys/devices/platform/soc/48440000.usb-phy/usb_mode
+/usr/bin/rsw
+...............
+
+==> PLUG APPLE DEVICE
+
+......
+[  101.143510] usb 2-1: new high-speed USB device number 2 using dwc_otg
+[  101.143867] Indeed it is in host mode hprt0 = 00001101
+[  101.345911] usb 2-1: New USB device found, idVendor=05ac, idProduct=12a8
+[  101.345950] usb 2-1: New USB device strings: Mfr=1, Product=2, SerialNumber=3
+[  101.345966] usb 2-1: Product: iPhone
+[  101.345980] usb 2-1: Manufacturer: Apple Inc.
+[  101.345995] usb 2-1: SerialNumber: a397c3f6cc83f37babdbe42673d5a807de576943
+[  102.303703] usb 2-1: USB disconnect, device number 2
+
+
+
+echo DEVICE > /sys/devices/platform/soc/48440000.usb-phy/usb_mode
+[  102.454613] Using Buffer DMA mode
+[  102.454668] Periodic Transfer Interrupt Enhancement - disabled
+[  102.454680] Multiprocessor Interrupt Enhancement - disabled
+[  102.454693] OTG VER PARAM: 0, OTG VER FLAG: 0
+[  102.625668] WARN::ep0_do_stall:1314: req 80.06 protocol STALL; err -22
+
+[  102.960392] WARN::ep0_do_stall:1314: req 80.06 protocol STALL; err -22
+
+[  103.520007] WARN::ep0_do_stall:1314: req 80.06 protocol STALL; err -22
+
+[  104.530895] WARN::ep0_do_stall:1314: req 80.06 protocol STALL; err -22
+
+[  106.435500] WARN::ep0_do_stall:1314: req 80.06 protocol STALL; err -22
+
+[  110.133919] WARN::ep0_do_stall:1314: req 80.06 protocol STALL; err -22
+
+
+Enumeration done by Apple device (Host USB), as no USB gadget was bind to USB1 udc, we got this warn messages

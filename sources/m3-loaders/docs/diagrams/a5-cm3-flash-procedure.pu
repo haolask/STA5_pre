@@ -1,0 +1,48 @@
+'-----------------------------------------------------
+'
+' XL_UFLASHER
+' Sequence diagram: describes dynamic components
+' interactions
+'
+'-----------------------------------------------------
+@startuml
+!include diagrams/st_colors.pu
+
+participant "m3-xl_uflashloader" as xlu
+participant "A7 (U-boot)" as ub
+participant "PC Flasher" as flh
+
+title m3-xl_uflashloader boot sequence
+
+xlu->xlu: core drivers initialization
+xlu->xlu: peripheral drivers initialization
+
+alt usb DFU case
+	note over xlu
+		ROM code has already loaded, through USB DFU, a binary
+		containing: XL_UFlasher + Lzg-zipped U-boot.bin
+		then XL_UFlasher needs to unzip U-boot.bin and jumps in
+	end note
+
+	xlu->xlu: LZG_Decode(uboot)
+
+else uart case
+	xlu->flh: 0x81
+	flh->xlu: ack
+
+	note over flh
+		UART connection extablished, flash u-boot.bin
+		though UART
+	end note
+end
+
+flh->flh: wait loop (USB fastboot connection)
+
+xlu->ub: start()
+
+ub->flh: establish USB fastboot connection
+
+ub<->flh: USB fastboot transfer
+
+@enduml
+

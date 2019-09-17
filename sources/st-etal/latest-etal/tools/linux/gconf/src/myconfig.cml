@@ -1,0 +1,612 @@
+#
+# For a description of the syntax of this configuration file,
+# see scripts/kbuild/config-language.txt.
+#
+
+mainmenu "Tiger Configuration"
+
+################################################################################
+#
+# Submenu: 'IDB (Information Device Block) Config'
+#
+################################################################################
+menu 'IDB (Information Device Block) Config'
+	config CONFIG_IDB_VERSION_NAME
+		int 'Version Name (4 Hex Nibbles in BCD, e.g. rel8d=0x0813)'
+		default 0x0000
+	config CONFIG_IDB_VERSION_DATE
+		int 'Version Date (3 Hex Numbers yy.mm.dd, e.g. 0x010706)'
+		default 0x060701
+	config CONFIG_IDB_SWNUM
+		string 'SW-Number'
+		default "8000000000"
+	config CONFIG_IDB_HWNUM
+		string 'HW-Number'
+		default "8000000000"
+endmenu    
+
+    
+################################################################################
+#
+# Mainmenu: 'Target setup'
+#
+################################################################################
+menu 'Target setup'
+
+################################################################################
+#
+# Submenu: 'Target setup'->'Target - Project'
+#
+################################################################################
+choice
+	prompt "Target - Project"
+	default CONFIG_ADRWARE
+
+	config CONFIG_PARADAB
+		bool "paraDAB"
+
+	config CONFIG_CARDAB
+		bool "carDAB"
+	
+	config CONFIG_ADRWARE
+		bool "adrWare"
+endchoice
+	 
+config CONFIG_VERBOSE_WARNINGS
+	bool 'Show CONFIG_VERBOSE_WARNINGS'
+config CONFIG_OSAL
+	bool 'Enable OSAL' 
+
+################################################################################
+#
+# Submenu: 'Target setup'->'Target - Architecture'
+#
+################################################################################
+comment '-------------------------'
+
+choice 
+	prompt 'Target - Architecture'
+	default CONFIG_ADR3
+	
+	config CONFIG_ADR3
+		bool "Adr-3"
+
+	config CONFIG_ARION
+		bool "Arion"
+	
+	config CONFIG_DFIRE2
+		bool "D-Fire-2"
+
+	config CONFIG_SUN
+		bool "Sun"
+
+	config CONFIG_WIN32
+		bool "Win32"
+
+	config CONFIG_LINUX
+		bool "Linux"
+endchoice
+
+
+################################################################################
+#
+# Submenu: 'Frontend Selection'->'Frontend- Selection'
+#
+################################################################################
+if $CONFIG_DFIRE2 ::= y
+	choice 
+		prompt 'Frontend- Selection'
+	
+	config CONFIG_FRONTEND_CF800
+		bool "CF800"
+
+	config CONFIG_FRONTEND_CF730
+		bool "CF730"
+	endchoice	
+
+	if $CONFIG_FRONTEND_CF730 ::= y
+		config CONFIG_ENABLE_CF730_FREQTEST 
+			bool "  enable CF730 Freqtesting"      
+		config CONFIG_SNOOP_INPUT_POWER 
+			bool "  enable snoop input power"      
+		config CONFIG_BIG_SIGNAL_WORKAROUND 
+			bool "  enable big signal workaround"      	  
+	endif
+
+	choice 
+		prompt 'Target Board Selection'
+		config CONFIG_DFIRE2_TARGET_BOARD_DFIRE2REFDESIGN
+		bool "DFire2RefDesign"
+		config CONFIG_DFIRE2_TARGET_BOARD_LC2
+		bool "LC2"
+		config CONFIG_DFIRE2_TARGET_BOARD_LC4R
+		bool "LC4R"	
+	endchoice
+endif
+
+
+
+if $CONFIG_SUN ::= y
+	config CONFIG_ENABLE_UNIXUCOS_OSTIMEDLY_WITH_USLEEP	
+		bool '  use usleep for OSTimeDly' 
+	config CONFIG_UNIXUCOS_USE_USLEEP_IN_LOOP_FOR_TIMETICK		
+		bool '  use usleep for OSTimeTick'
+	config CONFIG_ENABLE_UNIXUCOS_OSCHANGEPRIO		 
+		bool '  enable OSChangePrio'      
+endif
+
+if $CONFIG_LINUX = y
+	config CONFIG_ENABLE_UNIXUCOS_OSTIMEDLY_WITH_USLEEP
+		bool '  use usleep for OSTimeDly'  
+	config CONFIG_UNIXUCOS_USE_USLEEP_IN_LOOP_FOR_TIMETICK		
+		bool '  use usleep for OSTimeTick'
+	config CONFIG_ENABLE_UNIXUCOS_OSCHANGEPRIO	 
+		bool '  enable OSChangePrio'       
+endif
+
+################################################################################
+#
+# Submenu: 'Win32 setup'->
+# 
+# Side effects: depends on architecture
+################################################################################
+if $CONFIG_WIN32 ::= y
+	choice
+		prompt 'Win32 - Development Environment'
+		config CONFIG_WIN32_CYGWIN
+			bool "CYGWIN"
+		config CONFIG_WIN32_VISUAL_STUDIO
+			bool "Visual-Studio"
+	endchoice			
+endif
+
+################################################################################
+#
+# Submenu: 'Target setup'->'carDAB setup'
+#
+# Side effects: depends on architecture carDAB/DFire2
+################################################################################
+if $CONFIG_DFIRE2 ::= y
+	config FLASH_ASM_USE_FLAG3_FOR_VID_SWITCHING
+		bool '  Switch FLASH-Vid with FLAG3' 
+  	comment 'SRAM switches'
+  	choice
+  		prompt 'external SRAM size'
+		config CONFIG_DFIRE2_EXT_SRAM_2MBIT
+			bool "2MBIT"
+		config CONFIG_DFIRE2_EXT_SRAM_4MBIT
+	 		bool "4MBIT"
+	endchoice
+	config CONFIG_INCLUDE_RANDOM_DATA_234KBYTE 		
+  		bool '  Include, Random Dummy Data 234k Byte' 
+endif
+
+################################################################################
+#
+# Submenu: 'Target setup'->'Fireware feature setup'
+#
+# Side effects: depends on architecture DFire2
+################################################################################
+if $CONFIG_DFIRE2 ::= y
+	config CONFIG_UCOS_STACK_CHECK
+		bool '  use ucos Stack Check' 
+	menu 'Fireware feature setup'
+  #		source ../../cfg/dfire2_config.in 
+  	endmenu
+endif
+
+################################################################################
+#
+# Submenu: 'Target setup'->' Compiler Setup'
+#
+# Side effects: depends on architecture DFire2
+################################################################################
+if $CONFIG_DFIRE2 = y
+   comment 'Compiler Switches'   
+   choice 
+   	prompt 'Compiler'
+	config CONFIG_GNUPRO_MIPS_LSI_ELF
+		bool "mips-lsi-elf"
+	config CONFIG_GNUPRO_MIPSISA32_ELF
+		bool "mipsisa32-elf"
+   endchoice
+   config CONFIG_DFIRE2_GCCO2
+   		bool '  use -O2 optimisation'
+   config CONFIG_DFIRE2_MIPS16 
+   		bool '  use MIPS 16Bit Compiler Option'
+   config CONFIG_COMPILE_WITH_FUNCTIONPROFILING 
+   		bool '  compile with -finstrument-functions (profiling)'
+   config CONFIG_COMPILE_WITH_DEBUGINFO 
+	    bool '  compile with -g (debug-info)'
+   config CONFIG_STRICT_COMPILATION 
+   		bool '  enable strict compilation (e.g. -Werror)'
+   config CONFIG_COMPILE_MAKE_ASSEMBLERLISTING 
+   		bool '  compile, make assembler listings' 
+   if $CONFIG_DFIRE2_EXCEPTNS_DIRECTLY_CRT0_HANDLED ::= n
+     comment 'Warning: GDB-Stub & Trojan needed'
+     config CONFIG_DFIRE2_DEBUG_BOARD_SRAM_DEBUGGING
+     	bool '  use Debug-Board SRAM debugging' 
+   endif
+   config CONFIG_DFIRE2_EXCEPTNS_DIRECTLY_CRT0_HANDLED
+	    bool '  Enable, DFire Exceptions directly handled' 
+   comment 'Hardware Switches'
+   config CONFIG_DFIRE2_SPI_BUGFIX_MULTIPLE_INIT
+   		bool '  use SPI HW module init bugfix after booting (multiple SPI init)'
+endif
+
+endmenu
+################################################################################
+########################## END of Mainmenu  'Target setup' ##############
+################################################################################
+
+################################################################################
+#
+# Mainmenu: 'Feature setup'
+#
+################################################################################
+menu 'Feature setup'
+################################################################################
+#
+# Submenu: 'Features setup'->'Radio - Features'
+#
+################################################################################
+	menu 'Radio Feature setup'
+	comment 'DAB ...'
+		menu 'Radiomanager Module Setup'
+			config CONFIG_RDM_REGION
+			  bool 'Enable Rdm-Module Region' 
+			config CONFIG_RDM_LEARN
+			  bool 'Enable Rdm-Module Learn'
+			config CONFIG_RDM_PRESET_STATION   
+			  bool 'Enable Rdm-Module Preset Station' 
+			if $CONFIG_DB_PRESET_STATION_SUPPORT ::= y
+				if $CONFIG_RDM_PRESET_STATION ::= y
+		  			config CONFIG_RDM_STATION_ENABLE_AUX_DATA
+		  			bool 'Enable auxiliary data storage in preset station'
+		  			default y
+				endif
+				if $CONFIG_RDM_STATION_ENABLE_AUX_DATA ::= y
+		  			config CONFIG_RDM_STATION_AUX_DATA_SIZE
+		  			int '  Size of auxillary data field'
+		  			default 4
+				endif
+			endif
+		  	config CONFIG_ANNOUNCEMENT_SOURCE_DAB
+			  	bool 'Enable DAB Announcement Source'
+		  	config CONFIG_SERV_FOLLOW 
+			  	bool 'Enable DAB Service Following' 
+			if $CONFIG_SERV_FOLLOW ::= y
+		  		config CONFIG_SERV_FOLLOW_MODE_HARDLINK
+		  			bool '  Enable SF-Mode HARDLINK' 
+		  		config CONFIG_SERV_FOLLOW_MODE_SOFTLINK
+		  			bool '  Enable SF-Mode SOFTLINK' 
+			endif
+		  	config CONFIG_TUNER_SWITCH_UNIT
+		  		bool 'Enable TSU (Tuner Switch Unit)' 
+			if $CONFIG_TUNER_SWITCH_UNIT ::= y
+		  		config CONFIG_TSU_ENABLE_SERVICE_LINKING
+		  		bool '  Enable TSU-Mode service linking' 
+			endif
+		endmenu	
+		#
+		config CONFIG_USE_PREDEFINED_DAB_MODE
+			bool 'Use Predefined DAB Mode' 
+		#
+		
+		#
+		config CONFIG_PTYS
+			bool 'Enable PTy' 
+		if $CONFIG_PTYS ::= y
+			menu 'Select supported Languages'
+				config CONFIG_PTY_LANGUAGE_TABLE_GERMAN
+					bool 'Enable GERMAN'       
+				config CONFIG_PTY_LANGUAGE_TABLE_DUTCH
+					bool 'Enable DUTCH'         
+				config CONFIG_PTY_LANGUAGE_TABLE_FRENCH
+					bool 'Enable FRENCH'       
+				config CONFIG_PTY_LANGUAGE_TABLE_NORWEGIAN
+					bool 'Enable NORWEGIAN'    
+				config CONFIG_PTY_LANGUAGE_TABLE_PORTUGUESE
+					bool 'Enable PORTUGUESE'   
+				config CONFIG_PTY_LANGUAGE_TABLE_SPANISH
+					bool 'Enable SPANISH'      
+				config CONFIG_PTY_LANGUAGE_TABLE_SWEDISH
+					bool 'Enable SWEDISH'      
+				config CONFIG_PTY_LANGUAGE_TABLE_FINNISH
+					bool 'Enable FINNISH'      
+				config CONFIG_PTY_LANGUAGE_TABLE_NORTH_AMERICA
+					bool 'Enable NORTH_AMERICA'   
+		 	endmenu
+		endif
+		
+		#
+		config CONFIG_PACKET_MODE
+			bool 'Enable Packet Mode' 
+		#
+		config CONFIG_SERV_COMP_EXTENDED
+			bool 'Enable Extended Service Components' 
+		#
+		config CONFIG_DATA_SERVICES
+			bool 'Enable Data Services' 
+		#
+		config CONFIG_SERVICE_LINKING
+			bool 'Enable Service Linking' 
+		if $CONFIG_SERVICE_LINKING ::= n
+		  if $CONFIG_SERV_FOLLOW_MODE_HARDLINK ::= y
+		    comment 'ENABLE Service Linking for selected ServFollow mode HARDLINK !'
+		  endif
+		  if $CONFIG_SERV_FOLLOW_MODE_SOFTLINK ::= y
+		    comment 'ENABLE Service Linking for selected ServFollow mode SOFTLINK !'
+		  endif
+		endif
+		#
+		
+		if $CONFIG_ANNOUNCEMENTS ::= y
+		  config CONFIG_ANNOUNCEMENTS_FM_SOURCE
+			  bool '  FM Announcement Source' 
+		  config CONFIG_ANNOUNCEMENTS_DAB_SOURCE
+		  	  bool '  DAB Announcement Source'
+		  config CONFIG_ANNO_WARNTONE_START_TIME	   
+		  	  int 'Time (sec) for anno warntone start'
+		  	  default 30
+		endif
+		#
+		comment 'Database ...'
+		#
+		config CONFIG_DB_STORE_SERVICES_AND_LABELS
+			bool 'Enable Database Store Services & Labels' 
+		config CONFIG_DB_PRESET_STATION_SUPPORT
+			bool 'Enable PresetStation Support in database' 
+		if $CONFIG_DB_PRESET_STATION_SUPPORT ::= y
+		  config CONFIG_NR_DB_PRESET_STATIONS
+		  	int 'Number of Stations'
+		  	default 18
+		  config CONFIG_NR_PRESET_FREQUENCIES	
+		    int 'Number of Frequencies for one PresetStation'
+		    default 3
+		  comment 'more...'
+		endif
+		config CONFIG_ENABLE_DB_GC
+			bool 'Enable DB Garbage Collector' 
+		
+		config CONFIG_DB_REGION_SUPPORT
+			bool 'Enable DB Region Support' 
+		config CONFIG_DB_AM_SUPPORT
+			bool 'Enable DB AM Support' 
+		config CONFIG_DB_FM_SUPPORT
+			bool 'Enable DB FM Support' 
+		
+		config CONFIG_NR_SERVICES
+			int 'Number of Services'
+			default 60
+		config CONFIG_MAX_NUM_COMPS_IN_SERV
+			int 'Number of Services Components in Service'  
+			default 12
+		config CONFIG_NR_COMPONENTS
+			int 'Number of Components'  
+			default 30
+		config CONFIG_MAX_NUM_USER_APPL_IN_COMP
+			int 'Number of XPAD User Application in Component'  
+			default 6
+		config CONFIG_DATABASE_SUPPORT_OLD_LIST_CONCEPT
+			bool 'Support old list concept (target/.../lists.c)' 
+		config CONFIG_NR_CLUST_IN_SERV
+			int 'Number of Announcement Clusters in a Service'  
+			default 20
+		config CONFIG_NR_ENSEMBLES
+			int 'Number of Ensembles'  
+			default 10
+		config CONFIG_NR_SERVS_IN_ENSEMBLE
+			int 'Number of Services in an Ensemble'  
+			default 15
+		if $CONFIG_DB_REGION_SUPPORT = y
+		  config CONFIG_NR_REGIONS
+		  	int 'Number of Regions'  
+		  	default 20
+		endif
+		if $CONFIG_DB_AM_SUPPORT = y
+		  config CONFIG_NR_AM_STATIONS
+		  	int 'Number of AM Stations'  
+		  	default 20
+		endif
+		if $CONFIG_DB_FM_SUPPORT = y
+		  config CONFIG_NR_FM_STATIONS
+		  	int 'Number of FM Stations'  
+		  	default 20
+		  config CONFIG_NR_FM_PROGRAMS
+		  	int 'Number of FM Programs'  
+		  	default 20
+		endif
+	endmenu
+
+################################################################################
+##################### END of Submenu 'Radio - Features setup' ################
+################################################################################
+
+################################################################################
+#
+# Submenu: 'Features setup'->'Data - Features setup'
+#
+################################################################################
+menu 'Data feature setup'
+#   source ../../cfg/data_config.in
+endmenu
+################################################################################
+####################### END of Submenu 'Data - Features setup' #################
+################################################################################
+
+################################################################################
+#
+# Submenu: 'Features setup'->'Other - Features setup'
+#
+################################################################################
+menu 'Other Feature setup'
+# Storange Conzepts ...
+	config CONFIG_USE_FLASH_DEVICE
+		bool 'Use FlashDevice' 
+	config CONFIG_USE_STORAGE_DEVICE
+		bool 'Use Storage Device' 
+	if $CONFIG_USE_STORAGE_DEVICE ::= y
+		config CONFIG_FLASHWOM_STORAGE_DEVICE__STARTADDR
+  			int '    FlashWOM Start Addr'  
+  			default 0x30020000
+  		config CONFIG_FLASHWOM_STORAGE_DEVICE__SIZE
+  			int '    FlashWOM Size'             
+  			default 0x00000400
+  		config CONFIG_ENABLE_ERRORLOG_STORAGE_DEVICE
+  			bool ' enable ErrorLog' 
+  		if $CONFIG_ENABLE_ERRORLOG_STORAGE_DEVICE ::= y
+    		config CONFIG_ERRORLOG_STORAGE_DEVICE__STARTADDR
+    			int '    ErrorLog Start Addr'
+    			default 0x30006000
+    		config CONFIG_ERRORLOG_STORAGE_DEVICE__SIZE  
+    			int '    ErrorLog Size'
+    			default 0x00002000
+  		endif
+	menu 'Storage Store/Restore Setup'
+		config CONFIG_USE_STORAGE_DEVICE__RESTORE_AFTER_RESET
+    		bool 'Restore defaults after reset' 
+    	if $CONFIG_USE_STORAGE_DEVICE__RESTORE_AFTER_RESET ::= y
+    		config CONFIG_USE_STORAGE_DEVICE__RESTORE_AFTER_RESET_USERID
+      			int '  User Id'
+      			default 1
+    	endif
+    	config CONFIG_USE_STORAGE_DEVICE__STORE_ON_SHUTDOWN
+		    bool 'store user on shutdown' 
+  	endmenu
+  	choice 
+  		prompt 'Storage Device Config'
+		config CONFIG_USE_STORAGE_DEVICE__3x8kConfig
+	  		bool '3x8kConfig'
+	  	config CONFIG_USE_STORAGE_DEVICE__3x64kConfig
+	   		bool '3x64kConfig'
+	endchoice
+	endif
+#
+	config CONFIG_ENABLE_WATCHDOG_MANAGER
+		bool 'Enable Watchdog Manager' 
+	if $CONFIG_ENABLE_WATCHDOG_MANAGER ::= y
+  		choice 
+  		prompt 'Watchdog Manager Mode'
+		config CONFIG_ENABLE_WATCHDOG_MANAGER_USE_OSTIMER
+			bool 'OSTimerMode'
+		config CONFIG_ENABLE_WATCHDOG_MANAGER_USE_MAINLOOP
+	   		bool 'MainLoopMode'
+		endchoice
+  		if $CONFIG_ENABLE_WATCHDOG_MANAGER_USE_OSTIMER ::= y
+    		config WATCHDOG_MANAGER_TASK_DELAY
+    			int '    Cycle Time (mS)'  
+    			default 250
+  		endif
+	endif
+#
+
+	config CONFIG_ENABLE_MEMORY_MANAGER 
+		bool 'Enable Memory Manager' 
+	if $CONFIG_ENABLE_MEMORY_MANAGER ::= y
+  		config CONFIG_ENABLE_MEMORY_MANAGER_INDEX_CACHE
+  			bool '    Enable Memory Manager Index Cache' 
+	  	if $CONFIG_DFIRE2 ::= y
+	    	config CONFIG_ENABLE_MEMORY_MANAGER_AUTOHEAPSIZE
+	    		bool '    Enable Memory Manager Auto Heap Size' 
+	  	endif
+	  	if $CONFIG_ENABLE_MEMORY_MANAGER_AUTOHEAPSIZE != y
+	    	config CONFIG_ENABLE_MEMORY_MANAGER_HEAP_SIZE
+	    		int '    Heap Size in KB'   
+	    		default 64
+	  	endif
+	endif
+	
+	config CONFIG_ENABLE_MEMORY_BLOCK
+		bool 'Enable MemoryBlock Class' 
+	if $CONFIG_ENABLE_MEMORY_BLOCK ::= y
+		config CONFIG_ENABLE_MEMORY_MANAGER_MAX_BLOCKS
+  			int  '   Max Number of Blocks'   
+  			default 64
+	endif
+#
+	config CONFIG_SRC_ACTIVE_TIME
+		int 'Time (sec) for SRC active'  
+		default 10
+#
+
+#
+	config CONFIG_CONTROL_API
+		bool 'Enable Control API' 
+#
+
+#
+	if $CONFIG_TESTSYSTEM ::= y
+  		config CONFIG_MCNET_UDP_API
+  			bool 'Enable MCNET-UDP-API' 
+	endif
+endmenu
+################################################################################
+###################### END of Submenu 'Other - Features setup' ################
+################################################################################
+
+endmenu
+################################################################################
+###################### END of Mainmenu 'Feature setup' ########################
+################################################################################
+
+################################################################################
+#
+#  Mainmenu: 'Tuner Device setup'
+#
+################################################################################
+menu 'Tuner Device setup'
+endmenu
+
+################################################################################
+#
+#  Mainmenu: 'Network setup'
+#
+################################################################################
+menu 'Network setup'
+endmenu
+
+################################################################################
+#
+# Mainmenu: 'Debugging'
+#
+################################################################################
+menu 'Debugging'
+endmenu
+
+
+
+
+
+
+################################################################################
+#endmenu ############### END of Mainmenu 'Debugging'  ###########################
+################################################################################
+
+
+################################################################################
+#
+# Submenu: 'TestDAB Device'
+#
+################################################################################
+menu 'TestDABDevice Configuration'
+endmenu
+
+
+
+################################################################################
+#
+# Submenu: 'TigerWare Class Config'
+#
+################################################################################
+menu 'TigerWare Class Const Setup'
+endmenu
+
+
+################################################################################
+#
+# Submenu: 'TigerWare Load Config'
+#
+################################################################################
+menu 'TigerWare Load Setup' 
+endmenu

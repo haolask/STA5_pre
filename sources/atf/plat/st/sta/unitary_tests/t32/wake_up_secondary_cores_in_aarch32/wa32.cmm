@@ -1,0 +1,36 @@
+; Function ID CPU_ON (Aarch32 convention)
+R.S R0 0x84000003
+; For CPU1
+R.S R1 0x101
+; NS entrypoint
+R.S R2 0xa0010004
+; User-defined data
+R.S R3 0xcafefade
+
+; SMC call
+; smc 0
+D.S NSP:0xa0010000 %LE %Long 0xe1600070
+; ASM waiting loop (for master and for slave)
+; Use r1 to avoid to overwrite r0 where user-data is kept
+; mov r1, pc
+D.S NSP:0xa0010004 %LE %Long 0xe1a0100f
+; sub r1, r1, 8
+D.S NSP:0xa0010008 %LE %Long 0xe2411008
+; bx r1
+D.S NSP:0xa001000c %LE %Long 0xe12fff11
+
+; Set pc
+R.S PC 0xa0010000
+; Set ARM instruction set
+R.S CPSR 0x600001d3
+; Set bp
+;b.s 0xa0010004 /onchip
+;
+data.load ../../build/tmp/deploy/images/sta1295-evb-mmc/atf/bl32.elf /nocode
+;
+b.s sta_pwr_domain_on /onchip
+;
+data.load ../../build/tmp/deploy/images/sta1295-evb-mmc/atf/bl1.elf /nocode
+;
+b.s plat_secondary_cold_boot_setup /onchip
+b.s pscbs_loop /onchip

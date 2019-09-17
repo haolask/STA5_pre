@@ -1,0 +1,9 @@
+This directory contains additionnal files for Production Test Application
+(PTA).
+
+	- README : this very file
+	- 0001-PTA-oriented-additional-traces-do-not-commit-on-trun.patch : patch
+	  files containing modifications that should not be on the trunk, but are
+	  necessary for PTA to have required traces. It has to be applied over
+	  ETAL. Generated with `git format-patch`
+	- pta.settings : sample file of customizable parameters within PTA

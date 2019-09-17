@@ -1,0 +1,238 @@
+E: CCC tests begin...
+E:  HASH tests begin...
+E: MD5 sum [passed]
+E: SHA1 sum [passed]
+E: SHA224 sum [passed]
+E: SHA256 sum [passed]
+E:  ... HASH tests end.
+E:  HASH and MOVE tests begin...
+E: MD5 sum [passed]
+E: SHA1 sum [passed]
+E: SHA224 sum [passed]
+E: SHA256 sum [passed]
+E:  ... HASH and MOVE tests end.
+E:  HASH on large messages begin...
+E: SHA256 64K sum [passed]
+E: SHA256 sum of 2 persistent scattered chunks for a total of 63K [passed]
+E: SHA256 sum of 2 transient scattered chunks for a total of 63K [passed]
+E: SHA1 sum of 3 transient chunks used for PBKDF2 [passed]
+E: SHA1 sum of 1 chunk used for PBKDF2 [passed]
+E:  ... HASH on large messages end.
+E:  HASH intermixed computations begin...
+E: SHA256 sum nested [passed]
+E: SHA1 intermixed with SHA256 [passed]
+E:  ... HASH intermixed computations end.
+E:  MOVE test begin...
+E: MOVE sum [passed]
+E:  ... MOVE test end.
+E:  AES cipher with Special key slot tests begin...
+E:   with unprovisioned key slot, size defaults to 128b...
+E:    in place with unprovisioned key slot #0...
+E: AES-128-ECB palindrome encryption [passed]
+E: AES-128-ECB palindrome decryption [passed]
+E: AES-128-ECB encryption [passed]
+E: AES-128-ECB decryption [passed]
+E: AES-192-ECB encryption [skipped] (192b not supported on sp slot #0)
+E: AES-256-ECB encryption [passed]
+E: AES-128-CBC encryption [skipped] (sp slot #0 formerly provisionned with a biggest key of 256bits)
+E: AES-128-GCM encryption [skipped] (sp slot #0 formerly provisionned with a biggest key of 256bits)
+E: AES-128-GCM authenticated encryption [skipped] (sp slot #0 formerly provisionned with a biggest key of 256bits)
+E: AES-256-GCM authenticated encryption [passed]
+E: AES-128-GCM authenticated encryption with header [skipped] (sp slot #0 formerly provisionned with a biggest key of 256bits)
+E:    ... done.
+E:    with translation with unprovisioned key slot #0...
+E: AES-128-ECB palindrome encryption [skipped] (sp slot #0 formerly provisionned with a biggest key of 256bits)
+E: AES-128-ECB palindrome decryption [skipped] (sp slot #0 formerly provisionned with a biggest key of 256bits)
+E: AES-128-ECB encryption [skipped] (sp slot #0 formerly provisionned with a biggest key of 256bits)
+E: AES-128-ECB decryption [skipped] (sp slot #0 formerly provisionned with a biggest key of 256bits)
+E: AES-192-ECB encryption [skipped] (192b not supported on sp slot #0)
+E: AES-256-ECB encryption [passed]
+E: AES-128-CBC encryption [skipped] (sp slot #0 formerly provisionned with a biggest key of 256bits)
+E: AES-128-GCM encryption [skipped] (sp slot #0 formerly provisionned with a biggest key of 256bits)
+E: AES-128-GCM authenticated encryption [skipped] (sp slot #0 formerly provisionned with a biggest key of 256bits)
+E: AES-256-GCM authenticated encryption [passed]
+E: AES-128-GCM authenticated encryption with header [skipped] (sp slot #0 formerly provisionned with a biggest key of 256bits)
+E:    ... done.
+E:   in place with provisioned key slot #0...
+E: AES-128-ECB encryption [skipped] (sp slot #0 formerly provisionned with a biggest key of 256bits)
+E: AES-192-ECB encryption [skipped] (192b not supported on sp slot #0)
+E: AES-256-ECB encryption [passed]
+E: AES-256-GCM authenticated encryption [passed]
+E: AES-128-GCM authenticated encryption with header [skipped] (sp slot #0 formerly provisionned with a biggest key of 256bits)
+E:   ... done.
+E:   in place with provisioned key slot #1...
+E: AES-128-ECB encryption [passed]
+E: AES-192-ECB encryption [skipped] (192b not supported on sp slot #1)
+E: AES-256-ECB encryption [passed]
+E: AES-256-GCM authenticated encryption [passed]
+E: AES-128-GCM authenticated encryption with header [skipped] (sp slot #1 formerly provisionned with a biggest key of 256bits)
+E:   ... done.
+E:   in place with provisioned locked key slot #0...
+E: AES-128-ECB encryption [skipped] (sp slot #0 formerly provisionned with a biggest key of 256bits)
+E: AES-192-ECB encryption [skipped] (192b not supported on sp slot #0)
+E: AES-256-ECB encryption [passed]
+E: AES-256-GCM authenticated encryption [passed]
+E: AES-128-GCM authenticated encryption with header [skipped] (sp slot #0 formerly provisionned with a biggest key of 256bits)
+E:   ... done.
+E:   in place with provisioned locked key slot #1...
+E: AES-128-ECB encryption [skipped] (sp slot #1 formerly provisionned with a biggest key of 256bits)
+E: AES-192-ECB encryption [skipped] (192b not supported on sp slot #1)
+E: AES-256-ECB encryption [passed]
+E: AES-256-GCM authenticated encryption [passed]
+E: AES-128-GCM authenticated encryption with header [skipped] (sp slot #1 formerly provisionned with a biggest key of 256bits)
+E:   ... done.
+E:  ... done.
+E:  AES cipher with General Purpose key slot tests begin...
+E:   in place with provisioned key slot #2...
+E: AES-128-ECB encryption [passed]
+E: AES-192-ECB encryption [passed]
+E: AES-256-ECB encryption [passed]
+E: AES-256-GCM authenticated encryption [passed]
+E: AES-128-GCM authenticated encryption with header [passed]
+E:   ... done.
+E:   in place with provisioned key slot #3...
+E: AES-128-ECB encryption [passed]
+E: AES-192-ECB encryption [passed]
+E: AES-256-ECB encryption [passed]
+E: AES-256-GCM authenticated encryption [passed]
+E: AES-128-GCM authenticated encryption with header [passed]
+E:   ... done.
+E:   in place with provisioned key slot #4...
+E: AES-128-ECB encryption [passed]
+E: AES-192-ECB encryption [passed]
+E: AES-256-ECB encryption [passed]
+E: AES-256-GCM authenticated encryption [passed]
+E: AES-128-GCM authenticated encryption with header [passed]
+E:   ... done.
+E:   in place with provisioned key slot #5...
+E: AES-128-ECB encryption [passed]
+E: AES-192-ECB encryption [passed]
+E: AES-256-ECB encryption [passed]
+E: AES-256-GCM authenticated encryption [passed]
+E: AES-128-GCM authenticated encryption with header [passed]
+E:   ... done.
+E:   in place with provisioned key slot #6...
+E: AES-128-ECB encryption [passed]
+E: AES-192-ECB encryption [passed]
+E: AES-256-ECB encryption [passed]
+E: AES-256-GCM authenticated encryption [passed]
+E: AES-128-GCM authenticated encryption with header [passed]
+E:   ... done.
+E:   in place with provisioned key slot #7...
+E: AES-128-ECB encryption [passed]
+E: AES-192-ECB encryption [passed]
+E: AES-256-ECB encryption [passed]
+E: AES-256-GCM authenticated encryption [passed]
+E: AES-128-GCM authenticated encryption with header [passed]
+E:   ... done.
+E:   in place with provisioned key slot #8...
+E: AES-128-ECB encryption [passed]
+E: AES-192-ECB encryption [passed]
+E: AES-256-ECB encryption [passed]
+E: AES-256-GCM authenticated encryption [passed]
+E: AES-128-GCM authenticated encryption with header [passed]
+E:   ... done.
+E:   in place with provisioned key slot #9...
+E: AES-128-ECB encryption [passed]
+E: AES-192-ECB encryption [passed]
+E: AES-256-ECB encryption [passed]
+E: AES-256-GCM authenticated encryption [passed]
+E: AES-128-GCM authenticated encryption with header [passed]
+E:   ... done.
+E:   in place with provisioned key slot #10...
+E: AES-128-ECB encryption [passed]
+E: AES-192-ECB encryption [passed]
+E: AES-256-ECB encryption [passed]
+E: AES-256-GCM authenticated encryption [passed]
+E: AES-128-GCM authenticated encryption with header [passed]
+E:   ... done.
+E:   in place with provisioned key slot #11...
+E: AES-128-ECB encryption [passed]
+E: AES-192-ECB encryption [passed]
+E: AES-256-ECB encryption [passed]
+E: AES-256-GCM authenticated encryption [passed]
+E: AES-128-GCM authenticated encryption with header [passed]
+E:   ... done.
+E:   in place with provisioned key slot #12...
+E: AES-128-ECB encryption [passed]
+E: AES-192-ECB encryption [passed]
+E: AES-256-ECB encryption [passed]
+E: AES-256-GCM authenticated encryption [passed]
+E: AES-128-GCM authenticated encryption with header [passed]
+E:   ... done.
+E:   in place with provisioned key slot #13...
+E: AES-128-ECB encryption [passed]
+E: AES-192-ECB encryption [passed]
+E: AES-256-ECB encryption [passed]
+E: AES-256-GCM authenticated encryption [passed]
+E: AES-128-GCM authenticated encryption with header [passed]
+E:   ... done.
+E:   in place with provisioned key slot #14...
+E: AES-128-ECB encryption [passed]
+E: AES-192-ECB encryption [passed]
+E: AES-256-ECB encryption [passed]
+E: AES-256-GCM authenticated encryption [passed]
+E: AES-128-GCM authenticated encryption with header [passed]
+E:   ... done.
+E:   in place with provisioned key slot #15...
+E: AES-128-ECB encryption [passed]
+E: AES-192-ECB encryption [passed]
+E: AES-256-ECB encryption [passed]
+E: AES-256-GCM authenticated encryption [passed]
+E: AES-128-GCM authenticated encryption with header [passed]
+E:   ... done.
+E:  AES CCM mode cipher tests begin...
+E: AES-128-CCM-NIST-1 encryption [passed]
+E: AES-128-CCM-NIST-1 decryption authentication [passed]
+E: AES-128-CCM-NIST-1 decryption [passed]
+E: AES-128-CCM-NIST-2 encryption [passed]
+E: AES-128-CCM-NIST-2 decryption authentication [passed]
+E: AES-128-CCM-NIST-2 decryption [passed]
+E: AES-128-CCM-NIST-3 encryption [passed]
+E: AES-128-CCM-NIST-3 decryption authentication [passed]
+E: AES-128-CCM-NIST-3 decryption [passed]
+E: AES-128-CCM-NIST-4 encryption [passed]
+E:  ... done.
+E:  ... AES ciphering tests end.
+E:  RSA cipher tests begin...
+E: RSA 64 bits modular exponentiation [passed]
+E: RSA 1 byte word-unaligned exponent 64 bits modular exponentiation [passed]
+E: RSA 2 bytes word-unaligned exponent 64 bits modular exponentiation [passed]
+E: RSA 3 bytes word-unaligned exponent 64 bits modular exponentiation [passed]
+E: RSA 64 bits modular exponentiation of 4 chunks [passed]
+E: RSA 160 bits modular exponentiation [passed]
+E: RSA 512 bits modular exponentiation [passed]
+E: RSA 512 bits modular exponentiation of 2 chunks [passed]
+E:  ... RSA ciphering tests end.
+E:  ECC cipher tests begin...
+E: ECC scalar multiplication of 112 bits curve [passed]
+E: ECC scalar multiplication of NIST P-192 (k = 1) curve [passed]
+E: ECC word-unaligned scalar multiplication of NIST P-192 (k = 1) curve [passed]
+E: ECC scalar multiplication of a 384 bits curve [passed]
+E: ECDSA 192 signature generation [passed]
+E: ECDSA 192 signature generation with a word-unaligned zero-headed modulus [passed]
+E: ECDSA 192 signature verification [passed]
+E: ECDSA NIST P-521 signature generation [passed]
+E: ECDSA NIST P-521 signature generation with all parameters word-unaligned [passed]
+E: ECDSA NIST P-521 signature generation with a modulus, an 'a' parameter and coordinates word-unaligned [passed]
+E: ECDSA NIST P-521 signature generation with a modulus and an 'a' parameter word-unaligned [passed]
+E:  ... ECC ciphering tests end.
+E:  Arithmetic tests begin...
+E: Arithmetic multiplication on 64 bits [passed]
+E: Arithmetic multiplication on 256 bits [passed]
+E: Modular reduction of 256 bits [passed]
+E: Modular addition on 256 bits [passed]
+E: Arith mul then mod red then mod add on 64 bits [passed]
+E:  ... Arithmetic tests end.
+E:  Random generation tests begin...
+E: Generate a 32 bits random [passed]
+E: Generate a 32 bits random [passed]
+E: Generate a 32 bits random [passed]
+E: Generate a 32 bits random [passed]
+E: Generate a 32 bits random [passed]
+E: Generate a 64 bits random [passed]
+E: Generate a 128 bits random [passed]
+E: Generate a 192 bits random [passed]
+E: Generate a 256 bits random [passed]
+E:  ... Random generation tests end.
+E: ... CCC tests end.

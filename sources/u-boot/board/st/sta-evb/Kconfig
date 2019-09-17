@@ -1,0 +1,18 @@
+if TARGET_STA_EVB
+
+config SYS_VENDOR
+	default "st"
+
+config SYS_SOC
+	default "sta"
+
+config SYS_BOARD
+	default "sta-evb"
+
+config SYS_CONFIG_NAME
+	default "sta-common"
+
+endif
+
+config STA_GPIO
+	default y

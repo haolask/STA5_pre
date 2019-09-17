@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="ASCII"?>
+
+<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="1.0" xmlns:spirit="http://www.spiritconsortium.org/XMLSchema/SPIRIT/1.2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:atf="https://github.com/ARM-software/arm-trusted-firmware">
+  <xsl:output method="text" media-type="text/plain" indent="no"/>
+
+  <xsl:template match="/">
+    <xsl:text>/* Generated file, do not edit. */&#10;&#10;</xsl:text>
+    <xsl:for-each select="spirit:component/spirit:memoryMaps/spirit:memoryMap/spirit:addressBlock">
+#define <xsl:value-of select="spirit:name"/>_BASE (<xsl:apply-templates select="."/>)
+#define <xsl:value-of select="spirit:name"/>_SIZE (<xsl:call-template name="size"><xsl:with-param name="size" select="spirit:range"/></xsl:call-template>)
+      <xsl:apply-templates select="chunk"/>
+    </xsl:for-each>
+  </xsl:template>
+  
+  <xsl:template match="chunk[atf:name]">
+#define <xsl:value-of select="atf:name"/>_BASE (<xsl:value-of select="offset"/><xsl:call-template name="base"><xsl:with-param name="node" select=".."/></xsl:call-template>)
+#define <xsl:value-of select="atf:name"/>_SIZE (<xsl:call-template name="size"><xsl:with-param name="size" select="size"/></xsl:call-template>)
+    <xsl:apply-templates select="chunk"/>
+  </xsl:template>
+
+  <xsl:template match="chunk[not(atf:name)]"/>
+
+  <xsl:template name="size">
+    <xsl:param name="size"/>
+    <xsl:variable name="last"><xsl:value-of select="substring($size, string-length($size))"/></xsl:variable>
+    <xsl:variable name="begin"><xsl:value-of select="substring($size, 0, string-length($size))"/></xsl:variable>
+      <xsl:value-of select="$begin"/>
+      <xsl:call-template name="charToMultiplier"><xsl:with-param name="char" select="$last"/></xsl:call-template>
+  </xsl:template>
+
+  <xsl:template name="charToMultiplier">
+    <xsl:param name="char"/>
+    <xsl:variable name="upper"><xsl:value-of select='translate($char, "kmg", "KMG")'/></xsl:variable>
+    <xsl:choose>
+      <xsl:when test='$upper = "K"'> * 1024</xsl:when>
+      <xsl:when test='$upper = "M"'> * 1024 * 1024</xsl:when>
+      <xsl:when test='$upper = "G"'> * 1024 * 1024 * 1024</xsl:when>
+      <xsl:otherwise><xsl:value-of select="$char"/></xsl:otherwise>
+    </xsl:choose>
+  </xsl:template>
+
+  <xsl:template name="base">
+    <xsl:param name="node"/>
+    <xsl:choose>
+      <xsl:when test='name($node) = "spirit:addressBlock"'> + <xsl:apply-templates select="$node"/></xsl:when>
+      <xsl:otherwise> + <xsl:value-of select="$node/offset"/><xsl:call-template name="base"><xsl:with-param name="node" select="$node/.."/></xsl:call-template></xsl:otherwise>
+    </xsl:choose>
+  </xsl:template>
+  
+  <xsl:template match="spirit:addressBlock[a7BaseAlias]"><xsl:value-of select="a7BaseAlias"/></xsl:template>
+  <xsl:template match="spirit:addressBlock[not(a7BaseAlias)]"><xsl:value-of select="spirit:baseAddress"/></xsl:template>
+
+</xsl:stylesheet>
