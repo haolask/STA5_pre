@@ -1,0 +1,38 @@
+Vivante gcnano GPU integration into STMicroelectronics platform
+
+- gcnano: Vivante gcnano GPU ip
+  Required properties:
+  - compatible: "st,gcnano"
+  - reg:
+      - Physical base address of the ip registers and length of memory mapped
+        region.
+      - Reserved memory region (contiguous memory region) used by the Vivante
+        software stack (minimum is 32MB, recommended is greater than 192MB).
+  - reg-names: names of the mapped memory regions listed in regs property in
+    the same order.
+  - cloks: clocks to be managed by the driver
+  - clock-names: names of the clocks listed by clocks property in the same order
+  - interrupts: GPU interrupt for the 3D pipeline
+  - interrupt-names: names of the interrupts listed in interrupts property in
+    the same order.
+
+Device node example:
+
+/ {
+	...
+
+		gcnano@48F00000 {
+			compatible = "st,gcnano";
+			reg = <0x48F00000 0x800>,
+			      <0xD4000000 0xC000000>,  /*192MB reserved memory*/
+			reg-names = "iobase_3d",
+				    "contig_baseaddr",
+			clocks = <&hclkgfx>, <&aclkgfx>;
+			clock-names = "clk_3d_ahb", "clk_3d_axi";
+			interrupts = <GIC_SPI 66 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "irq_3d";
+		};
+
+
+	...
+};

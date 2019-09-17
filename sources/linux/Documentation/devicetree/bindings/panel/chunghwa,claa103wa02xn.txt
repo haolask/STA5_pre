@@ -1,0 +1,7 @@
+Chunghwa CLAA103WA02XN 10.3" (1280x480 pixels) TFT LCD panel
+
+Required properties:
+- compatible: should be "chunghwa,claa103wa02xn"
+
+This binding is compatible with the simple-panel binding, which is specified
+in simple-panel.txt in this directory.

@@ -1,0 +1,22 @@
+STMicroelectronics Mailbox Test Driver
+
+Required properties:
+- compatible		: "st,mailbox-test"
+- mboxes		: phandles to sta-mailbox DT node(s)
+			  The (n*2) cells are sta-mailbox contoller phandles
+			  The ((n+1)*2) cells give the channel number dedicated
+			  to the test driver.
+
+See sta-mailbox.txt for the mailbox controller bindings.
+
+Examples:
+
+	mailbox_test {
+		compatible = "st,mailbox-test";
+		mboxes = <&mailbox 1 &mailbox 2 &mailbox 3
+			  &mailbox 4 &mailbox 5 &mailbox 6
+			  &mailbox 7 &mailbox 8 &mailbox 9
+			  &mailbox 10 &mailbox 11 &mailbox 12
+			  &mailbox 13 &mailbox 14 &mailbox 15>;
+	};
+

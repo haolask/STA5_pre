@@ -1,0 +1,11 @@
+* STMicroelectronics Rear View Camera driver
+
+Required properties:
+- compatible: Should be "st,sta_rvcam"
+
+Examples:
+
+	rvcam: rvcam {
+		compatible = "st,sta_rvcam";
+		status = "disabled";
+	};

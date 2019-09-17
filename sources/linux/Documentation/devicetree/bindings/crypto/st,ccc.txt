@@ -1,0 +1,32 @@
+* ST Microelectronics hardware cryptographic accelerators controller
+
+This a configurable controller that host hardware cryptographic accelerators
+found on some ST products.
+
+* C3 Channel Controller (CCC)
+
+Acts as a bus controller where cryptographic accelerators, namely channels, are
+plugged in. These channels can be either MPAES HASH TRNG or PKA channels among
+some others.
+
+Required properties:
+- compatible: Should be "st,ccc-v3.0".
+- reg: "c3_base" should contain C3 registers location and length.
+  "c3_program" should set DMA memory size for C3 microcode.
+- interrupts: Should contain the interrupt line for the C3.
+- interrupt-names: Should be "c3_irq".
+- clocks: List of clocks for C3.
+- clock-names: Should be "c3_hclk".
+- enabled-dispatchers: u8 bit field to enable dispatcher one by one.
+
+Example:
+ccc: ccc@49000000 {
+	compatible = "st,ccc-v3.0";
+	reg = <0x49000000 0x6000>, <0x0 0x1000>;
+	reg-names = "c3_base", "c3_program";
+	interrupts = <GIC_SPI 68 IRQ_TYPE_LEVEL_HIGH>;
+	interrupt-names = "c3_irq";
+	clocks = <&hclkc3>;
+	clock-names = "c3_hclk";
+	enabled-dispatchers = /bits/ 8 <3>;
+};

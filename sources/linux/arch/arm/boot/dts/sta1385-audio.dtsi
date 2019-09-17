@@ -1,0 +1,185 @@
+/*
+ * Copyright (C) STMicroelectronics 2016
+ *
+ * Authors: Gabriele Simone <gabriele.simone@st.com>,
+ *			Gian Antonio Sampietro <gianantonio.sampietro@st.com>
+ *			Giancarlo Asnaghi <giancarlo.asnaghi@st.com>
+ *			for STMicroelectronics.
+ *
+ * License terms:
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as published
+ * by the Free Software Foundation.
+ */
+/ {
+	soc {
+		auss: syscon@48060000 {
+			compatible = "syscon";
+			reg = <0x48060000 0x1004>;
+		};
+
+		sound_card0 {
+			compatible = "st,snd-soc-sta-card-alsa";
+			st,cpu-dai = <&msp0>;
+			st,codec-name = "snd-soc-dummy";
+			st,codec-dai-name = "snd-soc-dummy-dai";
+			st,stream-name = "msp0";
+			st,card-name = "sta-msp0";
+		};
+
+		sound_card1 {
+			compatible = "st,snd-soc-sta-card-alsa";
+			st,cpu-dai = <&msp1>;
+			st,codec-name = "snd-soc-dummy";
+			st,codec-dai-name = "snd-soc-dummy-dai";
+			st,stream-name = "msp1";
+			st,card-name = "sta-msp1";
+		};
+
+		sound_card2 {
+			compatible = "st,snd-soc-sta-card-alsa";
+			st,cpu-dai = <&msp2>;
+			st,codec-name = "snd-soc-dummy";
+			st,codec-dai-name = "snd-soc-dummy-dai";
+			st,stream-name = "msp2";
+			st,card-name = "sta-msp2";
+		};
+
+		msp0: msp@48000000 {
+			compatible = "st,sta-msp-dai";
+			reg = <0x48000000 0x1000>;
+			syscon-auss = <&auss>;
+			interrupts = <GIC_SPI 9 IRQ_TYPE_LEVEL_HIGH>;
+			dmas = <&dmasel 0 22 2>, <&dmasel 0 19 2>;
+			dma-names = "rx", "tx";
+			clocks = <&srcm3_clk STA_CLK_MSP0>,
+				 <&srca7_clk STA_CLK_PMSP0>;
+			clock-names = "mspclk", "apb_pclk";
+			i2s {
+				/* GCR */
+				tx-fsync-pol = "active_high";
+				rx-fsync-pol = "active_high";
+				tx-clk-pol = "rising";
+				rx-clk-pol = "falling";
+				tx-fsync-sel = "slave";
+				rx-fsync-sel = "slave";
+				tx-clk-sel = "slave";
+				rx-clk-sel = "slave";
+				/* TCF */
+				tx-elem-len-1 = <16>;
+				tx-frame-len-1 = <1>;
+				tx-data-delay = <0>;
+				/* RCF */
+				rx-elem-len-1 = <16>;
+				rx-frame-len-1 = <1>;
+				rx-data-delay = <0>;
+				/* SRG */
+				frame-sync-ignore = <1>;
+				frame-period = <32>;
+				frame-width = <16>;
+			};
+			pcm {
+				formats = "s16-le";
+				min-rate = <8000>;
+				max-rate = <48000>;
+				min-channels = <1>;
+				max-channels = <8>;
+				min-period = <2>;
+				max-period = <256>;
+				max-buffer-bytes = <4096>;
+			};
+		};
+
+		msp1: msp@48010000 {
+			compatible = "st,sta-msp-dai";
+			reg = <0x48010000 0x1000>;
+			syscon-auss = <&auss>;
+			interrupts = <GIC_SPI 10 IRQ_TYPE_LEVEL_HIGH>;
+			dmas = <&dmasel 0 23 2>, <&dmasel 0 20 2>;
+			dma-names = "rx", "tx";
+			clocks = <&srcm3_clk STA_CLK_MSP1>,
+				 <&srca7_clk STA_CLK_PMSP1>;
+			clock-names = "mspclk", "apb_pclk";
+			i2s {
+				/* GCR */
+				tx-fsync-pol = "active_high";
+				rx-fsync-pol = "active_low";
+				tx-clk-pol = "falling";
+				rx-clk-pol = "rising";
+				tx-fsync-sel = "master";
+				rx-fsync-sel = "master";
+				tx-clk-sel = "master";
+				rx-clk-sel = "master";
+				/* TCF */
+				tx-elem-len-1 = <32>;
+				tx-frame-len-1 = <1>;
+				tx-data-delay = <1>;
+				/* RCF */
+				rx-elem-len-1 = <32>;
+				rx-frame-len-1 = <2>;
+				rx-data-delay = <0>;
+				/* SRG */
+				frame-sync-ignore = <0>;
+				frame-period = <64>;
+				frame-width = <32>;
+			};
+			pcm {
+				formats = "s32-le";
+				min-rate = <8000>;
+				max-rate = <48000>;
+				min-channels = <1>;
+				max-channels = <8>;
+				min-period = <2>;
+				max-period = <256>;
+				max-buffer-bytes = <32768>;
+			};
+		};
+
+		msp2: msp@48020000 {
+			compatible = "st,sta-msp-dai";
+			reg = <0x48020000 0x1000>;
+			syscon-auss = <&auss>;
+			interrupts = <GIC_SPI 11 IRQ_TYPE_LEVEL_HIGH>;
+			dmas = <&dmasel 0 24 2>, <&dmasel 0 21 2>;
+			dma-names = "rx", "tx";
+			clocks = <&srcm3_clk STA_CLK_MSP2>,
+				 <&srca7_clk STA_CLK_PMSP2>;
+			clock-names = "mspclk", "apb_pclk";
+			i2s {
+				/* GCR */
+				tx-fsync-pol = "active_low";
+				rx-fsync-pol = "active_low";
+				tx-clk-pol = "rising";
+				rx-clk-pol = "falling";
+				tx-fsync-sel = "slave";
+				rx-fsync-sel = "slave";
+				tx-clk-sel = "slave";
+				rx-clk-sel = "slave";
+				/* TCF */
+				tx-elem-len-1 = <16>;
+				tx-frame-len-1 = <1>;
+				tx-data-delay = <0>;
+				/* RCF */
+				rx-elem-len-1 = <16>;
+				rx-frame-len-1 = <1>;
+				rx-data-delay = <0>;
+				/* SRG */
+				frame-sync-ignore = <1>;
+				frame-period = <32>;
+				frame-width = <16>;
+			};
+			pcm {
+				formats = "s16-le";
+				min-rate = <8000>;
+				max-rate = <48000>;
+				min-channels = <1>;
+				max-channels = <8>;
+				min-period = <2>;
+				max-period = <256>;
+				max-buffer-bytes = <4096>;
+			};
+		};
+
+	};
+};

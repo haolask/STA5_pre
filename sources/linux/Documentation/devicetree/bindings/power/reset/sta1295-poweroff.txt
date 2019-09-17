@@ -1,0 +1,54 @@
+sta1295 power off and restart driver
+------------------------------------
+
+The sta1295-prm driver provides power off and restart functionalities
+for STA1295 based boards.
+
+For security reason, it does not directly program STA1295 PMU and SRC-M3
+registers but sends requests through IPC/RPSMG to a back-end driver running
+in the Cortex-M3 sub-system.
+
+In addition to power off and restart features, sta1295-prm driver can
+program the STA1295 PMU wake-up and goto stand-by sources.
+
+Required properties:
+
+ - compatible: "st,sta1295-prm"
+
+Optional properties:
+
+ - st,register_sby: Be notified on a software reset event from back-end.
+ - st,register_sw_reset: Be notified on a goto stand-by event from back-end.
+ - st,do_poweroff_on_sby: To do a system power-off on incoming goto stand-by
+   request from back-end driver.
+
+ Values for the following properties must be integer and must match
+ "PMU_WKUP_SRC_MASK" mask. See sta1295-poweroff.c header for more details.
+
+ - st,enable_wkup_src: Stand-by to On sources to enable.
+ - st,disable_wkup_src: Stand-by to On sources to disable.
+ - st,rising_wkup_edge: Select rising edges for wake-up sources.
+ - st,falling_wkup_edge: Select falling edges for wake-up sources.
+
+ Values for the following properties must be integer and must match
+ "PMU_SBY_SRC_MASK" mask. See sta1295-poweroff.c header for more details.
+
+ - st,enable_sby_src: On to stand-by sources to enable.
+ - st,disable_sby_src: On to stand-by sources to disable.
+ - st,rising_sby_edge: Select rising edges for stand-by sources.
+ - st,falling_sby_edge: Select falling edges for stand-by sources.
+ - st,enable_sby_irq: On to stand-by irqs to enable.
+ - st,disable_sby_irq: On to stand-by irqs to disable.
+
+Example:
+		prm {
+			compatible = "st,sta1295-prm";
+			st,register_sby;
+			st,register_sw_reset;
+			/* falling edge for wakes 0, 1 */
+			st,falling_wkup_edge = <48>;
+			/* enable wakes 0, 1, 2, 3 */
+			st,enable_wkup_src = <240>;
+		};
+
+

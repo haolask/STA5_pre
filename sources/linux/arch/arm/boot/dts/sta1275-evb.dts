@@ -1,0 +1,39 @@
+/*
+ * Copyright (C) 2016 STMicroelectronics
+ * Author: Baptiste Chauloux <baptiste.chauloux@st.com>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2, as
+ * published by the Free Software Foundation.
+ */
+
+#include "sta1295-evb.dts"
+
+/ {
+	model = "ST ACCORDO5 STA1275 EValuation Board";
+	compatible = "st,sta1275";
+
+	cpus {
+		cpu0: cpu@0 {
+			reg = <0x100>;
+		};
+		cpu1: cpu@1 {
+			status = "disabled";
+		};
+	};
+
+	memory {
+		reg = <0xa0000000 0x08D00000>; /* 110MB reserved for GPU
+						* 3MiB for Camera
+						* 2MiB for Splash screen
+						*/
+	};
+
+	soc {
+		gcnano@48F00000 {
+			reg = <0x48F00000 0x800>,
+			      /*110MB reserved memory*/
+			      <0xA9200000 0x6E00000>;
+		};
+	};
+};

@@ -1,0 +1,1078 @@
+/*
+ * Copyright (C) STMicroelectronics 2016
+ *
+ * Authors: Gabriele Simone <gabriele.simone@st.com>,
+ *			Gian Antonio Sampietro <gianantonio.sampietro@st.com>
+ *			Giancarlo Asnaghi <giancarlo.asnaghi@st.com>
+ *			for STMicroelectronics.
+ *
+ * License terms:
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as published
+ * by the Free Software Foundation.
+ */
+/ {
+	soc {
+		auss: syscon@48060000 {
+			compatible = "syscon";
+			reg = <0x48060000 0x1004>;
+		};
+
+		dpmailbox: dpmailbox@48C00000 {
+			compatible = "st,sta-dpmailbox";
+			reg = <0x48C00000 0x204>;
+			syscon-auss = <&auss>;
+			dmas = <&dmasel 1 0 2>, <&dmasel 1 1 2>;
+			dma-names = "rx", "tx";
+			pcm {
+				formats = "s16-le", "s32-le";
+				min-period = <2>;
+				max-period = <256>;
+				period-size-bytes = <4>;
+				max-buffer-bytes = <65536>;
+			};
+		};
+
+		msp0: msp@48000000 {
+			compatible = "st,sta-msp-dai";
+			reg = <0x48000000 0x1000>;
+			syscon-auss = <&auss>;
+			interrupts = <GIC_SPI 9 IRQ_TYPE_LEVEL_HIGH>;
+			dmas = <&dmasel 0 22 2>, <&dmasel 0 19 2>;
+			dma-names = "rx", "tx";
+			clocks = <&srcm3_clk STA_CLK_MSP0>,
+				 <&srca7_clk STA_CLK_PLL3PHI>,
+				 <&srca7_clk STA_CLK_PMSP0>;
+			clock-names = "mspclk", "mspsck-fixed", "apb_pclk";
+			i2s {
+				/* GCR */
+				tx-fsync-pol = "active_low";
+				rx-fsync-pol = "active_low";
+				tx-clk-pol = "falling";
+				rx-clk-pol = "rising";
+				tx-fsync-sel = "slave";
+				rx-fsync-sel = "slave";
+				tx-clk-sel = "slave";
+				rx-clk-sel = "slave";
+				srg-clk-sel = "ext";
+				/* TCF */
+				tx-elem-len-1 = <16>;
+				tx-frame-len-1 = <1>;
+				tx-data-delay = <1>;
+				/* RCF */
+				rx-elem-len-1 = <16>;
+				rx-frame-len-1 = <1>;
+				rx-data-delay = <1>;
+				/* SRG */
+				frame-sync-ignore = <1>;
+				frame-period = <32>;
+				frame-width = <16>;
+			};
+			pcm {
+				formats = "s16-le", "s32-le";
+				min-period = <2>;
+				max-period = <256>;
+				max-buffer-bytes = <4096>;
+			};
+		};
+
+		msp1: msp@48010000 {
+			compatible = "st,sta-msp-dai";
+			reg = <0x48010000 0x1000>;
+			syscon-auss = <&auss>;
+			interrupts = <GIC_SPI 10 IRQ_TYPE_LEVEL_HIGH>;
+			dmas = <&dmasel 1 8 2>, <&dmasel 1 5 2>;
+			dma-names = "rx", "tx";
+			clocks = <&srcm3_clk STA_CLK_MSP1>,
+				 <&srca7_clk STA_CLK_PLL3PHI>,
+				 <&srca7_clk STA_CLK_PMSP1>;
+			clock-names = "mspclk", "mspsck-fixed", "apb_pclk";
+			refclk = <5>, <10>;
+			pcm {
+				formats = "s16-le", "s32-le";
+				min-period = <4>;
+				max-period = <16>;
+				max-buffer-bytes = <65536>;
+			};
+			i2s {
+				srg-clk-sel = "ext";
+			};
+		};
+
+		msp2: msp@48020000 {
+			compatible = "st,sta-msp-dai";
+			reg = <0x48020000 0x1000>;
+			syscon-auss = <&auss>;
+			interrupts = <GIC_SPI 11 IRQ_TYPE_LEVEL_HIGH>;
+			dmas = <&dmasel 0 24 2>, <&dmasel 0 21 2>;
+			dma-names = "rx", "tx";
+			clocks = <&srcm3_clk STA_CLK_MSP2>,
+				 <&srca7_clk STA_CLK_PLL3PHI>,
+				 <&srca7_clk STA_CLK_PMSP2>;
+			clock-names = "mspclk", "mspsck-fixed", "apb_pclk";
+			pcm {
+				formats = "s16-le", "s32-le";
+				min-period = <4>;
+				max-period = <16>;
+				max-buffer-bytes = <65536>;
+			};
+			i2s {
+				srg-clk-sel = "ext";
+			};
+		};
+
+		sai1: sai@48D08C00 {
+			compatible = "st,sai1";
+		};
+
+		sai2: sai@48D08C04 {
+			compatible = "st,sai2";
+		};
+
+		sai3: sai@48D08C08 {
+			compatible = "st,sai3";
+		};
+
+		sai4: sai@48D08C0C {
+			compatible = "st,sai4";
+		};
+
+		ext_codec_dsp: ext_codec_dsp {
+			compatible = "st,extdspfw";
+			reg = <0x48B00000 0x100000>, <0x48D1C000 0x400>;
+			reg-names = "dsp2-mem", "dpmem2";
+			fw2 = "A5DSP2";
+			syscon-auss = <&auss>;
+			clocks = <&srcm3_clk STA_CLK_EMR>,
+				 <&srcm3_clk STA_CLK_AUDIOSSM>;
+			clock-names = "emrclk", "mclk";
+		};
+
+		codec_dsp: codec_dsp {
+			compatible = "st,audioeffects";
+			reg = <0x48900000 0x100000>, <0x48A00000 0x100000>, <0x48D14000 0x400>, <0x48D18000 0x400>;
+			reg-names = "dsp0-mem", "dsp1-mem", "dpmem0", "dpmem1";
+			syscon-auss = <&auss>;
+			clocks = <&srcm3_clk STA_CLK_EMR>,
+				 <&srcm3_clk STA_CLK_AUDIOSSM>;
+			clock-names = "emrclk", "mclk";
+			network-id = "network-head-unit";
+			network-head-unit {
+				connections =
+					"xin0", "0", "mux", "0",
+					"xin0", "1", "mux", "1",
+					"xin0", "2", "mux", "2",
+					"xin0", "3", "mux", "3",
+					"xin0", "4", "mux", "4",
+					"xin0", "5", "mux", "5",
+					"xin0", "6", "mux", "6",
+					"xin0", "7", "mux", "7",
+					"xin0", "8", "mux", "8",
+					"xin0", "9", "mux", "9",
+					"xin0", "10", "mux", "10",
+					"xin0", "11", "mux", "11",
+					"xin0", "12", "mux", "12",
+					"xin0", "13", "mux", "13",
+					"xin0", "14", "mux", "14",
+					"xin0", "15", "mux", "15",
+					"xin0", "18", "bitshifter_out", "0",
+					"xin0", "19", "bitshifter_out", "1",
+					"bitshifter_out", "0", "mux", "16",
+					"bitshifter_out", "1", "mux", "17",
+					"mux", "0", "scaler", "0",
+					"mux", "1", "scaler", "1",
+					"mux", "2", "scaler", "2",
+					"mux", "3", "scaler", "3",
+					"mux", "4", "scaler", "4",
+					"mux", "5", "scaler", "5",
+					"beep", "0", "mixer_generator", "0",
+					"clickclack", "0", "mixer_generator", "1",
+					"chime", "0", "mixer_generator", "2",
+					"polyphonic1", "0", "mixer_generator", "3",
+					"polyphonic2", "0", "mixer_generator", "4",
+					"beep", "1", "mixer_generator", "5",
+					"clickclack", "1", "mixer_generator", "6",
+					"chime", "0", "mixer_generator", "7",
+					"polyphonic1", "0", "mixer_generator", "8",
+					"polyphonic2", "0", "mixer_generator", "9",
+					"mixer_generator", "0", "scaler", "6",
+					"mixer_generator", "1", "scaler", "7",
+					"xin0", "16", "scaler", "8",
+					"xin0", "17", "scaler", "9",
+					"xin0", "20", "bitshifter_in", "0",
+					"xin0", "21", "bitshifter_in", "1",
+					"scaler", "0", "tones_primary_media", "0",
+					"scaler", "1", "tones_primary_media", "1",
+					"tones_primary_media", "0", "loudness_primary_media", "0",
+					"tones_primary_media", "1", "loudness_primary_media", "1",
+					"loudness_primary_media", "0", "mixer", "0",
+					"scaler", "2", "mixer", "1",
+					"scaler", "4", "mixer", "2",
+					"scaler", "6", "mixer", "3",
+					"loudness_primary_media", "1", "mixer", "4",
+					"scaler", "3", "mixer", "5",
+					"scaler", "5", "mixer", "6",
+					"scaler", "7", "mixer", "7",
+					"mixer", "0", "xout0", "0",
+					"mixer", "3", "xout0", "1",
+					"mixer", "1", "xout0", "2",
+					"mixer", "4", "xout0", "3",
+					"mixer", "2", "mixer_swce", "0",
+					"mixer", "5", "mixer_swce", "1",
+					"mixer", "2", "mixer_swce", "2",
+					"mixer", "5", "mixer_swce", "3",
+					"mixer_swce", "0", "xout0", "4",
+					"mixer_swce", "1", "xout0", "5",
+					"scaler", "8", "xout0", "6",
+					"scaler", "9", "xout0", "7",
+					"bitshifter_in", "0", "xout0", "8",
+					"bitshifter_in", "1", "xout0", "9",
+					"xin1", "0", "equalizer", "0",
+					"xin1", "1", "equalizer", "1",
+					"xin1", "2", "equalizer", "2",
+					"xin1", "3", "equalizer", "3",
+					"xin1", "4", "equalizer", "4",
+					"xin1", "5", "equalizer", "5",
+					"equalizer", "0", "gains_out", "0",
+					"equalizer", "1", "gains_out", "1",
+					"equalizer", "2", "gains_out", "2",
+					"equalizer", "3", "gains_out", "3",
+					"equalizer", "4", "gains_out", "4",
+					"equalizer", "5", "gains_out", "5",
+					"gains_out", "0", "limiter", "0",
+					"gains_out", "1", "limiter", "1",
+					"gains_out", "2", "limiter", "2",
+					"gains_out", "3", "limiter", "3",
+					"gains_out", "4", "limiter", "4",
+					"gains_out", "5", "limiter", "5",
+					"limiter", "0", "compander", "0",
+					"limiter", "1", "compander", "1",
+					"limiter", "2", "compander", "2",
+					"limiter", "3", "compander", "3",
+					"limiter", "4", "compander", "4",
+					"limiter", "5", "compander", "5",
+					"compander", "0", "delay_front", "0",
+					"compander", "1", "delay_front", "1",
+					"compander", "2", "delay_rear", "0",
+					"compander", "3", "delay_rear", "1",
+					"compander", "4", "xout1", "4",
+					"compander", "5", "xout1", "5",
+					"delay_front", "0", "xout1", "0",
+					"delay_front", "1", "xout1", "1",
+					"delay_rear", "0", "xout1", "2",
+					"delay_rear", "1", "xout1", "3",
+					"xin0", "0", "peakdetect0", "0",
+					"xin0", "6", "peakdetect0", "1",
+					"xin0", "14", "peakdetect0", "2",
+					"mixer", "0", "peakdetect0", "3",
+					"xin1", "0", "peakdetect1", "0",
+					"equalizer", "0", "peakdetect1", "1",
+					"gains_out", "0", "peakdetect1", "2",
+					"delay_front", "0", "peakdetect1", "3";
+				scaler {
+					dsp-id = <0>;
+					prefix = "Scaler";
+					in-names = "Primary Left",
+						   "Primary Right",
+						   "Secondary Left",
+						   "Secondary Right",
+						   "Voice Left",
+						   "Voice Right",
+						   "Generator Left",
+						   "Generator Right",
+						   "ADC Left",
+						   "ADC Right";
+					type = "gain-smooth";
+					num-channels = <10>;
+					tup = <100>;
+					tdown = <100>;
+					mod-id = <0>;
+				};
+				tones_primary_media {
+					dsp-id = <0>;
+					prefix = "Primary";
+					in-names = "Left", "Right";
+					type = "tone-static-stereo";
+					gain = "0", "0", "0";
+					quality = "30", "30", "30";
+					frequency = "200", "3000", "16000";
+					mod-id = <8>;
+				};
+				loudness_primary_media {
+					dsp-id = <0>;
+					prefix = "Primary";
+					in-names = "Left", "Right";
+					type = "loudness-static-stereo";
+					gain = "0", "0";
+					quality = "30", "30";
+					frequency = "200", "10000";
+					mod-id = <9>;
+				};
+				beep {
+					dsp-id = <0>;
+					type = "sine2ch";
+					in-names = "Left", "Right";
+					frequency = "76000";
+					duration = "1000";
+					gain = "100";
+					mod-id = <10>;
+				};
+				clickclack {
+					dsp-id = <0>;
+					prefix = "Clickclack";
+					in-names = "Left", "Right";
+					type = "pcmchime-12bit-x-2ch";
+					file = "click-clack_16bit_48k.wav";
+					count = <2>;
+					left-post-delay = <300>;
+					right-post-delay = <300>;
+					mod-id = <11>;
+				};
+				chime {
+					dsp-id = <0>;
+					prefix = "Belt";
+					in-names = "Left", "Right";
+					type = "chimegen";
+					repeat-count = <3>;
+					post-repeat-ramp-idx = <6>;
+					mod-id = <12>;
+					ramp0 {
+						type = "linear";
+						amplitude = <1000>;
+						duration = <5>;
+						frequency = <74000>;
+					};
+					ramp1 {
+						type = "static";
+						amplitude = <1000>;
+						duration = <125>;
+						frequency = <74000>;
+					};
+					ramp2 {
+						type = "linear";
+						amplitude = <500>;
+						duration = <230>;
+						frequency = <74000>;
+					};
+					ramp3 {
+						type = "linear";
+						amplitude = <1000>;
+						duration = <5>;
+						frequency = <74000>;
+					};
+					ramp4 {
+						type = "static";
+						amplitude = <1000>;
+						duration = <135>;
+						frequency = <74000>;
+					};
+					ramp5 {
+						type = "linear";
+						amplitude = <500>;
+						duration = <430>;
+						frequency = <74000>;
+					};
+					ramp6 {
+						/* post-repeat-ramp */
+						type = "linear";
+						amplitude = <0>;
+						duration = <370>;
+						frequency = <74000>;
+					};
+				};
+				polyphonic1 {
+					dsp-id = <0>;
+					prefix = "Gong1";
+					in-names = "Left", "Right";
+					type = "chimegen";
+					repeat-count = <4>;
+					post-repeat-ramp-idx = <3>;
+					mod-id = <13>;
+					ramp0 {
+						type = "linear";
+						amplitude = <1000>;
+						duration = <2>;
+						frequency = <75000>;
+					};
+					ramp1 {
+						type = "exponential";
+						amplitude = <0>;
+						duration = <400>;
+						frequency = <75000>;
+					};
+					ramp2 {
+						type = "static";
+						amplitude = <0>;
+						duration = <400>;
+						frequency = <75000>;
+					};
+					ramp3 {
+						type = "linear";
+						amplitude = <1000>;
+						duration = <2>;
+						frequency = <75000>;
+					};
+					ramp4 {
+						type = "exponential";
+						amplitude = <0>;
+						duration = <4800>;
+						frequency = <74000>;
+					};
+				};
+				polyphonic2 {
+					dsp-id = <0>;
+					prefix = "Gong2";
+					in-names = "Left", "Right";
+					type = "chimegen";
+					master = "polyphonic1";
+					repeat-count = <4>;
+					post-repeat-ramp-idx = <4>;
+					mod-id = <14>;
+					ramp0 {
+						type = "static";
+						amplitude = <0>;
+						duration = <400>;
+						frequency = <50000>;
+					};
+					ramp1 {
+						type = "linear";
+						amplitude = <800>;
+						duration = <2>;
+						frequency = <50000>;
+					};
+					ramp2 {
+						type = "exponential";
+						amplitude = <0>;
+						duration = <400>;
+						frequency = <50000>;
+					};
+					ramp3 {
+						type = "static";
+						amplitude = <0>;
+						duration = <1>;
+						frequency = <50000>;
+					};
+					ramp4 {
+						type = "linear";
+						amplitude = <800>;
+						duration = <2>;
+						frequency = <50000>;
+					};
+					ramp5 {
+						type = "exponential";
+						amplitude = <0>;
+						duration = <4800>;
+						frequency = <50000>;
+					};
+				};
+				mixer_generator {
+					dsp-id = <0>;
+					prefix = "Generator";
+					in-names = "Beep", "ClickClack", "Simple", "Polyphonic1", "Polyphonic2";
+					out-names = "Left", "Right";
+					type = "mixer-5ins";
+					mod-id = <15>;
+				};
+				mixer {
+					dsp-id = <0>;
+					in-names = "Primary", "Secondary", "Voice", "Generator";
+					out-names = "Front Left", "Rear Left", "Subwoofer Left", "Front Right", "Rear Right", "Center Right";
+					num-channels = <6>;
+					type = "mixer-4ins";
+					mod-id = <16>;
+				};
+				bitshifter_out {
+					dsp-id = <0>;
+					type = "bitshifter";
+					in-names = "Left", "Right";
+					left-shift = "8";
+					mod-id = <17>;
+				};
+				bitshifter_in {
+					dsp-id = <0>;
+					type = "bitshifter";
+					in-names = "Left", "Right";
+					right-shift = "8";
+					mod-id = <18>;
+				};
+				equalizer {
+					dsp-id = <1>;
+					type = "equalizer-static-10bands";
+					num-channels = <6>;
+					in-names = "Front Left", "Front Right", "Rear Left", "Rear Right", "Subwoofer", "Center";
+					quality = "30", "30", "30", "30", "30", "30", "30", "30", "30", "30";
+					frequency = "31", "63", "125", "250", "500", "1000", "2000", "4000", "8000", "16000";
+					presets = "Flat", "Classic", "Pop", "Rock", "Jazz";
+					Flat = "0", "0", "0", "0", "0", "0", "0", "0", "0", "0";
+					Classic = "66", "49", "34", "20", "4", "-12", "-21", "17", "64", "116";
+					Pop = "-30", "3", "47", "86", "117", "89", "46", "16", "-7", "-23";
+					Rock = "96", "48", "19", "17", "63", "39", "4", "34", "64", "95";
+					Jazz = "16", "0", "0", "11", "42", "74", "102", "117", "104", "57";
+					mod-id = <19>;
+				};
+				gains_out {
+					dsp-id = <1>;
+					type = "gain-smooth";
+					num-channels = <6>;
+					in-names = "Front Left", "Front Right", "Rear Left", "Rear Right", "Subwoofer", "Center";
+					tup = <100>;
+					tdown = <100>;
+					mod-id = <20>;
+				};
+				limiter {
+					dsp-id = <1>;
+					type = "limiter-6ch";
+					in-names = "Front Left", "Front Right", "Rear Left", "Rear Right", "Subwoofer", "Center";
+					update-slot = <4>;
+					mod-id = <21>;
+				};
+				compander {
+					dsp-id = <1>;
+					type = "compander-6ch";
+					in-names = "Front Left", "Front Right", "Rear Left", "Rear Right", "Subwoofer", "Center";
+					update-slot = <5>;
+					mod-id = <22>;
+				};
+				delay_front {
+					dsp-id = <1>;
+					prefix = "Front";
+					type = "delay-x-2ch";
+					in-names = "Left", "Right";
+					length = <96>;
+					samples-list = "0", "0";
+					mod-id = <23>;
+				};
+				delay_rear {
+					dsp-id = <1>;
+					prefix = "Rear";
+					type = "delay-y-2ch";
+					in-names = "Left", "Right";
+					length = <96>;
+					samples-list = "0", "0";
+					mod-id = <24>;
+				};
+				peakdetect0 {
+					dsp-id = <0>;
+					prefix = "Peak0";
+					type = "peakdetect";
+					in-names = "0", "1", "2", "3";
+					num-channels = <4>;
+					mod-id = <25>;
+				};
+				peakdetect1 {
+					dsp-id = <1>;
+					prefix = "Peak1";
+					type = "peakdetect";
+					in-names = "0", "1", "2", "3";
+					num-channels = <4>;
+					mod-id = <26>;
+				};
+				mux {
+					dsp-id = <0>;
+					out-names = "Primary Left", "Primary Right",
+						    "Secondary Left", "Secondary Right",
+						    "Voice Left", "Voice Right";
+					prefix = "Input";
+					type = "mux-6out";
+					output = <0 1 6 7 14 15>;
+					mod-id = <27>;
+				};
+				mixer_swce {
+					dsp-id = <0>;
+					prefix = "SwCe";
+					in-names = "Subwoofer Left", "Center Right";
+					out-names = "Subwoofer", "Center";
+					in-gains = <1140>, <1140>, <1140>, <1140>;
+					num-channels = <2>;
+					type = "mixer-2ins";
+					mod-id = <28>;
+				};
+			};
+		};
+
+		codec_aif: codec_aif {
+			compatible = "st,audiointerface";
+			reg = <0x48D00000 0x10010>;
+			reg-names = "aif-reg";
+			syscon-auss = <&auss>;
+			clocks = <&srcm3_clk STA_CLK_AUDIOSSM>,
+				 <&srcm3_clk STA_CLK_AUDIOSSFS512>;
+			clock-names = "mclk", "fs512";
+			source-id = "main";
+
+			adcmicdachwtest: adcmicdachwtest {
+				adcmic = "enable12";
+				sai3 {
+					mme-mode = "master";
+					word-length = "wl-32-24";
+					rel-timing = "i2s";
+					word-count = "2-words";
+					frame-syn = "half-frame";
+					tm-mode = "loopback";
+				};
+			};
+
+			msp1dac: msp1dac {
+				channel-stream = "playback1", "nostream", "nostream", "nostream", "nostream", "nostream";
+				aimux = "sai4rx1", "noinput", "noinput", "noinput", "noinput", "noinput";
+				aomux = "srcdo", "nooutput", "nooutput", "nooutput", "nooutput", "nooutput";
+				sai3 {
+					mme-mode = "master";
+					word-length = "wl-32-24";
+					rel-timing = "i2s";
+					word-count = "2-words";
+					frame-syn = "half-frame";
+				};
+				auss-mux {
+					msp1tx-sai4rx = "enable";
+				};
+				network-head-unit {
+					dma-transfers =
+							"src0do", "0", "xin0", "0", "2",
+							"xout1", "0", "sai3tx1", "0", "2",
+							"xout1", "2", "sai3tx2", "0", "2",
+							"xout1", "4", "sai3tx3", "0", "2",
+							"xout0", "0", "xin1", "0", "24",
+							"xout1", "0", "xin0", "20", "2",
+							"xout0", "8", "fifoin", "0", "2",
+							"trigger", "0", "xin0", "127", "1",
+							"trigger", "0", "xin1", "127", "1";
+				};
+			};
+
+			msp2dac: msp2dac {
+				channel-stream = "playback2", "nostream", "nostream", "nostream", "nostream", "nostream";
+				aimux = "sai2rx1", "noinput", "noinput", "noinput", "noinput", "noinput";
+				aomux = "srcdo", "nooutput", "nooutput", "nooutput", "nooutput", "nooutput";
+				sai3 {
+					mme-mode = "master";
+					word-length = "wl-32-24";
+					rel-timing = "i2s";
+					word-count = "2-words";
+					frame-syn = "half-frame";
+				};
+				auss-mux {
+					msp2tx-sai2rx = "enable";
+				};
+				network-head-unit {
+					dma-transfers =
+							"src0do", "0", "xin0", "0", "2",
+							"xout1", "0", "sai3tx1", "0", "2",
+							"xout1", "2", "sai3tx2", "0", "2",
+							"xout1", "4", "sai3tx3", "0", "2",
+							"xout0", "0", "xin1", "0", "24",
+							"xout1", "0", "xin0", "20", "2",
+							"xout0", "8", "fifoin", "0", "2",
+							"trigger", "0", "xin0", "127", "1",
+							"trigger", "0", "xin1", "127", "1";
+				};
+			};
+
+			msp1adcaux: msp1adcaux {
+				adcaux = "enablech1";
+				sai3 {
+					mme-mode = "master";
+					word-length = "wl-32-24";
+					rel-timing = "i2s";
+					word-count = "2-words";
+					frame-syn = "half-frame";
+				};
+				auss-mux {
+					msp1tx-sai4rx = "enable";
+				};
+				network-head-unit {
+					dma-transfers =
+							"msp1", "0", "xin0", "14", "2",
+							"xout0", "0", "sai3tx1", "0", "2",
+							"adcaux", "0", "xin0", "16", "2",
+							"xout0", "6", "msp1", "0", "2",
+							"trigger", "0", "xin0", "127", "1";
+				};
+			};
+
+			msp2fifo: msp2fifo {
+				channel-stream = "playback1", "nostream", "capture", "nostream", "nostream", "playback2";
+
+				sai3 {
+					mme-mode = "master";
+					word-length = "wl-32-24";
+					rel-timing = "i2s";
+					word-count = "2-words";
+					frame-syn = "half-frame";
+				};
+				auss-mux {
+					msp2tx-sai2rx = "enable";
+					msp1tx-sai4rx = "enable";
+				};
+				network-head-unit {
+					dma-transfers =
+					"src5do", "0", "xin0", "20", "4",  /* msp2 to right shift.. */
+					"xout0", "8", "fifoin", "0", "4",  /* ..and lpbk to dpm */
+					"src0do", "0", "xin0", "0", "2",   /* msp1 to DAC */
+					"src5do", "0", "xin0", "6", "2",   /* msp2 to DAC */
+					"fifoout", "0", "xin0", "18", "2", /* dpm to DAC */
+					"xout1", "0", "sai3tx1", "0", "2",
+					"xout1", "2", "sai3tx2", "0", "2",
+					"xout1", "4", "sai3tx3", "0", "2",
+					"xout0", "0", "xin1", "0", "24",
+					"trigger", "0", "xin0", "127", "1",
+					"trigger", "0", "xin1", "127", "1";
+				};
+			};
+
+			fifodac: fifodac {
+				sai3 {
+					mme-mode = "master";
+					word-length = "wl-32-24";
+					rel-timing = "i2s";
+					word-count = "2-words";
+					frame-syn = "half-frame";
+				};
+				network-head-unit {
+					dma-transfers =
+					"fifoout", "0", "xin0", "18", "2",
+					"xout1", "0", "sai3tx1", "0", "2",
+					"xout1", "2", "sai3tx2", "0", "2",
+					"xout1", "4", "sai3tx3", "0", "2",
+					"xout0", "0", "xin1", "0", "24",
+					"xout1", "0", "xin0", "20", "2",  /* lpbk fifout to fifoin */
+					"xout0", "8", "fifoin", "0", "2",
+					"trigger", "0", "xin0", "127", "1",
+					"trigger", "0", "xin1", "127", "1";
+				};
+			};
+
+			sai4rx1fm: sai4rx1fm {
+				channel-stream = "playback2", "nostream", "nostream", "nostream", "nostream", "nostream";
+				src = "drllt", "noinput", "noinput", "drllt", "drllt", "noinput";
+				lpf = "fir", "bypass", "bypass", "fir", "fir", "bypass";
+				aimux = "sai2rx1", "noinput", "noinput", "sai4rx1", "sai4rx2", "noinput";
+				aomux = "srcdo", "nooutput", "nooutput", "srcdo", "srcdo", "nooutput";
+				sai3 {
+					mme-mode = "master";
+					word-length = "wl-32-24";
+					rel-timing = "i2s";
+					word-count = "2-words";
+					frame-syn = "half-frame";
+				};
+				sai4 {
+					mme-mode = "slave";
+					word-length = "wl-32-24";
+					rel-timing = "i2s";
+				};
+				auss-mux {
+					msp2tx-sai2rx = "enable";
+				};
+				network-head-unit {
+					dma-transfers =
+							"src3do", "0", "xin0", "0", "2",
+							"src0do", "0", "xin0", "6", "2",
+							"src3do", "0", "xin0", "20", "2",
+							"src4do", "0", "xin0", "22", "2",
+							"xout0", "8", "fifoin", "0", "2",
+							"xout0", "10", "fifoin", "0", "2",
+							"xout1", "0", "sai3tx1", "0", "2",
+							"xout1", "2", "sai3tx2", "0", "2",
+							"xout1", "4", "sai3tx3", "0", "2",
+							"xout0", "0", "xin1", "0", "24",
+							"trigger", "0", "xin0", "127", "1",
+							"trigger", "0", "xin1", "127", "1";
+				};
+			};
+
+			sai4rx2dab: sai4rx2dab {
+				channel-stream = "nostream", "nostream", "nostream", "nostream", "nostream", "nostream";
+				src = "noinput", "noinput", "noinput", "drllt", "drllt", "noinput";
+				lpf = "bypass", "bypass", "bypass", "fir", "fir", "bypass";
+				aimux = "noinput", "noinput", "noinput", "sai4rx1", "sai4rx2", "noinput";
+				aomux = "nooutput", "nooutput", "nooutput", "srcdo", "srcdo", "nooutput";
+				sai3 {
+					mme-mode = "master";
+					word-length = "wl-32-24";
+					rel-timing = "i2s";
+					word-count = "2-words";
+					frame-syn = "half-frame";
+				};
+				sai4 {
+					mme-mode = "slave";
+					word-length = "wl-32-24";
+					rel-timing = "i2s";
+				};
+				network-head-unit {
+					dma-transfers =
+							"src4do", "0", "xin0", "0", "2",
+							"src3do", "0", "xin0", "20", "2",
+							"src4do", "0", "xin0", "22", "2",
+							"xout0", "8", "fifoin", "0", "2",
+							"xout0", "10", "fifoin", "0", "2",
+							"xout1", "0", "sai3tx1", "0", "2",
+							"xout1", "2", "sai3tx2", "0", "2",
+							"xout1", "4", "sai3tx3", "0", "2",
+							"xout0", "0", "xin1", "0", "24",
+							"trigger", "0", "xin0", "127", "1",
+							"trigger", "0", "xin1", "127", "1";
+				};
+			};
+
+			tunerss: tunerss {
+				channel-stream = "playback", "nostream", "nostream", "nostream", "nostream", "nostream";
+				src = "noinput", "noinput", "noinput", "drllt", "drllt", "noinput";
+				lpf = "bypass", "bypass", "bypass", "fir", "fir", "bypass";
+				aimux = "noinput", "noinput", "noinput", "sai4rx1", "sai4rx2", "noinput";
+				aomux = "nooutput", "nooutput", "nooutput", "srcdo", "srcdo", "nooutput";
+				sai3 {
+					mme-mode = "master";
+					word-length = "wl-32-24";
+					rel-timing = "i2s";
+					word-count = "2-words";
+					frame-syn = "half-frame";
+				};
+				sai4 {
+					mme-mode = "slave";
+					word-length = "wl-32-24";
+					rel-timing = "i2s";
+				};
+				auss-mux {
+					msp2tx-sai2rx = "enable";
+				};
+				network-head-unit {
+					dma-transfers =
+							"msp2", "0", "xin0", "0", "2",
+							"src3do", "0", "xin0", "20", "2",
+							"src4do", "0", "xin0", "22", "2",
+							"xout0", "8", "fifoin", "0", "2",
+							"xout0", "10", "fifoin", "0", "2",
+							"fifoout", "0", "xin0", "18", "2",
+							"xout1", "0", "sai3tx1", "0", "2",
+							"xout1", "2", "sai3tx2", "0", "2",
+							"xout1", "4", "sai3tx3", "0", "2",
+							"xout0", "0", "xin1", "0", "24",
+							"trigger", "0", "xin0", "127", "1",
+							"trigger", "0", "xin1", "127", "1";
+				};
+			};
+
+			main: main {
+				adcmic = "enable12";
+				adcaux = "enablech1";
+				sai3 {
+					mme-mode = "master";
+					word-length = "wl-32-24";
+					rel-timing = "i2s";
+					word-count = "2-words";
+					frame-syn = "half-frame";
+				};
+				auss-mux {
+					msp1tx-sai4rx = "enable";
+					msp2tx-sai2rx = "enable";
+				};
+				network-head-unit {
+					dma-transfers =
+							"msp1", "0", "xin0", "0", "2",
+							"adcaux", "0", "xin0", "2", "2",
+							"msp2", "0", "xin0", "6", "2",
+							"msp2", "0", "xin0", "8", "2",
+							"msp2", "0", "xin0", "10", "2",
+							"msp2", "0", "xin0", "12", "2",
+							"fifoout", "0", "xin0", "18", "2",
+							"xout0", "0", "xin1", "0", "24",
+							"xout1", "0", "sai3tx1", "0", "2",
+							"xout1", "2", "sai3tx2", "0", "2",
+							"xout1", "4", "sai3tx3", "0", "2",
+							"sai3rx1", "0", "xin0", "16", "2",
+							"xout0", "6", "msp1", "0", "2",
+							"trigger", "0", "xin0", "127", "1",
+							"trigger", "0", "xin1", "127", "1";
+				};
+			};
+
+			auxmedia: auxmedia {
+				channel-stream = "playback2", "playback2", "playback2", "playback2", "nostream", "nostream";
+				src = "drllt", "drllt", "drllt", "drllt", "noinput", "noinput";
+				lpf = "fir", "fir", "fir", "fir", "bypass", "bypass";
+				aimux = "sai2rx1", "sai2rx2", "sai2rx3", "sai2rx4", "noinput", "noinput";
+				aomux = "srcdo", "srcdo", "srcdo", "srcdo", "nooutput", "nooutput";
+				adcaux = "enablech1";
+				sai3 {
+					mme-mode = "master";
+					word-length = "wl-32-24";
+					rel-timing = "i2s";
+					word-count = "2-words";
+					frame-syn = "half-frame";
+				};
+				auss-mux {
+					msp2tx-sai2rx = "enable";
+				};
+				network-head-unit {
+					dma-transfers =
+							"adcaux", "0", "xin0", "0", "2",
+							"src0do", "0", "xin0", "6", "2",
+							"src1do", "0", "xin0", "8", "2",
+							"src2do", "0", "xin0", "10", "2",
+							"src3do", "0", "xin0", "12", "2",
+							"xout0", "0", "xin1", "0", "24",
+							"xout1", "0", "sai3tx1", "0", "2",
+							"xout1", "2", "sai3tx2", "0", "2",
+							"xout1", "4", "sai3tx3", "0", "2",
+							"trigger", "0", "xin0", "127", "1",
+							"trigger", "0", "xin1", "127", "1";
+				};
+			};
+
+			btcall: btcall {
+				adcmic = "enable12";
+				channel-stream = "playback1", "capture1", "playback2", "playback2", "playback2", "playback2";
+				sai3 {
+					mme-mode = "master";
+					word-length = "wl-32-24";
+					rel-timing = "i2s";
+					word-count = "2-words";
+					frame-syn = "half-frame";
+				};
+				auss-mux {
+					msp2tx-sai2rx = "enable";
+					msp1tx-sai4rx = "enable";
+					msp1-extrefclk = "i2s0";
+				};
+				network-head-unit {
+					dma-transfers =
+							"src0do", "0", "xin0", "14", "2", /* BT voice */
+							"xout1", "0", "sai3tx1", "0", "2",
+							"src0do", "0", "xin2", "2", "2", /* ECNR ref */
+							"xout2", "2", "sai3tx2", "0", "2",
+							"msp2", "0", "xin0", "6", "2", /* secondary */
+							"msp2", "0", "xin0", "8", "2",
+							"msp2", "0", "xin0", "10", "2",
+							"msp2", "0", "xin0", "12", "2",
+							"sai3rx1", "0", "xin2", "0", "2", /* MIC */
+							"xout2", "0", "xin0", "16", "2",
+							"xout0", "6", "lpf1di", "0", "2",
+							"xout0", "0", "xin1", "0", "24", /* DSP0->DSP1 */
+							"trigger", "0", "xin0", "127", "1",
+							"trigger", "0", "xin1", "127", "1",
+							"trigger", "0", "xin2",	"127", "1";
+				};
+			};
+			mspall: mspall {
+				channel-stream = "playback1", "capture", "capture", "capture", "playback2", "playback2";
+				src =            "drllt",    "drllt",   "drllt",   "drllt",   "drllt",    "drllt";
+				lpf =            "upx2",     "fir",     "fir",     "fir",     "fir",      "fir";
+				sai3 {
+					mme-mode = "master";
+					word-length = "wl-32-24";
+					rel-timing = "i2s";
+					word-count = "2-words";
+					frame-syn = "half-frame";
+				};
+				auss-mux {
+					msp1tx-sai4rx = "enable";
+					msp2tx-sai2rx = "enable";
+				};
+				network-head-unit {
+					aimux = "sai4rx1", "lpfdi",   "lpfdi",   "lpfdi",   "sai2rx2", "sai2rx1";
+					aomux = "srcdo",   "sai4tx1", "sai4tx2", "sai4tx3", "srcdo",   "srcdo";
+					dma-transfers =
+							"src0do", "0", "xin1", "0", "2", /*msp1*/
+							"src5do", "0", "xin1", "2", "2", /*msp2*/
+							"src4do", "0", "xin1", "4", "2", /*msp2*/
+							"xout1", "0", "sai3tx1", "0", "2",
+							"xout1", "2", "sai3tx2", "0", "2",
+							"xout1", "4", "sai3tx3", "0", "2",
+							"xout1", "0", "lpf1di", "0", "2",
+							"xout1", "2", "lpf2di", "0", "2",
+							"xout1", "4", "lpf3di", "0", "2",
+							"trigger", "0", "xin0", "127", "1",
+							"trigger", "0", "xin1", "127", "1";
+				};
+			};
+			mains: mains {
+				adcmic = "enable12";
+				adcaux = "enablech1";
+				channel-stream = "playback1", "capture", "playback2", "nostream", "nostream", "nostream";
+				src = "drllt",    "drllt",   "drllt",   "drllt",   "drllt",    "drllt";
+				lpf = "fir",     "fir",     "fir",     "fir",     "fir",      "fir";
+				aimux = "sai4rx1", "lpfdi",   "sai2rx1",   "noinput",   "noinput", "noinput";
+				aomux = "srcdo",   "sai4tx1", "srcdo", "nooutput", "nooutput", "nooutput";
+				sai3 {
+					mme-mode = "master";
+					word-length = "wl-32-24";
+					rel-timing = "i2s";
+					word-count = "2-words";
+					frame-syn = "half-frame";
+				};
+				auss-mux {
+					msp1tx-sai4rx = "enable";
+					msp2tx-sai2rx = "enable";
+				};
+				network-head-unit {
+					dma-transfers =
+							"src0do", "0", "xin0", "0", "2",
+							"adcaux", "0", "xin0", "2", "2",
+							"src2do", "0", "xin0", "6", "2",
+							"fifoout", "0", "xin0", "18", "2",
+							"xout0", "0", "xin1", "0", "24",
+							"xout1", "0", "sai3tx1", "0", "2",
+							"xout1", "2", "sai3tx2", "0", "2",
+							"xout1", "4", "sai3tx3", "0", "2",
+							"sai3rx1", "0", "xin0", "16", "2",
+							"xout0", "6", "lpf1di", "0", "2",
+							"trigger", "0", "xin0", "127", "1",
+							"trigger", "0", "xin1", "127", "1";
+				};
+			};
+		};
+
+		sound_card0 {
+			compatible = "st,snd-soc-sta-card-alsa";
+			st,cpu-dai = <&msp0>;
+			st,codec-name = "snd-soc-dummy";
+			st,codec-dai-name = "snd-soc-dummy-dai";
+			st,stream-name = "msp0-ext";
+			st,card-name = "sta-msp0";
+		};
+
+		sound_card1 {
+			compatible = "st,snd-soc-sta-card-alsa";
+			st,cpu-dai = <&msp1>;
+			st,audio-codec = <&codec_aif &codec_dsp>;
+			st,codec-dai-name = "st-codec-msp1", "st-codec-msp1";
+			st,stream-name = "msp1-sai4";
+			st,card-name = "sta-msp1";
+		};
+
+		sound_card2 {
+			compatible = "st,snd-soc-sta-card-alsa";
+			st,cpu-dai = <&msp2>;
+			st,audio-codec = <&codec_aif &codec_dsp>;
+			st,codec-dai-name = "st-codec-msp2", "st-codec-msp2";
+			st,stream-name = "msp2-sai2";
+			st,card-name = "sta-msp2";
+		};
+
+		sound_card3 {
+			compatible = "st,snd-soc-sta-card-alsa";
+			st,cpu-name = "snd-soc-dummy", "snd-soc-dummy";
+			st,audio-codec = <&codec_aif &codec_dsp>;
+			st,codec-dai-name = "st-codec-aif", "st-codec-dsp";
+			st,card-name = "sta-aif";
+		};
+
+		sound_card4 {
+			compatible = "st,snd-soc-sta-card-alsa";
+			st,cpu-name = "snd-soc-dummy";
+			st,codec-name = "snd-soc-dummy";
+			st,codec-dai-name = "snd-soc-dummy-dai";
+			st,card-name = "sta-dummy";
+		};
+
+		sound_card5 {
+			compatible = "st,snd-soc-sta-card-alsa";
+			st,cpu-dai = <&dpmailbox>;
+			st,codec-name = "snd-soc-dummy";
+			st,codec-dai-name = "snd-soc-dummy-dai";
+			st,stream-name = "dpmailbox";
+			st,card-name = "sta-dpmailbox";
+		};
+	};
+};

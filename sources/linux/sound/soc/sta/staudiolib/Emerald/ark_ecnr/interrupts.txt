@@ -1,0 +1,6 @@
+#pragma interrupt(arm_irq_1, 1)
+#pragma interrupt(fsync_irq, 4)
+
+
+
+

@@ -1,0 +1,13 @@
+I2C compatible with embedded iPod Authentication Coprocessor 2.0C
+
+Required properties:
+- compatible : shall be one of:
+	"apple,iac20"
+
+
+Example:
+	iac20@11 {
+		compatible= "apple,iac20";
+		reg= <0x11>;
+		reset-gpio = <&gpio_s 11 0>;
+	};

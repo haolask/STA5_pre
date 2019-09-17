@@ -1,0 +1,21 @@
+STMicroelectronics Automotive Platforms Device Tree Binding
+
+The STMicroelectronics Automotive System On Chip family provides a cost
+effective microprocessor solution for modern car radio and telematics systems,
+with an embedded Digital Sound Processing subsystem, as well as an ARM
+dual Cortex A7 processor. In addition, an ARM Cortex M3 controller is dedicated
+for real-time CAN / Vehicle Interface Processing.
+
+While STA1295 SoC embeds a powerful gpu as well as an efficient video decoder,
+and is targeted for car radio systems, the STA1385 variant has neither
+multimedia features nor Digital Sound Processing but embeds one additional
+Cortex M0 dedicated to enhanced security features and is well suited for
+telematics applications.
+
+Each device tree must specify which STA SoC it uses,
+using one of the following compatible strings:
+
+  st,sta1295
+  st,sta1195
+  st,sta1385
+  st,sta1275

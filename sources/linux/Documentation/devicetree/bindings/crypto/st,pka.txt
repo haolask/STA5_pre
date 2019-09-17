@@ -1,0 +1,42 @@
+* ST Microelectronics hardware cryptographic accelerator
+
+This is a RSA hardware cryptographic accelerator found on some ST products.
+
+* Public Key Accelerator (PKA)
+
+This hardware cryptographic accelerator is likely to be a channel of a C3
+Channel Controller (see st,ccc.txt). Therefore this channel, as others do, must
+be a child of a C3 device tree node.
+
+Required properties:
+- compatible: Should be "st,pka-v0.7".
+- index: u8, from 0 to 15, where is located the channel in C3 hardware
+  implementation.
+- countermeasure: power analysis countermeasure selection:
+  0 for no countermeasure, 1 for SPA, 2 for DPA.
+
+Example:
+
+ccc: ccc@49000000 {
+	status = "disabled";
+	compatible = "st,ccc-v3.0";
+	reg = <0x49000000 0x6000>, <0x0 0x2000>;
+	reg-names = "c3_base", "c3_prog";
+	interrupts = <GIC_SPI 68 IRQ_TYPE_LEVEL_HIGH>;
+	interrupt-names = "c3_irq";
+	clocks = <&srca7_clk STA_CLK_HC3>;
+	clock-names = "c3_hclk";
+	enabled-dispatchers = /bits/ 8 <1>;
+
+	mpaes@1 {
+		compatible = "st,mpaes-v0.3";
+		index = /bits/ 8 <1>;
+		gp-key-slots = /bits/ 16 <0xfffc>;
+	};
+
+	pka@2 {
+		compatible = "st,pka-v0.7";
+		index = /bits/ 8 <2>;
+		countermeasure = <2>;
+	};
+};

@@ -1,0 +1,17 @@
+* EXC3132 Multiple Touch Controller
+
+Required properties:
+- compatible: must be "ampire,exc3132"
+- reg: i2c slave address
+- interrupt-parent: the phandle for the interrupt controller
+- interrupts: touch controller interrupt
+- reset-gpio: the gpio pin to be used to reset the controller
+
+Example:
+	exc3132: exc3132@2a {
+		compatible = "ampire,exc3132";
+		reg = <0x2a>;
+		interrupt-parent = <&gpio1>;
+		interrupts = <16 0>;
+		reset-gpio = <&gpio_m3 15 1>;
+	};

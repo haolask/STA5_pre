@@ -1,0 +1,46 @@
+STMicroelectronics DC Offset ADC driver for keys
+
+The DC 0ffset ADC is able to trigger interrupt on the detection of a DC offset
+in an analog signal. This feature can be used to use when the ADC channels are
+connected to push buttons.
+
+
+Required properties:
+
+ - compatible:	   "st,dcoadc-keys"
+ - reg:		   register base address and size of the DCO ADC
+ - interrupts:     interrupt of the DCO ADC
+ - clocks:	   clock of the DCO ADC
+ - clock-names:    "apb_pclk"
+ - st,adc-channel: sub-node property, describe the ADC channel on which the
+		   key is connected
+ - st,key-code :   sub-node property,the Linux key code that should be reported
+		   as input event for this key
+
+Optional properties:
+
+ - "st,active-high":    sub-node property, to specify the GPIO is active high.
+		        By default, keys are considered as active low
+ - "st,adc-thresholds": sub-node property, to specify specific thresholds for
+			the channel.
+			1st cell: Upper Threshold
+			2nd cell: Lower Threshold
+			The default threshold are 0xffffffff and 0x175
+
+Example:
+
+dcoadc: adc-keys@481c0000 {
+	compatible = "st,dcoadc-keys";
+	reg = <0x481c0000 0x1000>;
+	interrupts = <GIC_SPI 80 IRQ_TYPE_LEVEL_HIGH>;
+	clocks = <&pclksaradc>;
+	clock-names = "apb_pclk";
+	key1 {
+		st,adc-channel = <3>;
+		st,key-code = <106>; /* Right */
+	};
+	key2 {
+		st,adc-channel = <4>;
+		st,key-code = <105>; /* Left */
+	};
+};

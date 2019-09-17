@@ -1,0 +1,41 @@
+STMicroelectronics Mailbox Driver
+
+Required properties:
+- compatible		: Should be one of the following:
+			  "st,sta-mailbox" for STA SoCs relying on
+			  MBOX HW IP for interrupt generation.
+			  "st,sta-mailboxhsem" for STA SoCs relying on
+			  HSEM HW IP for interrupt generation.
+- #mbox-cells		: Standard mailbox property. Number of cells in the
+			  mailbox specifier. Only one cell is used in the STA
+			  maibox driver, and it must specify the channel number
+- reg			: Contains the physical base address and length of
+			  mailbox's registers and shared memory
+- reg-names		: Should contain the reg name "mbox-reg", "mbox-rp-reg"
+			  and "mbox-shm". The name "mbox-rp-reg" depicts the
+			  remote processor registers and is optional.
+- interrupts		: Contains the IRQ line for the mailbox. The format is
+			  dependent on which interrupt controller the device
+			  uses
+
+Optional properties
+ - st,mbox-rx-size	: Size allocated in shared memory for Rx message for
+			  each channel. Total memory impact for Rx messages is:
+			  (st,mbox-rx-size) * (number of channels(=16))
+			  If not specified, default rx-size is 0x10.
+ - st,mbox-tx-size	: Size allocated in shared memory for Tx message for
+			  each channel.
+
+Examples:
+
+/* STA */
+mailbox: mailbox@48190000 {
+	compatible = "st,sta-mailbox";
+	reg = <0x48190000 0x1000>, <0x481a0000 0x1000>, <0x70002000 0x1000>;
+	reg-names = "mbox-reg", "mbox-rp-reg", "mbox-shm";
+	#mbox-cells = <1>;
+	mbox-name = "m3";
+	interrupts = <GIC_SPI 63 IRQ_TYPE_LEVEL_HIGH>;
+	st,mbox-rx-size = <0x10>;
+	st,mbox-tx-size = <0x10>;
+};

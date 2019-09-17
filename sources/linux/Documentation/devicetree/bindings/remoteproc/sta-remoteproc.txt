@@ -1,0 +1,21 @@
+STMicroelectronics Remoteproc Driver
+
+Required properties:
+- compatible		: Should the following:
+			  "st,sta-rproc" for STA SoCs
+- st,rp-name		: Remote processor name
+- mboxes		: Mailbox name assigned to this remoteproc
+			  (cf. mailbox-sta bindings)
+Optional properties:
+- st,rp-fw-name		: Firmware name of the remoteproc to download
+- st,rsc-carveout-name	: Array of name of the RSC_CARVEOUT requested memory
+			  region
+Examples:
+
+rproc {
+	compatible = "st,sta-rproc";
+	mboxes = <&mailbox 0>;
+	st,rp-name = "CAN_SS";
+	st,rp-fw-name = "stm-rproc0-fw.bin";
+	status = "disabled";
+};

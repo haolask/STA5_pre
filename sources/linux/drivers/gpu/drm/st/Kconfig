@@ -1,0 +1,24 @@
+config DRM_ST_LTDC
+	tristate "DRM Support for STMicroelectronics SoC Series with LTDC display controller"
+	depends on DRM && (ARCH_STM32 || ARCH_STA || ARCH_MULTIPLATFORM)
+	select DRM_KMS_HELPER
+	select DRM_GEM_CMA_HELPER
+	select DRM_KMS_CMA_HELPER
+	select DRM_PANEL
+	help
+	  Choose this option to enable DRM on ST with LTDC chipsets
+
+config DRM_ST_LTDC_FBDEV
+	bool "Enable legacy fbdev support"
+	depends on DRM_ST_LTDC
+	help
+	  Choose this option if you have a need for the legacy fbdev
+	  support. Note that this support also provide the linux console
+	  support on top of the ST_LTDC modesetting driver.
+
+config DRM_ST_LTDC_HDMI
+	bool "Enable HDMI i2c slave support"
+	depends on DRM_ST_LTDC
+	select DRM_I2C_ADV7511
+	help
+	  Choose this option to enable HDMI support using adv751x component

@@ -1,0 +1,62 @@
+STMicroelectronics STA1xxx DMA SEL (DMA signals routing over DMA0 or DMA1)
+
+Required properties:
+- compatible:	"st,sta1295-dmasel"
+- reg:		Memory map for accessing module.
+- #dma-cells:	Should be set to <3>.
+		* 1st cell contains 0 or 1 depending on the dma engine used.
+		* 2nd cell contains the id of the dma request line (0-31).
+		* 3rd cell contains either 1 or 2 depending on the AHB master
+		  used.
+- dmacs:	phandle list pointing to DMA controllers in right order.
+		dma0 must be the first in the list followed by dma1.
+
+Example:
+
+dma0: dma@48200000 {
+	compatible = "arm,pl080", "arm,primecell";
+	arm,primecell-periphid = <0x00280080>;
+	reg = <0x48200000 0x1000>;
+	interrupts = <GIC_SPI 18 IRQ_TYPE_LEVEL_HIGH>;
+	clocks = <&hclkdma0>;
+	clock-names = "apb_pclk";
+	#dma-cells = <2>;
+	lli-bus-interface-ahb2;
+	mem-bus-interface-ahb2;
+	memcpy-bus-width = <32>
+};
+
+dma1: dma@48300000 {
+	compatible = "arm,pl080", "arm,primecell";
+	arm,primecell-periphid = <0x00280080>;
+	reg = <0x48300000 0x1000>;
+	interrupts = <GIC_SPI 19 IRQ_TYPE_LEVEL_HIGH>;
+	clocks = <&hclkdma1>;
+	clock-names = "apb_pclk";
+	#dma-cells = <2>;
+	lli-bus-interface-ahb2;
+	mem-bus-interface-ahb2;
+	memcpy-bus-width = <32>
+};
+
+mscr: syscon@50700000 {
+			compatible = "st,sta1295-mscr-a7", "syscon", "simple-mfd";
+			reg = <0x50700000 0x1000>;
+			clocks = <&pclkapbreg>;
+
+			dmasel: dmasel@0 {
+				compatible = "st,sta1295-dmasel";
+				#dma-cells = <3>;
+				dmacs = <&dma0>, <&dma1>;
+			};
+};
+
+uart0: uart@50150000 {
+	compatible = "arm,pl011", "arm,primecell";
+	reg = <0x50150000 0x1000>;
+	interrupts = <GIC_SPI 24 IRQ_TYPE_LEVEL_HIGH>;
+	clocks = <&uart0clk>, <&pclkuart0>;
+	clock-names = "uartclk", "apb_pclk";
+	dmas = <&dmasel 0 11 2>, <&dmasel 0 15 2>;
+	dma-names = "rx", "tx";
+};

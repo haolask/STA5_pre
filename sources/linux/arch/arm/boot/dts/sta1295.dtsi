@@ -1,0 +1,104 @@
+/*
+ * Copyright (C) 2015 STMicroelectronics
+ * Author: Jean-Nicolas Graux <jean-nicolas.graux@st.com>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2, as
+ * published by the Free Software Foundation.
+ */
+
+#include "sta.dtsi"
+
+/ {
+	soc {
+		ccc: ccc@49000000 {
+			status = "okay";
+		};
+
+		g1@50090000 {
+			compatible = "st,g1";
+			reg = <0x50090000 0x194>;
+			clocks = <&srcm3_clk STA_CLK_VDO>;
+			clock-names = "g1";
+			interrupts = <GIC_SPI 67 IRQ_TYPE_LEVEL_HIGH>;
+		};
+
+		gcnano@48F00000 {
+			compatible = "st,gcnano";
+			reg = <0x48F00000 0x800>,
+			      <0xD4000000 0xC000000>;  /*192MB reserved memory*/
+			reg-names = "iobase_3d",
+				    "contig_baseaddr";
+			clocks = <&srca7_clk STA_CLK_HGFX>,
+				 <&srca7_clk STA_CLK_AGFX>,
+				 <&srcm3_clk STA_CLK_GFX2X>;
+			clock-names = "clk_3d_ahb", "clk_3d_axi","clk_3d_clk2x";
+			interrupts = <GIC_SPI 66 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "irq_3d";
+		};
+
+		gpio3: gpio@48123000 {
+			status = "okay";
+		};
+
+		rvcam {
+			compatible = "st,sta_rvcam";
+			status = "disabled";
+		};
+
+		sdi2: sdi@500B0000 {
+			dmas = <&dmasel 1 18 2>;
+			status = "okay";
+		};
+
+		spi1: spi@50060000 {
+			dmas = <&dmasel 1 11 2>, <&dmasel 1 14 2>;
+		};
+
+		sta-display-subsystem {
+			compatible = "st,display-subsystem";
+			#address-cells = <1>;
+			#size-cells = <1>;
+			ranges;
+
+			clcd@48600000 {
+				compatible = "st,ltdc";
+				reg = <0x48600000 0x1000>;
+				interrupts = <GIC_SPI 46 IRQ_TYPE_LEVEL_HIGH>;
+				clock-names = "clk", "lcd_clk";
+				clocks = <&srca7_clk STA_CLK_HCLCD>,
+					 <&srcm3_clk STA_CLK_CLCD>;
+				bus-width = <64>;
+			};
+		};
+
+		stm@50411000 {
+			status = "okay";
+		};
+
+		tpiu@50412000 {
+			status = "okay";
+		};
+
+		uart1: uart@50000000 {
+			dmas = <&dmasel 1 21 2>, <&dmasel 1 25 2>;
+		};
+
+		uart3: uart@50020000 {
+			dmas = <&dmasel 1 23 2>, <&dmasel 1 27 2>;
+		};
+
+		vip: vip@48800000 {
+			compatible = "st,sta_vip";
+			reg = <0x48800000 0x20000>,
+			      <0x48700000 0x800>;
+			reg-names = "vip_regs", "sga_regs";
+			interrupts = <GIC_SPI 48 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 49 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 47 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&srca7_clk STA_CLK_HVIP>,
+				 <&srca7_clk STA_CLK_HGAE>;
+			clock-names = "apb_pclk", "sga_clk";
+		};
+	};
+};

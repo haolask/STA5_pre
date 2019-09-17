@@ -1,0 +1,32 @@
+#
+# Copyright (C) 2016 ST Microelectronics Limited
+# Author: Gerald Lejeune <gerald.lejeune@st.com>
+# License terms: GNU General Public License (GPL) version 2
+#
+
+config CRYPTO_DEV_CCC_MPAES
+	tristate "MPAES crypto driver"
+	depends on CRYPTO_DEV_CCC
+	select CRYPTO_BLKCIPHER2
+	help
+          This selects the crypto driver for the ST Microelectronics
+	  Micro-Programmable AES engine embedded as a channel in C3 Channel
+	  Controller.
+	  It supports ECB, CBC and GCM modes with keys size of 128, 192 and 256
+	  bits.
+
+config CRYPTO_DEV_CCC_PKA
+	tristate "PKA crypto driver"
+	depends on CRYPTO_DEV_CCC
+	select CRYPTO_RSA
+	help
+          This selects the crypto driver for the ST Microelectronics Public Key
+	  Accelerator embedded as a channel in C3 Channel Controller.
+	  It supports RSA keys up to 3072 bits.
+
+config CRYPTO_DEV_CCC_DEBUG
+	bool "CCC debug mode"
+	depends on CRYPTO_DEV_CCC
+	default n
+	help
+	  Say Y if you want to add debug prints to C3 Channel Controller.

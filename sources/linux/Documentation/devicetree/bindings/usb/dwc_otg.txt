@@ -1,0 +1,34 @@
+Platform DesignWare HS OTG USB 2.0 controller
+-----------------------------------------------------
+
+Required properties:
+- compatible : snps,dwc_otg : A generic DWC2 USB controller
+  with default parameters.
+- reg : Should contain 1 register range (address and length)
+- interrupts : Should contain 1 interrupt
+- clocks : clock provider specifier
+- clock-names : shall be "apb_pclk"
+  Refer to clk/clock-bindings.txt for generic clock consumer properties
+
+
+-dwc_otg,optim
+   The Synopsis DWC controller probe procedure forces several mode change
+   in order to extract default FIFO size.
+   This mode switch requests important delays.
+   This property offers to skip this delay if the value reset of registers are
+   provided by 2 following properties :
+     hptxfsiz_reset_value : It defines the HPTXFSIZ reset value
+     dtxfsiz_period_reset_value : It defines the periodic dtxfsize reset value
+
+Example:
+		usb0: usb@48400000 {
+			compatible = "snps,dwc_otg";
+			reg = <0x48400000 0x1000>;
+			interrupts = <GIC_SPI 20 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&hclkusb>;
+			clock-names = "apb_pclk";
+			dwc_otg,optim;
+			dwc_otg,hptxsize = <0x4000800>;
+			dwc_otg,dptxsize = <0x200>;
+		};
+

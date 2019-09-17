@@ -1,0 +1,59 @@
+This supports access to SPI devices using normal userspace I/O calls.
+In other words, one spi device for which there is no kernel driver
+for it yet might be accessed relying on the spidev instead.
+
+The spidev node requires the following properties:
+
+- compatible: Name of SPI device. Should be one of the following strings:
+
+	static const struct of_device_id spidev_dt_ids[] = {
+		{ .compatible = "rohm,dh2228fv" },
+		{ .compatible = "st,sta662" },
+		{},
+	};
+
+- reg: Chip select address of device.
+- spi-max-frequency: Maximum SPI clocking speed of device in Hz.
+
+See spi-bus.txt file for other optional properties that apply to a spi
+device node.
+
+SPI device example for an IMX28 SPI bus:
+
+	spi3 {
+		compatible = "spi-gpio";
+		pinctrl-names = "default";
+		pinctrl-0 = <&spi3_pins_cfa10049>;
+		status = "okay";
+		gpio-sck = <&gpio0 24 0>;
+		gpio-mosi = <&gpio0 28 0>;
+		cs-gpios = <&gpio0 17 0 &gpio0 26 0 &gpio0 27 0>;
+		num-chipselects = <3>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		dac0: dh2228@2 {
+			compatible = "rohm,dh2228fv";
+			reg = <2>;
+			spi-max-frequency = <100000>;
+		};
+};
+
+SPI device example for an STA1295 SPI bus:
+
+	spi2: spi@50050000 {
+		pinctrl-names = "default";
+		pinctrl-0 = <&spi2_default_mux>;
+		num-cs = <1>;
+		spidev@0 {
+			compatible = "st,sta662";
+			spi-max-frequency = <1000000>;
+			reg = <0>;
+			spi-cpol;
+			spi-cpha;
+			pl022,hierarchy = <0>;
+			pl022,interface = <0>;
+			pl022,duplex = <0>;
+		};
+	};
+

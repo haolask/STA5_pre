@@ -1,0 +1,16 @@
+STMicroelectronics STA1xxx PM suspend platform driver
+
+Required properties:
+- compatible: "st,sta-suspend"
+- mboxes: phandle to sta-mailbox DT node used to send PM suspend message
+	  to remote processor.
+- st,cpu-resume-addr: address used to store the resumme address where Linux
+		      must resume from suspended state.
+
+Examples:
+
+	suspend {
+			compatible = "st,sta-suspend";
+			mboxes = <&mailbox 15>;
+			st,cpu-resume-addr = <0x200001F4>;
+		};

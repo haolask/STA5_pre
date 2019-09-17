@@ -1,0 +1,106 @@
+Clock driver for the STMicroelectronics Automotive car processors
+
+Author: Jean-Nicolas graux <jean-nicolas.graux@st.com>
+
+This binding uses the common clock binding:
+Documentation/devicetree/bindings/clock/clock-bindings.txt
+
+There are 3 peripherals that control clocks in the STA1295/STA1385
+SoCs, namely the SRC-M3, the SRC-A7 and the A7-SSC.
+
+- SRC-M3:
+	- Operating mode of main SRC Finite State Machine.
+	- FVCO configuration of PLL2, PLL3, PLL4 and PLLDDR.
+	- Enabling, disabling of the PLL2, PLL3, PLL4 and PLLDDR.
+	- Clock source divider configuration of Multimedia Timer
+	  Units 0, 1.
+	- Enabling, disabling, status of main crystal.
+	- SoC software reset and SoC reset status.
+	- Programmable clock source selection/divider of following
+	  peripherals:
+		- SDIO0, SDMMC1, SDMMC2
+		- Video decoder
+		- Graphic accelerator (sta1295)
+		- CLCD controller (sta1295)
+		- CAN subsystem
+		- Audio subsystem
+		- SQI
+	- Control of external output clocks
+	- Clocks gating of most of the SoC peripheral functional clocks
+- SRC-A7:
+	- PHI configuration of PLL3 and PLLDDR
+	- SoC Reset status
+	- Programmable clock source selection/divider of following
+	  peripherals:
+		- ETM Trace
+		- HCLK
+	- Clocks gating of most of the SoC peripheral bus clocks
+
+- The A7 Sub-System Controller (A7 SSC):
+	- FVCO & PHI programming of PLLARM (= PLL1)
+	- Enabling, disabling of PLLARM
+	- clock source selection of C-A7 subsystem
+
+To get a detailed description about the distribution of functionalities
+between SRC-M3, SRC-A7 and A7-SSC peripherals, get a look to "System
+Reset Controller (SRC-M3/SRC-A7/A7-SSC) chapter from sta1295, STA1385
+User Manual.
+
+SRC nodes:
+----------
+
+Required properties for the SRC-M3 node:
+
+- compatible: either "st,sta1295-src-m3-clk" or "st,sta1385-src-m3-clk"
+- #clock-cells: must be 1
+
+Example:
+	srcm3_clk: srcm3@40020000 {
+		compatible = "st,sta1295-src-m3-clk";
+		reg = <0x40020000 0x100>;
+		#clock-cells = <1>;
+	};
+
+Required properties for the SRC-A7 node:
+
+- compatible: "st,sta1295-src-a7"
+- #clock-cells: must be 1
+
+Example:
+	srca7_clk: srca7@48100000 {
+		compatible = "st,sta1295-src-a7-clk";
+		reg = <0x48100000 0x100>;
+		#clock-cells = <1>;
+	};
+
+A7-SSC node:
+------------
+
+Required properties for the A7-SSC node:
+
+- compatible: "st,sta1295-a7-ssc-clk"
+- #clock-cells: must be 1
+
+Example:
+	a7ssc_clk: a7ssc@68000000 {
+		compatible = "st,sta1295-a7-ssc-clk";
+		reg = <0x68000000 0x100>;
+		#clock-cells = <1>;
+	};
+
+Clock bindings in peripheral nodes:
+-----------------------------------
+
+#include <dt-bindings/clock/sta-clock.h>
+
+uart1: uart@50000000 {
+	compatible = "arm,pl011", "arm,primecell";
+	reg = <0x50000000 0x1000>;
+	interrupts = <GIC_SPI 25 IRQ_TYPE_LEVEL_HIGH>;
+	clocks = <&srcm3_clk STA_CLK_UART1>,
+		 <&srca7_clk STA_CLK_PUART1>;
+	clock-names = "uartclk", "apb_pclk";
+	dmas = <&dmasel 0 12 2>, <&dmasel 0 16 2>;
+	dma-names = "rx", "tx";
+};
+

@@ -1,0 +1,1591 @@
+* STMicroelectronincs sta audio
+
+1	ACCORDO5 AUDIO FRAMEWORK
+The Accordo5 Audio Framework is composed by:
+1.	Multiple Serial Ports (MSP),
+2.	Audio Routing,
+3.	Audio Interface (AIF),
+4.	DMABUS,
+5.	Emerald DSPs,
+6.	DAC,
+7.	ADCMIC,
+8.	ADCAUX,
+9.	DP Mailbox
+
+Cortex A7 can play/capture audio stream through MSPs ports and the DPMailbox.
+
+The DMA PL080 is used to transfer audio from SDRAM to MSP over AHB bus without
+overcharging the Cortex A7 cores.
+The DMA configured in cyclic mode guarantees a slow latency and no holes into
+the audio data transfers.
+
+As well, the Audio Routing can be configured to take audio streams from external
+pads and directly route them to the SAI ports without passing from the Cortex A7.
+AIF is used to MUX/DEMUX audio flows to/from SAI ports and perform Asynchronous
+Sample Rate Conversion.
+Audio is always converted to 48kHz before being sent to the DSPs for further
+processing (volume, filters, mixer...) and then sent back to AIF.
+
+The Accordo5 can manage also analog audio I/O through the embedded DAC/ADC:
+*	3 x Stereo DAC 24 bits (directly connected to SAI3).
+*	2 ADCMIC mono for Voice (directly connected to SAI3).
+*	ADCAUX stereo 18 bits ADC (accessible through DMABUS).
+
+2	LINUX AUDIO
+The Advanced Linux Sound Architecture (ALSA) provides a well-defined and
+standard interface to control and transfer audio streams to/from audio devices.
+For a System on Chip, the audio framework integrated in Linux kernel is called
+ASoC (ALSA system on Chip) and it takes care of all the complexity of the audio
+routing on SoC using the DMA, I2S, etc.
+ASoC offers a standard HW layer interface to the ALSA libraries running in user
+space.
+ALSA utils aplay/arecord, amixer are an example of usage of ALSA API.
+In Linux, audio devices can expose two interfaces: audio data and audio control.
+Due to the structure of the Audio in Accordo5, we have to distinguish between
+devices which expose both interfaces, and devices that have only the control
+interface, because the audio stream is not routed through the CPU.
+
+2.1	LINUX ASOC DRIVERS
+In Linux ASoC the Digital Audio Interfaces are called DAI.
+*	CPU DAI is associated with an audio port.
+*	CODEC DAI is associated with a codec.
+The CPU DAI driver must register to the PCM DMAENGINE to transfer the audio
+from RAM to audio port and viceversa.
+The ASoC machine driver links together CPU DAI and CODEC DAI drivers in a card.
+A card may have multiple DAI links corresponding to multiple ALSA devices.
+
+2.2	ACCORDO5 DAIS:
+In Accordo5 ASoC, the following DAI are defined:
+-	Three MSPs exposed as CPU DAIs and three corresponding CODEC DAIs.
+-	Audio Routing, AIF, DMABUS, DAC, ADC exposed as AIF CODEC DAI.
+-	DSP controls exposed as DSP CODEC DAI.
+
+2.3	ACCORDO5 SOUND CARDS
+Sound cards are created by Accordo5 ASoC machine driver.
+A sound card must include a list of DAI links between a CPU DAI and a CODEC DAI.
+
+*	The sound cards 0, 1 and 2 are associated with the corresponding
+	MSP(0, 1 and 2) as CPU DAI and with a sta-codec-msp (0, 1 and 2) as
+	CODEC DAI.
+	In Accordo5 MSP1 and 2 are the interfaces of Cortex A7 to the audio
+	subsystem, while MSP0 has direct access to the external pins.
+
+*	Sound card 3 does not support play/capture of audio streams and it has
+	the only function to expose amixer controls to change the parameters in
+	the AIF or in the DSP domain.
+
+*	Sound card 5 is one more way to send/receive audio samples between ARM
+	and DSP.
+	DPmailbox FIFOs (FIFO2 from ARM BUS to DMABUS, FIFO1 from DMABUS to ARM
+	BUS) directly connect the ARM to DSP without passing through the AIF.
+	For this reason, sample rate conversion is not supported, the audio
+	must sampled at 48 kHz.
+*	Sound card 6 has no DAIs, it is dedicated to load custom FW to DSP2
+	(e.g. ECNR).
+
+
+2.4	ACCORDO5 KERNEL MODULES
+The Accordo5 Linux the audio framework is composed by several drivers.
+They can be linked to the Linux Image or built as separate module, depending on the
+Kconfig variables.
+All the variables depend on the main variable CONFIG_SND_SOC_STA.
+udev hotplug mechanism is able to load all sound modules, but the some loading
+order rules must be given in alsa configuration, to obtain the expected card
+numbering:
+All the DAIs drivers must be loaded before the machine driver
+In fact the machine driver must create the links between the already loaded
+DAIs, if some required DAIs is not present, the load can be deferred, but the
+numbering of cards can change.
+e.g.:
+kernel config:
+CONFIG_SOUND=m
+CONFIG_SND=m
+CONFIG_SND_SOC_STA=m
+CONFIG_SND_SOC_STA_STAUDIOLIB=m
+CONFIG_STAUDIOLIB_EMBEDDED_FW=n
+
+/lib/modprobe.d/alsa.conf:
+softdep snd-soc-sta-card pre: snd-soc-sta-i2s-msp snd-soc-sta-codec-aif snd-soc-sta-codec-msp0 snd-soc-sta-codec-msp1 snd-soc-sta-codec-msp2 snd-soc-sta-dpmailbox snd-soc-sta-sai staudiolib
+
+The unload is more complicated because the remove cannot be deferred.
+First we must unload snd-soc-Accordo5-plat-sound to remove all the cards, then
+we can unload all the CPU/CODEC DAIs.
+Because of the above dependency, AIF must be unloaded  after MSP1, MSP2.
+
+Kconfig				Module			Sources					Description
+CONFIG_SND_SOC_STA_MSP		snd-soc-sta-i2s-msp	sta_msp_dai.c,sta_msp_i2s.c,sta_pcm.c	MSP cpu DAI
+CONFIG_SND_SOC_STA_AIF		snd-soc-sta-sai		sta_sai.c				SAI driver for pinctrl
+CONFIG_SND_SOC_STA_DPMAILBOX	snd-soc-sta-dpmailbox	sta_dpmailbox_dai.c			DPMAILBOX CPU DAI
+CONFIG_SND_SOC_STA_AIF		snd-soc-sta-codec-aif	sta_codec_aif.c				AIF codec DAI
+CONFIG_SND_SOC_STA_AIF		snd-soc-sta-codec-msg	sta_audio_msg.c				Communication with M3
+CONFIG_SND_SOC_STA		snd-soc-sta-card	sta_alsa.c				ASoC machine driver
+CONFIG_SND_SOC_EXT_DSP		snd-soc-sta-ext-dsp	ext_codec_dsp.c				3rd party DSP FW driver
+CONFIG_SND_SOC_STA_STAUDIOLIB	staudiolib		../staudiolib/...			DSP codec DAI In a dedicated repository
+
+staudiolib is in a separate repository, even if placed and built in the kernel
+tree under sound/soc/sta/staudiolib, thanks to the reference in
+sound/soc/sta/Makefile.
+
+obj-$(CONFIG_SND_SOC_STA_STAUDIOLIB) += ../../../../staudiolib/
+
+If staudiolib is built as kernel module, the ko must be installed into the
+target filesystem under /lib/modules/4.9.86/kernel/sound/soc/sta/staudiolib and
+also the corresponding DSP firmware is installed in /lib/firmware.
+
+2.5	DSP FIRMWARE LOAD
+The ST DSP firmware is composed by 3 files:
+1.	emerald-firmware.X.noheader
+2.	emerald-firmware.Y.noheader
+3.	emerald-firmware.P.noheader
+These files must be uploaded into the corresponding  DSP0,1 X, Y and P memories.
+Usually DSP2 is left free for custom third party advanced audio effects.
+The upload of firmware can be done in one of the following ways:
+1.	Flashed in a dedicated NAND partition and loaded from there by xloader.
+2.	Loaded from the Linux filesystem /lib/firmware during the codec
+	driver's probe.
+	Note that this option is applicable only if staudiolib driver is built
+	as module, because the load of firmware cannot be done before the
+	filesystem is mounted.
+3.	The firmware may be embedded into the kernel module and
+	copied from there into the DSP memories.
+	It that case, the load of the FW is forced even if already loaded by
+	the xloader.
+
+2.6	ST FIRMWARE START
+Once the ST firmware is loaded, the codec must configure it and start it.
+The firmware is modular, and modules must be instantiated and connected using
+the API:
+	STA_AddModule, STA_Connect
+
+Each modules has also some APIs to initialize it.
+Finally the configuration is applied and the DSP is started:
+	STA_BuildFlow();
+	STA_Play();
+The codec exposes some controls to configure the modules at runtime
+(e.g. change the volume, equalizer setting, etc). The user can manage these
+controls using amixer.
+
+2.7	POWER MANAGEMENT
+The audio drivers support save/restore of all registers and configure pinctrl
+state in suspend/resume callbacks.
+In details they perform the following actions:
+- Pinctrl SAI and MSP set to sleep.
+- Full memories of all the DSPs are saved in DDR, using paging for DSP2	XRAM.
+  At restore time, DSP clocks are enabled, memories restored and DSPs are
+  started.
+- AIF paths and AUSS settings saved/restored
+- DPMAILBOX restores DPM_CR, enables FIFO DMA requests in SSY_CR and cleans
+  FIFO2.
+- MSP registers saved/restored.
+- TDA75xx power amplifier: power state and settings restored.
+- Sound card uses snd_soc_pm_ops to suspend running streams.
+  SNDRV_PCM_TRIGGER_SUSPEND, SNDRV_PCM_TRIGGER_RESUME are propagated to
+  pcm_dmaengine.c which expects the support of dmaengine_pause,
+  dmaengine_resume.
+
+2.8	DSNOOP CONFIGURATION
+sound/core/pcm_dmaengine.c has 2 possible functions to update the filling level
+of the ALSA buffer:
+1.	snd_dmaengine_pcm_pointer_no_residue(deprecated)
+the avail frames are updated only at the end of period
+2.	snd_dmaengine_pcm_pointer
+the residue within the period is calculated at the moment of the call.
+In our platform the default is option 2, but option 1 is supported setting
+CONFIG_SND_SOC_STA_NO_RESIDUE=y
+Note that with option 2, even small amount of avail are returned, and more
+read/write iterations are required, making cpu usage higher.
+In particular dsnoop plugin makes a lot of calls to SNDRV_PCM_IOCTL_SYNC_PTR
+to get the amount of available frames in the ALSA buffer and this results in
+saturating one CPU core.
+Setting the flag slowprt=false in the dsnoop config, the rate of requests the
+avail frames to the kernel is reduced, and the CPU usage is lower.
+
+3	AUDIO DEVICE TREE
+The Accordo5 audio framework has its own dedicated device tree sta1295-audio.dtsi.
+The DSP network and a set of predefined AIF configurations (use cases) are all
+defined in device tree and can be customized without modifying the driver code.
+The audio device tree includes the following nodes:
+-	Sound cards (compatible  =  "st,snd-soc-sta-card-alsa")
+-	MSP (compatible  =  "st,sta-msp-dai")
+-	DPmailbox (compatible = "st,sta-dpmailbox")
+-	SAI (compatible  =  "st,sai1" or "st,sai2" or "st,sai3" or st,sai4")
+-	Codec MSP(compatible  =  "st,codec-msp0" or "st,codec-msp1" or "st,codec-msp2")
+-	Codec AIF(compatible  =  "st,audiointerface")
+-	Codec DSP-STA(compatible  =  "st,audioeffects")
+-	Codec DSP-EXT(compatible  =  "st,extdspfw")
+-	Audio Sources: multiple static configurations of AIF registers.
+
+3.1	SOUND CARDS
+Several sound cards are defined in sta1295-audio.dtsi.
+All of them are created by a single Accordo5 ASoC machine driver (sta_card.c)
+which is probed for every dts node compatible with "st,snd-soc-sta-card-alsa".
+A sound card node must include a list of CPU DAIs (st,cpu-dai) and a list of
+correspondent CO-DEC DAIs (st,audio-codec).
+Sound cards 0,1,2 are made only by one CPU DAI (e.g.: msp2) and two CODEC DAIs
+(e.g.: codec_msp2 and codec_dsp).
+sound_card2 {
+	compatible = "st,snd-soc-sta-card-alsa";
+	st,cpu-dai = <&msp2>;
+	st,audio-codec = <&codec_aif &codec_dsp>;
+	st,codec-dai-name = "st-codec-msp2", "st-codec-msp2";
+	st,stream-name = "msp2-sai2";
+	st,card-name = "sta-msp2";
+};
+
+sound card 3 has one dummy CPU DAIs and 2 CODEC DAIs (codec_aif, codec_dsp).
+sound_card3 {
+...
+	st,cpu-name = "snd-soc-dummy", "snd-soc-dummy";
+	st,audio-codec = <&codec_aif &codec_dsp>;
+	st,codec-dai-name = "sta-codec-aif","sta-codec-dsp";
+...
+};
+In sta1295-evb.dts the amplifier (tda7569) is added in the card 3:
+sound_card3 {
+...
+	st,cpu-name = "snd-soc-dummy", "snd-soc-dummy", "snd-soc-dummy";
+	st,audio-codec = <&codec_aif &codec_dsp &tda7569 >;
+	st,codec-dai-name = "sta-codec-aif", "sta-codec-dsp", "tda7569"
+...
+};
+
+Linux ALSA has a maximum of 8 cards and in Accordo5 we almost ran out of them.
+But sta_card machine driver also supports multi-device cards.
+For example instead of creating one card for each MSPs (hw:0, hw:1, hw:2),
+it is possible to create one card with 3 devices (hw:0,0, hw:0,1, hw:0,2).
+In that case the all the ALSA controls specific of all the MSPs would be
+visible in the same card, so to avoid duplicates, we need to set a prefix
+at MSP level:
+msp0:msp@48000000 {
+	prefix = "msp0";
+	...
+msp1:msp@48010000 {
+	prefix = "msp1";
+	...
+msp2:msp@48020000 {
+	prefix = "msp2";
+	...
+sound_card0 {
+	compatible = "st,snd-soc-sta-card-alsa";
+	st,card-name = "sta-msp";
+	msp0 {
+		st,cpu-dai = <&msp0>;
+		st,codec-name = "snd-soc-dummy";
+		st,codec-dai-name = "snd-soc-dummy-dai";
+		st,stream-name = "msp0-ext";
+	};
+	msp1 {
+		st,cpu-dai = <&msp1>;
+		st,audio-codec = <&codec_aif>;
+		st,codec-dai-name = "st-codec-msp1";
+		st,stream-name = "msp1-sai4";
+	};
+	msp2 {
+		st,cpu-dai = <&msp2>;
+		st,audio-codec = <&codec_aif>;
+		st,codec-dai-name = "st-codec-msp2";
+		st,stream-name = "msp2-sai2";
+		st,card-name = "sta-msp2";
+	};
+};
+
+3.2	MSP
+Each MSPs have a node in sta1295-audio.dtsi
+msp1: msp@48010000 {
+	compatible = "st,sta-msp-dai";
+	reg = <0x48010000 0x1000>;
+        dmas = <&dmasel 1 8 2>, <&dmasel 1 5 2>;
+	dma-names = "rx", "tx";
+        clocks = <&srcm3_clk STA_CLK_MSP1>,
+                 <&srca7_clk STA_CLK_PLL3PHI>,
+                 <&srca7_clk STA_CLK_PMSP1>;
+	clock-names = "mspclk", "mspsck-fixed", "apb_pclk";
+...
+
+The MSP driver has 3 clocks defined:
+    1. apb_pclk: <&pclkmsp1> mandatory to access registers
+    2. mspclk (internal master clock for MSP SRG): <&mspNclk> (CLK52)
+    3. mspsck or mspsck-fixed (MSP SCK, external master clock for MSP SRG):
+       it may be either <&pll3phi> (like in the example above) or a
+       user-defined external fixed-clock.
+    In case the MSP SCK clock cannot be changed, "mspsck-fixed" should be used
+    in place of "mspsck".
+    "mspsck-fixed" can be used also if you don't want change PLL3 in MSP
+    driver.
+Note that CLK_52 is derived by PLL2 and shared by many peripherals, so the MSP
+rates generated by it cannot be very accurate.
+On the other side PLL3 is dedicated to audio, and it can be set in a way to let
+MSP generate good audio rates, from 8kHz to 192kHz.
+PLL3 has also a fractional part to finely adjust the PLL frequency.
+This feature is disable by setting mspsck-fixed. In case we enable it (mspsck),
+the PLL3 cannot be used by more than one MSP at the same time.
+Finally when selecting some specific Source, we can force MSP1 to derive MSPSCK
+from I2S0_BCLK. This is useful when A5 is slave on MSP0 and we want synchronize
+MSP1 with MSP0.
+The following setting must be specified in the DTS and MSPSCK must be selected
+through Clock ext.
+auss-mux {
+ 	msp1-extrefclk = "i2s0";
+MSP controls:
+Clock	int, ext
+Rate	In the near range of nominal sample rate
+AutoRate	On, Off
+Rate Step	0 - 10 per-mille
+Thresholds	%,%,%,...
+Force Rate	0 - 400000
+M3 play	On, Off		/* cfr. Early Audio chapter */
+
+The Clock control can be used to select at runtime between mspclk ("int") and
+mspsck/mspsck-fixed ("ext").
+
+The MSP keys srg-clk-sel = int/ext defines the initial setting of the Clock
+control (int = mspclk, ext = mspsck/mspsck-fixed).
+    Example:
+amixer -c1 set Clock int (MSP1 uses mspclk)
+amixer -c1 set Clock ext (MSP1 uses mspsck/mspsck-fixed)
+Take care to not use pll3phi simultaneously for more than one MSP, since
+it may be changed dynamically (unless defined as mspsck-fixed) according to
+the samplerate of the currently played stream.
+
+For MSP1,2 when connected to SAI, MSP/SAI drivers have a preset configuration.
+Each MSP/SAI are automatically configured either in I2S (1-2 channels) or TDM
+(up to 8 channels), depending on the number of channels specified in hw_params.
+All the properties are optional. When not specified they assume the default
+value (protdesc_default, sta_msp_dai.c).
+Note that frame len and format, if not defined in the DTS, are automatically
+set according to hw_params.
+Both S16/S32 formats are supported.
+Stereo 16 bits samples are packed in one 32 bits FIFO entry and then swapped
+using the MSP byte swapping logic.
+MSP0 setting may need custom DTS settings to be adapted to the external chip
+connected to it.
+All the MSP properties which can be set in the device tree are defined in the
+msp_dts_keys_lut in sta_msp_dai.h.
+*	tx-fsync-pol, rx-fsync-pol can be "active_low" or "active_high".
+*	tx-clk-pol, rx-clk-pol, srg-clk-pol can be "falling" or "rising".
+*	tx-fsync-sel, rx-fsync-sel, tx-clk-sel, rx-clk-sel,
+	can be "master" or "slave"
+*	srg-clk-sel selects how the clock is generated in case of master.
+	It can be "int" (internally generated) , "ext" (external clock provided
+	on msp_sck pin) or "pll" (dedicated audio ref pll3).
+*	tx-elem-len-1, tx-frame-len-1, tx-elem-len-2, tx-frame-len-2,
+	tx-data-delay, tx-extra-delay, rx-elem-len-1, rx-frame-len-1,
+	rx-elem-len-2, rx-frame-len-2,	rx-data-delay, frame-period,
+	frame-width take a number of bits.
+*	frame-sync-ignore, tx-phase2-on, rx-phase2-on, tx-half-word-swap,
+	rx-half-word-swap are  boolean 0 or 1.
+*	compression-mode MSP_TCF/TDTYP and MSP_RCF/RDTYP
+*	tx-byte-order, rx-byte-order MSP_TCF/TENDN and MSP_RCF/RENDN
+*	tx-half-word-swap, rx-half-word-swap MSP_TCF/TBSWAP and MSP_RCF/RBSWAP.
+
+msp0:msp@48000000 {
+	...
+	i2s {
+		/*GCR*/
+		tx-fsync-pol = "active_low";
+		rx-fsync-pol = "active_low";
+		tx-clk-pol = "falling";
+		rx-clk-pol = "rising";
+		tx-fsync-sel = "slave";
+		rx-fsync-sel = "slave";
+		rx-clk-sel = "slave";
+		tx-clk-sel = "slave";
+		/*TCF*/
+		tx-elem-len-1 = <16>;
+		tx-frame-len-1 = <1>;
+		tx-data-delay = <1>;
+		/*RCF*/
+		rx-elem-len-1 = <16>;
+		rx-frame-len-1 = <1>;
+		rx-data-delay = <1>;
+		/*SRG*/
+		frame-sync-ignore = <1>;
+		frame-period = <32>;
+		frame-width = <16>;
+	};
+pcm constraints can be defined under the pcm node:
+	pcm {
+		formats = <s16-le>;
+		min-period = <4>;
+		max-period = <16>;
+		max-buffer-bytes = <65536>;
+	};
+};
+
+3.2.1	JITTER CONTROL
+When Clock is "ext", and mspsck is not fixed and connected to pll3phi, Rate
+can be smoothly adjusted using the fractional part of PLL3.
+The adjustment is needed when the audio data to be played come from a source
+not synchronized with the MSP.
+When the MSP is running, Rate control shows the current exact rate and the
+range in which it can be adjusted. "Force Rate" control can be used to abruptly
+change the rate even outside the fractional range.
+Setting Autorate On enables the automatic jitter control, based on the filling
+level of the ALSA buffer. The target filling level is the middle.
+By default we define 5 filling thresholds: 10%, 30%, 50%, 70%, 90% and a rate
+step of 0,5%.
+The configuration can be changed using the "Rate Step" and "Thresholds"
+controls.
+
+When the configured thresholds are exceeded, the rate changes of fixed steps,
+and at return below the exceeded threshold, the rate is restored with
+hysteresis.
+The nominal rate is adjusted, trying to converge to the ideal rate.
+
+
+3.3	 SAI
+SAI nodes instantiate sta_sai.c driver (compatible = "st,saiN"), which does
+nothing, but required to create a SAI device and configure the SAI pin control.
+The SAI protocol is not defined here, but in each use case present in
+codec_dsp node.
+
+sai4:sai@48D08C0C {
+	compatible = "st,sai4";
+};
+
+3.4	DPMAILBOX
+DPMailbox is an internal bidirectional FIFO to communicate between ARM domain
+to DMABUS/DSP domain.
+                dpmailbox: dpmailbox@48C00000 {
+                        compatible = "st,sta-dpmailbox";
+                        reg = <0x48C00000 0x204>;
+                        syscon-auss = <&auss>;
+                        dmas = <&dmasel 1 0 2>, <&dmasel 1 1 2>;
+                        dma-names = "rx", "tx";
+	...
+The DPMailbox can be used as an ALSA sound card (card5) with some limitations:
+*	FIFOs have 32 entries, 32 bits wide, but DMABUS can transfers only 24
+bits LSB.
+On the other side, ARM DMA doesn't support 24 bits width, so at the end the
+only format we can support is 16 bits, but we need to use the DSP to shift from
+16 bits to 24 bits.
+*	The sampling rate is imposed by the DMABUS running @48kHz. Multiple
+channels are supported, how many DMABUS can copy in one clock to/from FIFOs and
+ARM DMA trans fer to/from memory.
+*	DPMailbox has no interrupts/status register to detect FIFO overrun/
+	underrun, so it is important to tune DMA burst and FIFO thresholds to
+	avoid these events, because they can cause channel swap and we cannot
+	detect it and recover.
+
+In the dtsi we support the following keywords:
+playback-burst = <1>;
+capture-burst = <1>;
+minfl = <1>;
+maxfl = <0>;
+*	In case of ALSA buffer overrun/underrun, the driver recovers by
+	resetting FIFO pointers.
+	Note that the reset impacts both FIFOs, even if the overrun/interrupt
+	was only in one direction.
+
+3.5	CODEC DSP
+The DSP CODEC DAI is a device instantiated by the dts entry
+compatible = "st,audioeffects".
+The driver sources are in a repository separated from Linux BSP, because it
+embeds the cross-platform staudiolib, which does not respect the Linux coding
+style.
+The codec_dsp device maps the address space of one or more DSPs:
+	reg = <0x48900000 0x100000>, ..., <0x48D14000 0x400>, ...;
+	reg-names = "dsp0-mem", ..., "dpmem0", ...;
+The DSPs not used here can be used by other device to load/control 3rd party FW.
+Under the codec_dsp dts node there is the definition of one or more DSP
+networks, made by DSP modules and connections.
+	network-head-unit {
+		connections =
+		...
+
+3.5.1	CONNECTIONS
+The node "connections" define the DSP network, e.g. the connections between
+FW modules in-side the DSP. The connections property is a list of strings,
+formatted in groups of 4 strings. Each group of strings defines:
+
+<input module>, <input channel>, <output module>, <output channel>
+
+The connection between the xout of a DSP and the xin of the following one is
+done through DMABUS and thus it cannot be found under "connections", but in
+"dma-transfers" in the AIF CODEC DAI node.
+The following DSP network is provided for the car radio profile on sta1295 EVB:
+
+network-head-unit {
+	connections = ...
+
+3.5.2	ST DSP Modules
+The DSP FW modules are defined in audio dts as children of "dsp-net" and
+siblings of "connections". Note that the dsp-id property allows to select on
+which DSP the module is instantiated. When too many modules are running on the
+same DSP, the DSP goes in overflow and it may have an unexpected behavior.
+The list of possible modules types are defined in modtype_dts_lut
+(sta_codec_dsp.h), but amixer controls are defined only for the following
+modules:
+*	"mux-2out", "mux-4out", "mux-6out", "mux-8out", "mux-10out",
+*	"gain-static", "gain-smooth",
+*	"loudness-static-stereo",
+*	"tone-static-stereo",
+*	"equalizer-static-3bands", "equalizer-static-4bands", ... , "equalizer-static-16bands",
+*	"mixer-2ins", "mixer-3ins", ... ,"mixer-9ins",
+*	"sine2ch",
+*	"limiter-1ch" , "limiter-2ch" , "limiter-4ch" , "limiter-6ch",
+*	"clip-limiter",
+*	"compander-1ch" , "compander-2ch" , "compander-4ch" , "compander-6ch",
+*	"chimegen",
+*	"pcmchime-12bit-x-2ch", "pcmchime-12bit-y-2ch",
+*	"bitshifter".
+*	"delay-x-2ch","delay-x-4ch","delay-x-6ch","delay-y-2ch","delay-y-4ch","delay-y-6ch"
+*	"peakdetect"
+In addition to the instantiated  modules, xinN and xoutN define input and
+output memory of the DSP <N>.
+Modules supporting a configurable number of channels (Gain, Bitshifter,
+Peakdetector, Clip Limiter and Mixer) can be customized through the
+"num-channels" dts property.
+Limiter, compander support the key "update-slot" which allows to reduce the
+MIPS usage:the update function is executed only in the selected slot [0-5].
+When multiple instances of the same modules are loaded, a "prefix" property can
+be added to customize the names of amixer controls in order to avoid
+duplications.
+The single channel controls are usually named appending the suffixes specified
+in "in-names" property.
+Mixers have both "in-names" and "out-names". In that case the single channels
+controls have appended both of them.
+
+3.5.2.1	MUX
+The multiplexer allows to select which inputs to be connected to the output
+channels.
+Mux modules have 18 inputs and 2, 4, 6, 8 or 10 output channels.
+mux {
+	type = "mux-2out";
+           in-names = "media left", "media right",
+                              "aux left", "aux right",
+                              "mute left", "mute right";
+              out-names = "Primary Media Left", "Primary Media Right";
+              output = <0 1>;
+};
+Mux controls:
+Mux <out-name>	0 - last output channel
+
+3.5.2.2	GAINS
+There are 2 type of gain: static and smooth. The smooth one is always
+recommended to avoid pop noise in case of mute/unmute. Smooth gain takes
+2 parameters: tup, tdown, corresponding to the time (ms) to converge to
+the target volume.
+gains {
+	dsp-id = <0>;
+	type = "gain-smooth";
+	control-channels = <1>;
+	num-channels = <6>;
+	tup = <100>;
+	tdown = <100>;
+};
+gains_adc {
+	dsp-id = <0>;
+	prefix = "ADC";
+	type = "gain-static";
+	num-channels = <2>;
+};
+Global volume/mute controls:
+Volume Master	0 - 1440
+Mute Master	On, Off
+Volume Ramp Down	[0 - 10000]
+Volume Ramp Up		[0 - 10000]
+Mute Ramp Down		[0 - 10000]
+Mute Ramp Up		[0 - 10000]
+Multi-channel volume/mute controls:
+Volume channels		[0 - 1440], one for each channels
+Mute channels		[On, Off],  one for each channels
+Single-channel volume/mute controls:
+Volume <in-names>	[0 - 1440]
+Mute <in-names>		[On, Off]
+Polarity		Pos - Neg (not for static gains)
+Max <in-names>		0 - 96 (default max gain is 24)
+
+3.5.2.3	LOUDNESS
+Loudness defines filters to emphasize bass and trebles.
+Gain, quality, frequencies and filter type are provided as parameters of the
+filters.
+The same parameters can be set in amixer controls.
+
+loudness_front {
+	dsp-id = <0>;
+	prefix = "Front";
+	type = "loudness-static-stereo";
+	gain = "0", "0";
+	quality = "30", "30";
+	frequency = "200", "10000";
+	filter-type = "sh1", "sh2";
+};
+Loudness control:
+Loudness		On, Off
+Loudness Gains		[-280 - 280],[-280 - 280]
+Loudness Quals		[1 - 100], [1 - 100]
+Loudness Freqs		[20 - 20000],[20 - 20000]
+Loudness Filters 	[sh1, sh2, bb2],[sh1, sh2, bb2]
+Loudness Gain Bass	[-280 - 280]
+Loudness Gain Treble	[-280 - 280]
+Loudness Qual Bass	[1 - 100]
+Loudness Qual Treble	[1 - 100]
+Loudness Freq Bass	[20 - 20000]
+Loudness Freq Treble	[20 - 20000]
+Loudness Filter Bass	[sh1, sh2, bb2]
+
+Filter types acronyms:
+sh1	Shelving 1
+sh2	Shelving 2
+bb2	Band Boost 2
+
+3.5.2.4	TONES
+Tones defines filters to emphasize bass, middle and trebles.
+Gain, quality, frequencies and filter type are provided as parameters of the
+filters.
+The same parameters can be set in amixer controls.
+
+tones_front {
+	dsp-id = <0>;
+	prefix = "Front";
+	type = "tone-static-stereo";
+	gain = "0", "0", "0";
+	quality = "30", "30", "30";
+	frequency = "200", "3000", "16000";
+	filter-type = "sh1", "bb2", "sh2";
+};
+Tones controls:
+Tones	On, Off
+Tones Gains		[-280 - 280],[-280 - 280],[-280 - 280]
+Tones Quals		[1 - 100],[1 - 100],[1 - 100]
+Tones Freqs		[20 - 20000],[20 - 20000],[20 - 20000]
+Tones Gain Bass		[-280 - 280]
+Tones Gain Middle	[-280 - 280]
+Tones Gain Treble	[-280 - 280]
+Tones Qual Bass		[1 - 100]
+Tones Qual Middle	[1 - 100]
+Tones Qual Treble	[1 - 100]
+Tones Freq Bass		[20 - 20000]
+Tones Freq Middle	[20 - 20000]
+Tones Freq Treble	[20 - 20000]
+Tones Filter Bass	[sh1, sh2, bb2]
+Tones Filter Treble	[sh1, sh2, bb2]
+
+Filter types acronyms:
+
+sh1	Shelving 1
+sh2	Shelving 2
+bb2	Band Boost 2
+
+3.5.2.5	BEEP
+Beep generates a sine tone.
+The sine parameters can be set in amixer controls.
+beep  {
+	dsp-id  =  <1>;
+	type = "sine2ch";
+	frequency = "76000";
+	duration = "1000";
+	gain = "100";
+};
+Beep controls:
+Beep	On
+Sine	Frequency,Duration,Gain [20000 - 2000000, -1 - 174762, 1 - 1200]
+
+3.5.2.6	CHIMES
+Chime generates a complex waveform, made by a sequence of ramps (static,
+exponential or linear)
+
+chime {
+	dsp-id = <0>;
+	type = "chimegen";
+	repeat-count = "3";
+	post-repeat-ramp-idx = "6";
+	ramp0 {
+		type = "linear";
+		amplitude = "1000";
+		duration = "5";
+		frequency = "74000";
+	};
+	ramp1 {
+		type = "static";
+		amplitude = "1000";
+		duration = "125";
+		frequency = "74000";
+};
+...
+	ramp4 {
+		type = "static";
+		amplitude = "1000";
+		duration = "135";
+		frequency = "74000";
+};
+...
+	ramp6 {
+		/*post-repeat-ramp*/
+		type = "linear";
+		amplitude = "0";
+		duration = "370";
+		frequency = "74000";
+	};
+};
+Chime controls:
+Chime		On
+Chime Repeat	Set repeat count, returns currently left repeat count
+Chime Post Repeat 0-Ramp count
+Chime Post Enable On, Off
+Chime Ramp Amp	[0-1000] x number of ramps
+Chime Ramp Dur	[-1-174762] x number of ramps
+Chime Ramp Freq	[20000-2000000] x number of ramps
+Chime Ramp Type	[0-3] x number of ramps
+
+Several instances of chime generators can be linked together to create a true
+polyphonic chime.
+One of them is the master, the other ones must have in the DTS node a reference
+to the masterSee below:  master = "polyphonic1";
+Usually the master chime is the longest one. The DSP will synchronize the
+chimes by appending internally a holding delay at the end of each slave before
+starting next repeat sequence.
+
+polyphonic1 {
+	dsp-id = <0>;
+	prefix = "Gong1";
+	...
+
+polyphonic2 {
+	dsp-id = <0>;
+	prefix = "Gong2";
+	master = "polyphonic1";
+
+3.5.2.7	PCM CHIMES
+
+The PCM Chime module is able to plays a short stereo PCM (@48khz, 2x16bit),
+pre-loaded in the DSP memory.
+The file specified in the dts as below must be present in /lib/firmware/st/dspfw
+
+	clickclack {
+		dsp-id = <0>;
+		prefix = "Clickclack";
+		in-names = "Left", "Right";
+		type = "pcmchime-12bit-x-2ch";
+		file = "click-clack_16bit_48k.wav";
+		count = <2>;
+		left-post-delay = <300>;
+		right-post-delay = <300>;
+
+PCM Chime controls:
+PCM Chime Load	On (unload is not supported)
+PCM Chime Play	On, Off
+
+3.5.2.8	EQUALIZER
+Select the equalizer type according to the number of bands needed (3 to 16).
+"quality" defines the Q factor, for every bands. Increasing in makes the band sharper.
+"frequency" defines the frequency of bands.
+"filter-type" defines the type of filters (default bb2).
+"presets" defines alternative sets of gains ("Classic", "Pop", "Rock", "Jazz"):
+One of the presets can be selected in amixer controls.
+For tuning purpose, qualities, frequencies, gains and filters can be changed
+through ALSA controls.
+Note that single band controls have the suffix is not "in-names" but 1, 2, 3, ...
+equalizer {
+	type = "equalizer-static-10bands";
+	num-channels = <6>;
+	in-names = "Front Left", "Front Right", "Rear Left", "Rear Right", "Subwoofer", "Center";
+	quality = "30", "30", "30", "30", "30", "30", "30", "30", "30", "30";
+	frequency = "31", "63", "125", "250", "500", "1000", "2000", "4000", "8000", "16000";
+	presets = "Flat", "Classic", "Pop", "Rock", "Jazz";
+	Flat = "0", "0", "0", "0", "0", "0", "0", "0", "0", "0";
+	Classic = "66", "49", "34", "20", "4", "-12", "-21", "17", "64", "116";
+	Pop = "-30", "3", "47", "86", "117", "89", "46", "16", "-7", "-23";
+	Rock = "96", "48", "19", "17", "63", "39", "4", "34", "64", "95";
+	Jazz = "16", "0", "0", "11", "42", "74", "102", "117", "104", "57";
+	filter-type = "bb2", "lp1bt", "lp2bt", "lp2cb";
+};
+Equalizer controls:
+Equalizer	On, Off
+Equalizer Mode	Flat, Classic, Pop, Rock, Jazz
+Equalizer Gains	[-240 - 240] x number of bands
+Equalizer Qualities [1 - 100] x number of bands
+Equalizer Bands	[20 - 20000] x number of bands
+Equalizer Gain <n> [-240 - 240] band <n>
+Equalizer Quality <n> [1 - 100] band <n>
+Equalizer Band <n> [20 - 20000] band <n>
+Equalizer Filter	"bypass", "lp1bt", "lp2bt", "hp1bt", "hp2bt", "ba1sh",
+			"ba2sh", "tr1sh","tr2sh", "bb2", "ap2cb", "lp2cb",
+			"hp2cb", "bp2cb", "ntccb", "pkcb","lshcb", "hshcb"
+Filter types acronyms:
+
+bypass	Bypass filter
+lp1bt	Low-Pass Butterworth order 1 filter
+lp2bt	Low-Pass Butterworth order 2 filter
+hp1bt	High-Pass Butterworth order 1 filter
+hp2bt	High-Pass Butterworth order 2 filter
+ba1sh	Bass-Shelving order 1 filter
+ba2sh	Bass-Shelving order 2 filter
+tr1sh	Trebble-Shelving order 1 filter
+tr2sh	Trebble-Shelving order 2 filter
+bb2	Band-boost, notch/peak order 2 filter
+ap2cb	All-pass filter (for phase shift) (CookBook)
+lp2cb	Low-Pass (CookBook)
+hp2cb	High-pass (CookBook)
+bp2cb	Band-pass (constant 0dB peak gain) (CookBook)
+ntccb	Notch (CookBook)
+pkcb	Peaking (CookBook)
+lshcb	Low Shelf (CookBook)
+hshcb	High Shelf (CookBook)
+
+An equalizer module can be used to define a filter, with the coefs statically
+defined in the DTS.
+For such a module, the Equalizer ALSA controls are not available.
+    lpf8khz {
+            type = "equalizer-static-6bands";
+            coefs = "493924","-896528","493924","-7692638","4150447","0",
+                    "1814096","-3273402","1814096","-7617635","4042884","0",
+                    "1090586","-1533226","1090586","-7162017","3237244","0",
+                    "1989117","-3529132","1989117","-7515904","3871653","0",
+                    "493924","-835646","493924","-7361705","3597637","0",
+                    "1090586","307560","1090586","-7001162","2945667","0";
+
+3.5.2.9	MIXER
+Mixer allows to mix several inputs to one output. One mixer is made of
+submixers (by default 2) so all the left input are mixed to left output,
+and right input to right output.
+Module type selects the number of inputs, while STA_SetNumChannels selects
+the number of outputs.
+
+mixer_beep {
+	dsp-id = <1>;
+	prefix = "Beep";
+	type = "mixer-2ins";
+};
+Multi-channels mixer controls:
+Mix		[0 - 1200] x number of inputs
+Single-channel mixer controls:
+Mix <in-names><out-names> [0 - 1200]
+
+3.5.2.10	LIMITER
+Limiter allows setting a threshold on signal level in order to avoid distortion
+Usually it must be put just before the DAC.
+WARNING: you can have distortion in any modules in the network using positive
+gain.
+Beyond the threshold you can optionally specify some additional parameters like
+attenuation, hysteresis, attack time, release time,..
+limiter {
+	dsp-id = <0>;
+	type = "limiter-6ch";
+
+	threshold = <(-200)>;
+	attenuation = <...>;
+	hysteresis = <...>;
+	attack-time = <...>;
+	release-time = <...>;
+	peak-attack-time = <...>;
+	peak-release-time = <...>;
+};
+Limiter controls:
+Limiter	On, Off
+Limiter Threshold	-1920 - 0
+Limiter Attenuation	0 - 1920
+Limiter Hysteresis	0 - 1920
+Limiter Attack Time	0 - 32767
+Limiter Release Time	0 - 32767
+Limiter Peak Attack	0 - 32767
+Limiter Peak Release	0 - 32767
+
+3.5.2.11	CLIP LIMITER
+The Clip Limiter module reduces the audio input signal according to
+the clip signal coming from the audio amplifier.
+In the DSP network, this module has an addition input connection for
+the external clip signal.
+e.g.
+	"gains_out", "0", "clip_limiter", "0",
+	"gains_out", "1", "clip_limiter", "1",
+	"gains_out", "2", "clip_limiter", "2",
+	"gains_out", "3", "clip_limiter", "3",
+	"gains_out", "4", "clip_limiter", "4",
+	"gains_out", "5", "clip_limiter", "5",
+	"xin1", "26", "clip_limiter", "6",
+
+The clip signal must be connected to one of gpio[0-46] and the gpio
+must be declared in the codec_dsp section of the DTS:
+	dco-gpios = <40>;
+In each codec_aif use cases, the dco must be dmabus-transferred to
+a DSP xin connected to the clip_limiter:
+	"dco", "0", "xin1", "26", "1",
+
+The parameters of the clip_limiter are the following:
+	clip_limiter {
+		dsp-id = <1>;
+		type = "clip-limiter";
+		num-channels = <6>;
+		dco-ch = <0>;
+		polarity = <0>;
+		max-attenuation = <1200>;
+		min-attenuation = <0>;
+		attack-time = <50>;
+		release-time = <500>;
+		adj-attenuation = <18>;
+	};
+dco-ch is the channel of the dco connected to the clip signal gpio.
+polarity of the clip signal: 0 is active low.
+the attenuation is in dB/10, the times in msec/10
+When the clip signal is asserted, the clip limiter starts to reduce
+the signal until the clip disappears, tending to converge to max
+attenuation in attack-time.
+In attack-release mode, once the clip is removed, it tends to converge
+to min attenuation in release-time.
+In full-attack mode, it the applied attenuation is never released.
+
+Clip Limiter	Off, Attack-Release, Full-Attack
+Clip Limiter Max Attenuation	0 - 1920
+Clip Limiter Min Attenuation	0 - 1920
+Clip Limiter Adjust Attenuation	0 - 1920
+Clip Limiter Attack Time	0 - 4000000
+Clip Limiter release Time	0 - 4000000
+
+3.5.2.12	BITSHIFTER
+Bitshifter module is used to convert audio format from 16bit to 24 and viceversa.
+It is needed to play/record using DPMailbox, since on ARM side usually we have
+16 bit format, while on DSP side we have 24 bit format.
+bitshifter-out {
+	dsp-id = <0>;
+	type = "bitshifter";
+	left-shift = "8";
+};
+
+3.5.2.13	DELAY
+There are 2 type of DELAY: delay using DSP X memory and delay using Y Memory.
+Delay has two parameters: the maximum delay and the current delay.
+Current Delay cannot exceed the maximum delay.
+Delay component could be Off, so the delay is set to 0, or ON, so the delay is
+restored to the current delay value.
+Maximum delay could be configured only from DTSI file, while the current delay
+and the status (On/Off) are available at runtime.
+TYPE (STRING)
+Delay could be available in component exposing 2,4 or 6 channels.
+In order to select the appropri-ate delay component are available the following
+types:
+- 2 channel using X memory: type = "delay-x-2ch";
+- 4 channel using X memory: type = "delay-x-4ch";
+- 6 channel using X memory: type = "delay-x-6ch";
+- 2 channel using Y memory: type = "delay-y-2ch";
+- 4 channel using Y memory: type = "delay-y-4ch";
+- 6 channel using Y memory: type = "delay-y-6ch";
+Latency is expressed as 48 KHz clocks. So 24 means 0.5ms and 48 means 1ms.
+SAMPLES (INT)
+
+The default delay for all the channels could be configured with the samples field
+Example:
+samples = <10>
+
+SAMPLES-LIST (ARRAY OF STRINGS)
+The sample-list field allow to configure the default value for each channel
+starting with the channel number 0.
+Please consider to add the appropriate amount of values depending on the number
+of channels of the selected delay.
+If a value is missing the value from the samples field will be applied.
+Example:
+	samples-list = "0", "0";
+
+length (int):
+The length is the maximum amount of the delay in samples.
+Set it carefully because it affects the available memory in the X and Y DSP area.
+	Delay_front {
+		dsp-id = <1>;
+		prefix = "Front";
+		type = "delay-x-2ch";
+		control-channels = <1>;
+		length = <96>;
+		samples-list = "0", "0";
+	};
+	delay_rear {
+		dsp-id = <1>;
+		prefix = "Rear";
+		type = "delay-y-2ch";
+		control-channels = <1>;
+		length = <96>;
+		samples-list = "0", "0";
+	};
+
+Global Delay controls:
+Delay	On, Off
+Delay Samples	0 - length configure all the channels
+Channel Delay controls:
+Delay Samples channels	[0 - length], one for each channels
+
+3.5.2.14	COMPANDER
+Compander module is a non-linear block realizing compression and expansion of
+the input audio signal.
+
+compander {
+	dsp-id = <0>;
+	type = "compander-6ch";
+	mean-max = <...>;
+	avg-factor= <...>;
+	attenuation = <...>;
+	cpr-threshold = <...>;
+	cpr-slope = <...>;
+	cpr-hysteresis = <...>;
+	cpr-attack-time = <...>;
+	cpr-release-time = <...>;
+	exp-threshold = <...>;
+	exp-slope = <...>;
+	exp-hysteresis = <...>;
+	exp-attack-time = <...>;
+	exp-release-time = <...>;
+};
+Compander controls:
+Compander	On, Off
+Compander Mean Max Mode	Mean, Max
+Compander Avg Factor	0 - 32767
+Compander Attenuation	0 - 240
+Compander Compression Threshold	-1920 - 0
+Compander Compression Slope	-32767 - 0
+Compander Compression Hysteresis	0 - 19200
+Compander Compression Attack Time	0 - 32767
+Compander Compression Release Time	0 - 32767
+Compander Expansion Threshold	-1920 - 0
+Compander Expansion Slope	-32767 - 0
+Compander Expansion Hysteresis	0 - 19200
+Compander Expansion Attack Time	0 - 32767
+Compander Expansion Release Time	0 - 32767
+
+3.5.2.15	PEAK DETECTOR
+The Peak Detector is mainly for debug, it measures the maximum absolute
+amplitude of sound signal at any point of the DSP audio graph.
+	peakdetect0 {
+			prefix = "Peak0";
+			type = "peakdetect";
+			in-names = "Scaler", "Tones", "Loudness", "Mixer";
+			num-channels = <4>;
+	};
+Peak detector controls:
+Level
+get: returns max level -1400 - 0
+set: writing any value (-1400 - 0) resets the level
+Channels
+0 - num-channels  Turn on and set the number of active channels
+A sys file is created for each peakdetector module, and it can be used to
+disconnect/reconnect the peak detector to other test points:
+cat /sys/devices/platform/soc/48900000.codec_dsp/peakdetect0
+xin0 0 0
+xin0 14 1
+xin0 20 2
+mixer 0 3
+
+echo "mux 4 1" > /sys/devices/platform/soc/48900000.codec_dsp/peakdetect0
+
+cat /sys/devices/platform/soc/48900000.codec_dsp/peakdetect0
+xin0 0 0
+mux 4 1
+xin0 20 2
+mixer 0 3
+3.6	EXT CODEC DSP
+
+This driver is provided as a template to load/control a 3rd party DSP FW on a
+dedicated DSP.
+The loading can be done from /lib/firmware/st/dspfw only if the driver is built
+as module.
+The ext_codec_dsp device is instantiated by the dts entry compatible =
+"st,extdspfw".
+
+	ext_codec_dsp: ext_codec_dsp {
+		compatible = "st,extdspfw";
+		reg = <0x48B00000 0x100000>, <0x48D1C000 0x400>;
+		reg-names = "dsp2-mem", "dpmem2";
+		fw2 = "emerald-firmware.dsp2";
+		syscon-auss = <&auss>;
+		clocks = <&emrclk>;
+		clock-names = "emrclk";
+	};
+During the probe, the device creates the card number 6, with one "FW ver" amixer
+control, pro-vided just as an example. This card has no DAIs, and no entries in
+the devicetree.
+
+3.7	CODEC AIF
+The AIF CODEC DAI (compatible = "st,audiointerface") is instantiated by the
+codec_aif node, but it also looks for network-id into the codec_dsp node.
+Under the codec_aif node, there is the definition of a number of predefined
+children configurations ( e.g. msp1dac, msp2dac, etc).
+
+The "Source" amixer control exposes the possibility to select one of them.
+Example:
+
+	codec_aif: codec_aif {
+		compatible = "st,audiointerface";
+		...
+		msp1dac: msp1dac {
+			...
+		}
+		msp1dac: msp1dac {
+			...
+		}
+		...
+	};
+Each configuration nodes include the use case description:
+The set of AIF static configuration includes:
+*	AIMUX,
+*	AOMUX,
+*	SRC,
+*	LPF,
+*	DMABUS,
+*	SAI,
+*	MUX_CR.
+See below an example of audio source:
+msp2dac:msp2dac {
+	index = <0>;
+	channel-stream = "playback", "nostream", "nostream", "nostream", "nostream", "nostream";
+	aimux = "sai2rx1", "noinput", "noinput", "noinput", "noinput", "noinput";
+	aomux = "srcdo", "nooutput", "nooutput", "nooutput", "nooutput", "nooutput";
+	src = "drllt", "noinput", "noinput", "noinput", "noinput", "noinput";
+	lpf = "fir", "bypass", "bypass", "bypass", "bypass", "bypass";
+	dma-transfers =
+		"src0do", "0", "xin0", "0", "2",
+		"src0do", "0", "xin0", "2", "2",
+		"src0do", "0", "xin0", "4", "2",
+		"xout1", "0", "sai3tx1", "0", "2",
+		"xout1", "2", "sai3tx2", "0", "2",
+		"xout1", "4", "sai3tx3", "0", "2",
+		"xout0", "0", "xin1", "0", "14",
+		"sai3tx1", "0", "xin0", "127", "1",
+		"sai3tx1", "0", "xin1", "127", "1";
+	sai2 {
+		io-mode = "input";
+		mme-mode = "slave";
+	};
+	sai3 {
+		mme-mode = "master";
+		word-length = "wl-32-16";
+		rel-timing = "i2s";
+		word-count = "2-words";
+		frame-syn = "half-frame";
+	};
+	auss-mux {
+		msp2tx-sai2rx = <enable>;
+	};
+};
+The symbolic values used in this part are defined in sta_codec_aif_lut.h.
+
+3.7.1	CHANNEL-STREAM
+"channel-stream" allows to select for each channel the type of stream.
+ channel-stream = <ch0>, <ch1>, <ch2>, <ch3>, <ch4>, <ch5>;
+<ch#> can assume the following values:
+ "nostream"/ "playback"/ "capture" / "playback1"/ "capture1" / "playback2"/ "capture2"
+This is to allocate LPF/SRC channels to some specific streams/MSP.
+"nostream" means that the channel is statically allocated for an audio flow not
+passing through an MSP.
+When channel-stream keyword is missing, the default value is: any playback or
+capture streams and any MSP, and the channel is selected dynamically according
+to the ALSA hw-params
+
+3.7.2	AIMUX
+"aimux" defines the content of the Audio Input Multiplexer (AIMUXCSR) and
+allows to select for each channel the input sources defined in aimux_dts_lut.
+ aimux = <ch0>, <ch1>, <ch2>, <ch3>, <ch4>, <ch5>;
+<ch#> can assume the following values:
+ "noinput"/ "sai1rx1"/ "sai2rx1"/ "sai2rx2"/ "sai2rx3"/ "sai2rx4"/ "sai3rx1"/
+ "sai3rx2"/ "sai3rx3"/ "sai3rx4"/ "sai4rx1"/ "sai4rx2"/ "sai4rx3"/ "sai4rx4"/
+ "spdif"/ "lpfdi"
+Each channel can be forced to a static value in the dts or set to noinput to
+allow dynamic setting according to the ALSA hw-params.
+
+3.7.3	AOMUX
+"aomux" defines the content of the Audio Output Multiplexer (AOMUXCSR) and
+allows to select for each channel the output sources defined in aomux_dts_lut.
+ aomux = <ch0>, <ch1>, <ch2>, <ch3>, <ch4>, <ch5>;
+<ch#> can assume the following values:
+ "nooutput"/ "sai2tx1"/ "sai3tx1"/ "sai3tx2"/ "sai3tx3"/ "sai3tx4"/ "sai4tx1"/
+ "sai4tx2"/ "sai4tx3"/ "sai4tx4"/ "srcdo"
+Each channel can be forced to a static value in the dts or set to nooutput to
+allow dynamic setting according to the ALSA hw-params
+
+3.7.4	SRC
+"src" allows to select for each channel the content of Sample Rate Converter
+Control/Status Reg-ister (SRC0CSR .. SRC5CSR) and allows to select for each
+channel the configuration of the asynchronous sample rate conversion defined
+in src_dts_lut.
+ src = <ch0>, <ch1>, <ch2>, <ch3>, <ch4>, <ch5>;
+<ch#> can assume the following values:
+ "noinput"/ "drllt"/ "dither"/ "rounding"/ "bypass"
+Each channel can be forced to a static value in the dts or set to noinput to
+allow dynamic setting according to the ALSA hw-params
+
+3.7.5	LPF
+"lpf" defines the content of the Low Pass Filter Control/Status Register(LPFCSR)
+and allows to select for each channel the type of low pass filter and an
+up-/down-sampling defined in lpf_dts_lut.
+lpf = <ch0>, <ch1>, <ch2>, <ch3>, <ch4>, <ch5>;
+They can assume the following values:
+<ch0>: "fir"/ "bypass"/ "upx2"/ "upx4"
+<ch1>: "fir"/ "bypass"/ "downx2"/ "downx4"/ "downx6"/ "downx3"
+<ch2>: "fir"/ "bypass"/ "downx2"/ "downx3"/ "upx2"(*)
+<ch3-5>: "fir"/ "bypass"/ "downx2"/ "upx2"
+The above settings in the DTS are only useful for channel-streams allocated as
+"nostream". For the channels allocated on ALSA playback/capture the LPF will be
+set dynamically according to the ALSA hw-params.
+(*) ch2 theoretically can supports downx6 cascade (ch2 downx3 + ch3 downx2), but
+this configuration shows aliasing problems it, so it has been dropped by the
+dynamic settings of LPF.
+3.7.6	ADCMIC
+"adcmic" allows to control the ADCMIC Control Register (ADCMIC_CR) and enabling
+one or both internal ADC as defined in adcmic_dts_lut.
+adcmic = <value>;
+<value> can assume the following values: "standby"/ "enable1"/ "enable2"/ "enable12"/ "enable21"
+
+3.7.7	ADCAUX
+"adcaux" allows to control the Audio ADC Configuration Register (ADCAUX_CR)
+and enabling one of the two input selection channel as defined in adcaux_dts_lut.
+adcaux = <value>;
+<value> can assume the following values: "standby"/ "enablech0"/ "enablech1"
+
+3.7.8	DMA-TRANSFERS
+"dma-transfers" is a list of strings, formatted in groups of 5 strings.
+Each group of strings defines the following fields which are used to set an
+entry of DMABUS_TCM.
+
+ dma-transfers = <in addr>, <in offset>, <out addr>, <out offset>, <#channels>;
+<in addr> and <out addr> can assume the following values:
+ "src0do"/ "src1do"/ "src2do"/ "src3do"/ "src4do"/ "src5do"/
+ "sai1rx1"/ "sai2rx1"/ "sai2rx2"/ "sai2rx3"/ "sai2rx4"/
+ "sai3rx1"/ "sai3rx2"/ "sai3rx3"/ "sai3rx4"/
+ "sai4rx1"/ "sai4rx2"/ "sai4rx3"/ "sai4rx4"/
+ "fifoout"/
+ "adcaux"/
+ "adcgpin"/
+ "xout0"/ "xout1"/ "xout2"/
+ "lpf0di"/ "lpf1di"/ "lpf2di"/ "lpf3di"/ "lpf4di"/ "lpf5di"/
+ "sai2tx1"/
+ "sai3tx1"/ "sai3tx2"/ "sai3tx3"/ "sai3tx4"/
+ "sai4tx1"/ "sai4tx2"/ "sai4tx3"/ "sai4tx4"/
+ "fifoin"/
+ "xin0"/ "xin1"/ "xin2"/
+ "trigger"
+"msp1", "msp2"(*)
+Each time the Source is changed, the DMABUS must be stopped to program the
+associated dma-transfers, then restarted.
+(*) "msp1" and "msp2" have not really a DMABUS address, they are symbolic
+placeholders to be replaced with a srcXdo or lpfXdi, once a LPF/SRC channel is
+dynamically allocated at the start of an ALSA stream.
+
+For example, if we have:
+
+           dma-transfers =
+                          "msp1", "0", "xin0", "0", "2",
+                           "xout0", "6", "msp1", "0", "2",
+
+When a playback is started on MSP1, one LPF/SRC channel (e.g. ch5) will be
+dynamically allocated and "msp1" will be replaced with "src5do"
+When a capture is started on MSP1, one LPF/SRC channel (e.g. ch0) will be
+dynamically allocated and "msp1" will be replaced with "lpf3di"
+Note that in these cases, DMABUS must be stopped/restarted.
+3.7.9	SAI
+sai<N> defines the protocol to be configured in the SAIXCSR register.
+Each properties can assume one of the following values:
+sai<N> {
+	mme-mode = "master"/ "slave";
+	word-length = "wl-16-16"/ "wl-24-16"/ "wl-24-24"/ "wl-32-16"/ "wl-32-24";
+	data-shift-dir = "msb"/ "lsb";
+	lr-pol = "left"/ "right";
+	clk-pol = "negative"/ "positive";
+	rel-timing = "first-bit"/ "i2s";
+	word-adj = "left"/ "right";
+	word-count = "2-words"/ "4-words"/ "6-words"/ "8-words";
+	frame-syn = "half-frame"/ "first-word"/ "first-bit";
+	tm-mode = "normal"/ "loopback";
+};
+All the properties are optional. When not specified they assume the default value
+(sai_protdesc_default, sta_codec_aif.c)
+Note that the default is tuned to connect SAI2 to MSP2, SAI4 to MSP1.
+For SAI3 connection to DAC/ADC, we need to set explicitly:
+                                sai3 {
+                                        mme-mode = "master";
+                                        word-length = "wl-32-24";
+                                        rel-timing = "i2s";
+                                        word-count = "2-words";
+                                        frame-syn = "half-frame";
+                                };
+3.7.10	AUSS-MUX
+ "auss-mux" defines the content of the Audio Routing Control register (MUX_CR).
+Each properties can assume one of the following values:
+auss-mux {
+	msp1tx-sai4rx = "enable"/ "disable";
+	msp2tx-sai2rx = "enable"/ "disable";
+	msp0-extrefclk = "pll3" / "ext" / "i2s0";
+	msp1-extrefclk = "enable"/ "disable";
+	msp2-extrefclk = "enable"/ "disable";
+	a2dp = "enable"/ "disable";
+	sai1-men = "enable"/ "disable";
+	sai4-i2s0  = "enable"/ "disable";
+};
+All the properties are optional. When not specified they assume the default value
+(auss_mux_protdesc_default, sta_codec_aif.c)
+
+3.8	MULTI-NETWORK
+The codec by default instantiates the network selected by the network-id property:
+codec_dsp:codec_dsp {
+	network-id = "network-head-unit";
+	network-simple {
+	};
+	network-hifi {
+		connections = ...
+	};
+	network-head-unit {
+		connections = ...
+	};
+};
+Optionally this property can be overridden passing the dspnet parameter to the
+codec. In this way, if the codec is built as kernel module, the network can be
+changed at runtime, unloading it and reloading with a different dspnet parameter.
+However notice that different networks may require different AIF settings, so
+in the codec_aif node there are also multiple settings for each network id (see
+below in Codec AIF paragraph).
+In fact codec AIF reads also the network-id property from the codec_dsp node,
+which can be op-tionally overridden by network-id in codec_aif node and by the
+dspnet parameter.
+And in case we want to change network at runtime, codec_aif must also be
+reloaded with the ap-propriated dspnet parameter.
+Having separated network ids for DSP and AIF, allows as well defining multiple
+AIF settings for a single network. In fact AIF's network-id does not really need
+to match a DSP network name but just select variants.
+codec_aif:codec_aif {
+	network-id = "AIFvariant1"
+	...
+	msp2dac: msp2dac {
+		channel-stream = ...
+		src = ...
+		lpf = ...
+		aimux = ...
+		sai2...
+		sai3...
+		auss-mux...
+		AIFvariant1 {
+			aomux = "sai3tx1","nooutput","nooutput","nooutput","nooutput","nooutput"
+			dma-transfers = ...
+		};
+		AIFvariant2 {
+			aomux = "srcdo","nooutput","nooutput","nooutput","nooutput","nooutput"
+			dma-transfers = ...
+		};
+	};
+};
+
+4	EARLY AUDIO
+To have audio in < 1sec, M3 xloader must load and configure the DSPs and the audio path.
+This requires the following 2 steps:
+1. DSP FW & data must be flashed in the dedicated flash partitions:
+ * In DSP0P, DSP1P emerald-firmware.P.noheader taken from staudiolib
+ * In DSP0X, DSP0Y, DSP1X, DSP1Y the full memory dump taken from Linux after
+   staudiolib initialization.
+2. AUDIOLIB partition must be flashed with a file generated by early_make
+   application.
+   This file contains a set of functions to set AIF path / DSP audio effects
+
+Optionally 2 WAV files can be flashed in FILE_1, FILE_2 partitions and played
+while Linux is booting. Currently only mono 16 bits are supported.
+The FILEs are loaded in DDR, but the driver allocates statically 20 LLI entries
+for DMA, so the max size is 20*4095*2 = 163800 KB.
+
+In the flasher application, select the following entries:
+
+DSP0P = emerald-firmware.P.noheader, 0x48900000
+DSP0X = emerald-firmware.X0.noheader, 0x48980000
+DSP0Y = emerald-firmware.Y0.noheader, 0x489C0000
+DSP1P = emerald-firmware.P.noheader, 0x48A00000
+DSP1X = emerald-firmware.X1.noheader, 0x48A80000
+DSP1Y = emerald-firmware.Y1.noheader, 0x48AC0000
+
+AUDIOLIB	= early, 0x0
+FILE_1          = animation.wav, 0x0
+FILE_2          = rvc.wav, 0x0
+
+4.1	early_make
+early_make is a Linux application included in st-carproc repo.
+It is automatically build and installed in the core-image-st-carproc-multimedia
+and core-image-st-carproc-test image, jointly with a customizable shell script
+early_make.sh prepared to execute the application.
+early_make.sh generates a file called "early" to be flashed in AUDIOLIB
+partition including the current AIF registers
+and a set of predefined functions, which are in fact only a list of
+{addr, value}.
+In this way there is no need of full staudiolib in the M3 loader, DSP coefs are
+calculated in Linux
+At boot-time, M3 loader must only restore the current status and executes the
+functions saved in AUDIOLIB.
+The only exception are the 2 functions get_volume, set_volume whose
+implementation has been ported from staudiolib, to avoid the need to save in
+AUDIOLIB a lot of commands for each volume step and for each gain module.
+early_make application parses traces generated by AIF/staudiolib and pack them
+into a binary file.
+early_make has 3 options:
+--source converts aif_dump to bin
+--trace converts staudiolib trace to bin
+--modules converts module infos to bin
+Example of early_make.sh shell script to generate early audio files:
+4.1.1	CONFIGURE DSP EFFECTS AND SAVE DSP MEMORIES
+amixer -c3 sset "Scaler Primary Media Volume Master" 1200
+
+mem-access d 0x48980000 0x3fc0
+mv /home/root/reg_dump.bin emerald-firmware.X0.noheader
+mem-access d 0x489c0000 0x3fc0
+mv /home/root/reg_dump.bin emerald-firmware.Y0.noheader
+mem-access d 0x48a80000 0x3fc0
+mv /home/root/reg_dump.bin emerald-firmware.X1.noheader
+mem-access d 0x48ac0000 0x3fc0
+mv /home/root/reg_dump.bin emerald-firmware.Y1.noheader
+
+CLIP LIMITER IN M3
+If the Clip Limiter was enabled at the moment we taken the DSP memory dump,
+the DSP will start always with the Clip Limiter enabled.
+First of all we need to think about our application really needs Clip Limiter
+enabled at boot time, in many cases volume cannot change in M3.
+In case we really need Clip Limiter at boot, there are some conditions which
+need to be verified:
+1.	All the Sources used at M3 boot must have dco DMA transfer configured.
+E.g.
+dma-transfers =
+          "dco", "0", "xin1", "26", "1",
+If this condition is not verified, the M3 audio starts as muted
+2.	The configuration of the gpio connected to the clip signal and DCO_CR
+	must be added in M3 code
+			pin.direction   = GPIO_DIR_INPUT;
+			pin.mode        = GPIO_MODE_SOFTWARE;
+			pin.level       = GPIO_LEVEL_LEAVE_UNCHANGED;
+			pin.trig        = GPIO_TRIG_LEAVE_UNCHANGED;
+			gpio_set_pin_config(A7_GPIO(40), &pin);
+			write_reg(0x28, DCO_CR0);
+If this condition is not verified, the clipping will not work.
+3.	The audio amplifier must be turned on at M3 boot, and clip signal
+	enabled.
+			ampli_poweron();
+If this condition is not verified, the clipping will not work.
+4.1.2	CONFIGURE SOURCE AND SAVE AIF REGISTERS
+amixer -c3 set Source sai4rx1fm
+cat /sys/devices/platform/soc/48d00000.codec_aif/aif_dump > sai4rx1fm
+early_make --source sai4rx1fm > early
+
+amixer -c3 set Source auxmedia
+cat /sys/devices/platform/soc/48d00000.codec_aif/aif_dump > aux
+early_make --source aux >> early
+
+4.1.3	SAVE DSP EFFECTS COMMANDS
+echo 1 > /sys/devices/platform/soc/48900000.codec_dsp/trace
+amixer -c3 set Beep On
+echo 0 >; /sys/devices/platform/soc/48900000.codec_dsp/trace
+cat /proc/sta/trace >beep
+early_make --trace beep >> early
+
+4.1.4	SAVE MODULES INFOS
+cat /sys/devices/platform/soc/48900000.codec_dsp/modinfo >modinfo
+early_make --modules modinfo >> early
+
+4.2	M3 - A7 AUDIO HANDOVER
+The handover of audio between M3 and A7 is realized in the following way:
+1.	If staudiolib detects that DSP and network are already initialized.
+a.	The DSP is not reset
+b.	The DSP firmware is not loaded.
+c.	STA_BuildFlow and initialize_post skips any writes to the DSP memory.
+2.	AIF codec skips the DAC initialization, if it is already powered on.
+3.	AIF asks M3 what is the current source, it set its internal audio
+	source index according to the M3 setting and terminates the
+	corresponding M3 task
+4.	If MSP receives a play message, it should consider that MSP port as
+	busy.
+The user can stop the M3 play through an ALSA control.  Next play will be run
+on A7.
+4.3	M3 AUDIO INITIALIZATION
+At boot-time, M3 loader loads DSP FW & data, AUDIOLIB, FILE_1, and FILE_2.
+If AUDIOLIB partition is flashed, a task at high priority is started dedicated
+to the early audio handling.
+Early audio task is able to perform the following basic actions:
+1.	Initialize the DAC
+2.	Set the volumes.
+3.	Select the audio path and initialize AIF/AUSS registers with the
+	configurations predefined in the AUDIOLIB file
+4.	Execute commands predefined in AUDIOLIB file
+The early audio task implements some optional audio application	subfeatures,
+each one with a dedicated task, which may be considered as guidelines for
+customer projects:
+a.	aux_detect task.
+	The audio path is selected according to the AUX detect gpio, and set to
+	auxmedia or sai4rx1fm.
+b.	chime task.
+	Play chimes
+c.	pcm_play task.
+	Play PCM files through MSP2 as secondary channel mixed to primary (tuner
+	or AUX). Only mono 16 bits are supported.
+	2 files are loaded from FILE_1, and FILE_2 partitions and the task
+	supports stop and play of the other file.
+	One dma0 channel is reserved for M3.
+d.	volume task.
+	Let user set the volume moving the rotary.
+
+5.	M3 listens to messages coming from A7:
+a.	On EARLY_AUDIO_SOURCE from A7, the aux_detect task is terminated and M3
+	sends back EARLY_AUDIO_SOURCE to A7 with the current source.
+b.	At PCM play start, M3 sends EARLY_AUDIO_PLAY, specifying the MSP port.
+	On EARLY_AUDIO_END_PLAY from A7 (driven by MSP control "M3 Play"), M3
+	stops the play and sends back EARLY_AUDIO_END_PLAY as ack.
+c.	On EARLY_AUDIO_END_PCM from A7, the pcm_play task is terminated and M3
+	sends back EARLY_AUDIO_END_PCM as ack.
+d.	On EARLY_AUDIO_VOLUME from A7, the volume task is terminated and M3
+	sends back EARLY_AUDIO_VOLUME to A7 with the current volume.
+e.	On EARLY_AUDIO_BACKUP_VOL, M3 saves a volume in one slot of backup RAM.
+f.	On EARLY_AUDIO_BACKUP_API, M3 saves an API in one slot of backup RAM.
+
+At resume from suspend-to-RAM, the M3 Early audio task is not started.
+This is because it would load DSP memory and initialize audio with a static
+configuration, then after few seconds A7 Linux resume callbacks would
+reinitialize it again with a different configuration.
+Moreover IPC audio messages are not supported in resume callbacks.
+
+4.4	SAVE AUDIO STATUS
+At any time during the Linux execution, we can save some audio status for next
+early audio execution.
+We have a limited space in backup RAM (32 bytes) reserved for audio status,
+corresponding to 7 slots in which we can store one of the following kinds of
+infos:
+1.	volume:
+	echo <slot> <module name> <gain> >/sys/devices/platform/soc/48900000.codec_dsp/audio_ctx
+	e.g. echo 0 gains_out 1100 >/sys/devices/platform/soc/48900000.codec_dsp/audio_ctx
+2.	Any API stored in audiolib partition:
+	echo <slot> <API name> >/sys/devices/platform/soc/48900000.codec_dsp/audio_ctx
+	e.g. echo 6 jazz  >/sys/devices/platform/soc/48900000.codec_dsp/audio_ctx
+When a poweroff is executed, the backup RAM is preserved, and at next startup,
+the early audio task will apply the settings stored in it.
+When the power is cut off, the backup magic number is lost and all the slots
+invalidated.
+
+5	STAUDIO
+In these document's examples we always used amixer to get/set ALSA controls for
+DSP parameters and AIF paths.
+However amixer application is not always appropriate for the usage we make of
+ALSA controls:
+1.	amixer displays a description (Front Left, Front Right, ...) which
+	doesn't always match the meaning of our controls (e.g in case of
+	equalizer the values don't correspond to channels, but to bands).
+	Moreover the description makes difficult the parsing of read values
+	by an external tuning tool.
+2.	sset with a comma separated list of values, always performs multiple
+	calls to a get/set, adding one more value every time. This is not very
+	optimized and not working in case we have to set some parameter before
+	the get.
+3.	it's not possible to give values in hex format
+
+For all these reasons we decided to develop a custom tool, partially derived
+from amixer, but much simpler.
+To make the tool more efficient, it only makes direct calls to IOCTL.
+The source of the tool is under meta-st-carproc and can be modified if needed.
+
+Usage:
+staudio <options> [command]
+options:
+  -h,--help                     this help
+  -c,--card N                  select the card
+command:
+  simple
+  get <control>
+  set <control>  <value>
+set/get command takes up to 128 values, limited only by snd_ctl_elem_value
+structure.
+All values can be given in decimal or hex putting the 0x prefix.
+Controls of type SNDRV_CTL_ELEM_TYPE_BYTES can be used to pass ascii strings,
+up to 511 bytes long.
+
+Examples:
+#staudio -c3 set "Mute Master" On
+#staudio -c3 set "Volume Master" 1200
+
+6	TESTING
+Please refer to ST_Accordo5_Audio_User_Manual.pptx for a detailed description
+of each use case and how to test it.
+

@@ -1,0 +1,26 @@
+menuconfig ARCH_STA
+	bool "STMicroelectronics Automotive car processors"
+	select GPIOLIB
+	select ARM_AMBA
+	select ARM_GIC
+	select HAVE_ARM_ARCH_TIMER
+	select CLKSRC_NOMADIK_MTU
+	select PINCTRL
+	select PINCTRL_NOMADIK
+	select MAILBOX
+	select REMOTEPROC
+	select RPMSG_VIRTIO
+	select STA_DMASEL
+
+if ARCH_STA
+
+config MACH_STA1295
+	bool "STMicroelectronics STA1295 SoC" if ARCH_MULTI_V7
+	select PINCTRL_STA1295
+
+config MACH_STA1385
+	bool "STMicroelectronics STA1385 SoC" if ARCH_MULTI_V7
+	select PINCTRL_STA1385
+	select REGMAP_SMC
+
+endif

@@ -1,0 +1,738 @@
+/*
+ * Copyright (C) 2015 STMicroelectronics
+ * Author: Jean-Nicolas Graux <jean-nicolas.graux@st.com>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2, as
+ * published by the Free Software Foundation.
+ */
+
+#include "skeleton.dtsi"
+#include <dt-bindings/clock/sta-clock.h>
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+
+/ {
+	interrupt-parent = <&gic>;
+
+	aliases {
+		ethernet0 = &ethernet0;
+		i2c0 = &i2c0;
+		i2c1 = &i2c1;
+		i2c2 = &i2c2;
+	};
+
+	cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		enable-method = "st,sta";
+
+		cpu0: cpu@0 {
+			compatible = "arm,cortex-a7";
+			device_type = "cpu";
+			reg = <0x100>;
+			cpufreq_tbl = < 200000
+					400000
+					600000 >;
+			/**
+			 * We expect bootloader to overwrite default value of
+			 * cpu-release-addr according to memory mapping.
+			 */
+			cpu-release-addr = <0x200001E8>;
+		};
+
+		cpu1: cpu@1 {
+			compatible = "arm,cortex-a7";
+			device_type = "cpu";
+			reg = <0x101>;
+			/**
+			 * We expect bootloader to overwrite default value of
+			 * cpu-release-addr according to memory mapping.
+			 */
+			cpu-release-addr = <0x200001E8>;
+		};
+	};
+
+	firmware {
+		optee {
+			compatible = "linaro,optee-tz";
+			method = "smc";
+		};
+	};
+
+	memory {
+		reg = <0xa0000000 0x40000000>;
+	};
+
+	reserved-memory {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges;
+		ramdump-magic-addr = <0x0>;
+		ramoops {
+			compatible = "ramoops";
+			reg = <0x0  0x0>;
+			record-size = <0x40000>;
+			console-size = <0x40000>;
+			ftrace-size = <0x80000>;
+		};
+	};
+
+	psci {
+		compatible = "arm,psci-0.2", "arm,psci";
+		method = "smc";
+	};
+
+	soc {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges;
+
+		a7ssc_clk: a7ssc@68000000 {
+			compatible = "st,sta1295-a7-ssc-clk";
+			reg = <0x68000000 0x100>;
+			#clock-cells = <1>;
+		};
+
+		can0: c_can@40010000 {
+			compatible = "bosch,c_can";
+			reg = <0x40010000 0x1000>;
+			interrupts = <GIC_SPI 62 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&srcm3_clk STA_CLK_CAN0>;
+			clock-names = "can_clk";
+			st,reg_aligned_to_32bit;
+		};
+
+		can1: m_can@50183000 {
+			compatible = "st,m_can";
+			reg = <0x50183000 0x400>, <0x50180000 0x2800>;
+			reg-names = "m_can", "message_ram";
+			interrupts = <GIC_SPI 81 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "int0";
+			clocks = <&srcm3_clk STA_CLK_FDCANP>,
+				 <&srcm3_clk STA_CLK_CANFD>;
+			clock-names = "hclk", "cclk";
+			bosch,mram-cfg = <0x0 0 0 32 0 0 32 32>;
+			sta,soc-ctl-syscon = <&mscr>;
+		};
+
+		can2: m_can@50183400 {
+			compatible = "st,m_can";
+			reg = <0x50183400 0x400>, <0x50180000 0x2800>;
+			reg-names = "m_can", "message_ram";
+			interrupts = <GIC_SPI 81 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "int0";
+			clocks = <&srcm3_clk STA_CLK_FDCANP>,
+				 <&srcm3_clk STA_CLK_CANFD>;
+			clock-names = "hclk", "cclk";
+			bosch,mram-cfg = <0x1400 0 0 32 0 0 32 32>;
+			sta,soc-ctl-syscon = <&mscr>;
+		};
+
+		ccc: ccc@49000000 {
+			status = "disabled";
+			compatible = "st,ccc-v3.0";
+			reg = <0x49000000 0x6000>, <0x0 0x2000>;
+			reg-names = "c3_base", "c3_prog";
+			interrupts = <GIC_SPI 68 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "c3_irq";
+			clocks = <&srca7_clk STA_CLK_HC3>;
+			clock-names = "c3_hclk";
+			enabled-dispatchers = /bits/ 8 <1>;
+
+			mpaes@1 {
+				compatible = "st,mpaes-v0.3";
+				index = /bits/ 8 <1>;
+				gp-key-slots = /bits/ 16 <0xfffc>;
+			};
+
+			pka@2 {
+				compatible = "st,pka-v0.7";
+				index = /bits/ 8 <2>;
+				countermeasure = <2>;
+			};
+		};
+
+		cpu_freq: cpu_freq@0 {
+			compatible = "st,sta-cpufreq";
+			clocks = <&a7ssc_clk STA_CLK_CPU>;
+			clock-names = "cpu_clk";
+		};
+
+		dcoadc: adc-keys@481c0000 {
+			compatible = "st,dcoadc-keys";
+			reg = <0x481c0000 0x1000>;
+			interrupts = <GIC_SPI 80 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&srca7_clk STA_CLK_HCLKDIV>;
+			clock-names = "apb_pclk";
+			status = "disabled";
+		};
+
+		dma0: dma@48200000 {
+			compatible = "arm,pl080", "arm,primecell";
+			arm,primecell-periphid = <0x00280080>;
+			reg = <0x48200000 0x1000>;
+			interrupts = <GIC_SPI 18 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&srca7_clk STA_CLK_HDMA0>;
+			clock-names = "apb_pclk";
+			#dma-cells = <2>;
+			lli-bus-interface-ahb2;
+			mem-bus-interface-ahb2;
+			memcpy-bus-width = <32>;
+		};
+
+		dma1: dma@48300000 {
+			compatible = "arm,pl080", "arm,primecell";
+			arm,primecell-periphid = <0x00280080>;
+			reg = <0x48300000 0x1000>;
+			interrupts = <GIC_SPI 19 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&srca7_clk STA_CLK_HDMA1>;
+			clock-names = "apb_pclk";
+			#dma-cells = <2>;
+			lli-bus-interface-ahb2;
+			mem-bus-interface-ahb2;
+			memcpy-bus-width = <32>;
+		};
+
+		ethernet0: dwmac@500a0000 {
+			compatible = "st,sta1295-dwmac", "snps,dwmac-4.10a";
+			reg = <0x500a0000 0x2000>;
+			reg-names = "stmmaceth";
+			interrupts = <GIC_SPI 64 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "macirq";
+			clocks = <&srca7_clk STA_CLK_AETH>,
+				 <&srcm3_clk STA_CLK_ETH0PTP>;
+			clock-names = "stmmaceth", "clk_ptp_ref";
+			tx-fifo-depth = <16384>;
+			rx-fifo-depth = <32768>;
+			snps,force_sf_dma_mode;
+			sta,misc-reg = <&mscr>;
+		};
+
+		fsmc: flash@80000000 {
+			compatible = "stericsson,fsmc-nand";
+			#address-cells = <1>;
+			#size-cells = <1>;
+			/* Need to force IP revision for correct
+			 * detection (ecc4)
+			 */
+			version = <0x00880090>;
+			reg = <0x50300000 0x1000>,	/* FSMC Register*/
+				<0x80000000 0x2000>,	/* NAND Base DATA */
+				<0x80020000 0x2000>,	/* NAND Base ADDR */
+				<0x80010000 0x2000>;	/* NAND Base CMD */
+			reg-names = "fsmc_regs", "nand_data",
+				"nand_addr", "nand_cmd";
+			clocks = <&srca7_clk STA_CLK_HFSMC>;
+			clock-names = "fsmc_hclk";
+		};
+
+		gic: interrupt-controller@48E00000 {
+			compatible = "arm,cortex-a7-gic", "arm,cortex-a15-gic";
+			reg = <0x48E01000 0x1000>,
+			      <0x48E02000 0x1000>,
+			      <0x48E04000 0x2000>,
+			      <0x48E06000 0x2000>;
+			interrupt-controller;
+			#interrupt-cells = <3>;
+			interrupts = <GIC_PPI 9 (GIC_CPU_MASK_SIMPLE(4)
+				| IRQ_TYPE_LEVEL_HIGH)>;
+		};
+
+		gpio_m3: gpio@40008000 {
+			compatible = "st,nomadik-gpio";
+			reg = <0x40008000 0x1000>;
+			interrupts = <GIC_SPI 59 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-controller;
+			#interrupt-cells = <2>;
+			clocks = <&srca7_clk STA_CLK_HCLKDIV>;
+			clock-names = "apb_pclk";
+			gpio-controller;
+			#gpio-cells = <2>;
+			gpio-bank = <5>;
+			gpio-ranges = <&pinctrl 0 160 16>;
+		};
+
+		gpio_s: gpio@50140000 {
+			compatible = "st,nomadik-gpio";
+			reg = <0x50140000 0x1000>;
+			interrupts = <GIC_SPI 31 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-controller;
+			#interrupt-cells = <2>;
+			clocks = <&srca7_clk STA_CLK_HCLKDIV>;
+			clock-names = "apb_pclk";
+			gpio-controller;
+			#gpio-cells = <2>;
+			gpio-bank = <4>;
+			gpio-ranges = <&pinctrl 0 128 16>;
+		};
+
+		gpio0: gpio@48120000 {
+			compatible = "st,nomadik-gpio";
+			reg = <0x48120000 0x1000>;
+			interrupts = <GIC_SPI 32 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-controller;
+			#interrupt-cells = <2>;
+			clocks = <&srca7_clk STA_CLK_HCLKDIV>;
+			clock-names = "apb_pclk";
+			gpio-controller;
+			#gpio-cells = <2>;
+			gpio-bank = <0>;
+			gpio-ranges = <&pinctrl 0 0 32>;
+		};
+
+		gpio1: gpio@48121000 {
+			compatible = "st,nomadik-gpio";
+			reg = <0x48121000 0x1000>;
+			interrupts = <GIC_SPI 33 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-controller;
+			#interrupt-cells = <2>;
+			clocks = <&srca7_clk STA_CLK_HCLKDIV>;
+			clock-names = "apb_pclk";
+			gpio-controller;
+			#gpio-cells = <2>;
+			gpio-bank = <1>;
+			gpio-ranges = <&pinctrl 0 32 32>;
+		};
+
+		gpio2: gpio@48122000 {
+			compatible = "st,nomadik-gpio";
+			reg = <0x48122000 0x1000>;
+			interrupts = <GIC_SPI 34 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-controller;
+			#interrupt-cells = <2>;
+			clocks = <&srca7_clk STA_CLK_HCLKDIV>;
+			clock-names = "apb_pclk";
+			gpio-controller;
+			#gpio-cells = <2>;
+			gpio-bank = <2>;
+			gpio-ranges = <&pinctrl 0 64 32>;
+		};
+
+		gpio3: gpio@48123000 {
+			status = "disabled";
+			compatible = "st,nomadik-gpio";
+			reg = <0x48123000 0x1000>;
+			interrupts = <GIC_SPI 35 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-controller;
+			#interrupt-cells = <2>;
+			clocks = <&srca7_clk STA_CLK_HCLKDIV>;
+			clock-names = "apb_pclk";
+			gpio-controller;
+			#gpio-cells = <2>;
+			gpio-bank = <3>;
+			gpio-ranges = <&pinctrl 0 96 32>;
+		};
+
+		hsem: hsem@481b0000 {
+			compatible = "st,sta-hsem";
+			reg = <0x481b0000 0x1000>;
+			interrupts = <GIC_SPI 54 IRQ_TYPE_LEVEL_HIGH>;
+			st,base-id = <0>;
+			clocks = <&srca7_clk STA_CLK_PHSEM>;
+			clock-names = "apb_pclk";
+		};
+
+		i2c0: i2c@50160000 {
+			compatible = "stericsson,db8500-i2c",
+				"st,nomadik-i2c", "arm,primecell";
+			arm,primecell-periphid = <0x00380024>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <0x50160000 0x1000>;
+			interrupts = <GIC_SPI 37 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&srcm3_clk STA_CLK_I2C0>,
+				 <&srca7_clk STA_CLK_PI2C0>;
+			clock-names = "i2cclk", "apb_pclk";
+			clock-frequency = <400000>;
+		};
+
+		i2c1: i2c@50040000 {
+			compatible = "stericsson,db8500-i2c",
+				"st,nomadik-i2c", "arm,primecell";
+			arm,primecell-periphid = <0x00380024>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <0x50040000 0x1000>;
+			interrupts = <GIC_SPI 38 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&srcm3_clk STA_CLK_I2C1>,
+				 <&srca7_clk STA_CLK_PI2C1>;
+			clock-names = "i2cclk", "apb_pclk";
+			clock-frequency = <400000>;
+		};
+
+		i2c2: i2c@50030000 {
+			compatible = "stericsson,db8500-i2c",
+				"st,nomadik-i2c", "arm,primecell";
+			arm,primecell-periphid = <0x00380024>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <0x50030000 0x1000>;
+			interrupts = <GIC_SPI 39 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&srcm3_clk STA_CLK_I2C2>,
+				 <&srca7_clk STA_CLK_PI2C2>;
+			clock-names = "i2cclk", "apb_pclk";
+			clock-frequency = <400000>;
+		};
+
+		mailbox: mailbox@481a0000 {
+			compatible = "st,sta-mailboxhsem";
+			reg = <0x481a0000 0x1000>, <0x48190000 0x1000>,
+			      <0x70002000 0x1000>;
+			reg-names = "mbox-reg", "mbox-rp-reg", "mbox-shm";
+			#mbox-cells = <1>;
+			mbox-name = "m3";
+			interrupts = <GIC_SPI 63 IRQ_TYPE_LEVEL_HIGH>;
+		};
+
+		mailbox_test {
+			compatible = "st,mailbox-test";
+			mboxes = <&mailbox 3 &mailbox 4 &mailbox 5 &mailbox 6
+				  &mailbox 7 &mailbox 8>;
+		};
+
+		mscr: syscon@50700000 {
+			compatible = "st,sta1295-mscr-a7", "syscon", "simple-mfd";
+			reg = <0x50700000 0x1000>;
+			clocks = <&srca7_clk STA_CLK_PAPBREG>;
+
+			dmasel: dmasel@0 {
+				compatible = "st,sta1295-dmasel";
+				#dma-cells = <3>;
+				dmacs = <&dma0>, <&dma1>;
+			};
+		};
+
+		pinctrl: pinctrl {
+			compatible = "st,sta1295-pinctrl";
+			nomadik-gpio-chips = <&gpio0>, <&gpio1>, <&gpio2>,
+					     <&gpio3>, <&gpio_s>, <&gpio_m3>;
+		};
+
+		prm {
+			compatible = "st,sta1295-prm";
+			st,register_sby;
+			st,register_sw_reset;
+			st,disable_sby_src = <2>; /* disable ON/OFF key */
+		};
+
+		qspi0: sqi@50200000 {
+			status = "disabled";
+			compatible = "st,sta-qspi";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			interrupts = <GIC_SPI 6 IRQ_TYPE_LEVEL_HIGH>;
+			reg = <0x50200000 0x200>,
+			      <0x90000000 0x08000000>;
+			clocks = <&srcm3_clk STA_CLK_SQIO>;
+			clock-names = "sqiclk";
+			reg-names = "sqi-regs", "sqi-mmap";
+		};
+
+		qspi1: sqi@50800000 {
+			status = "disabled";
+			compatible = "st,sta-qspi";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			interrupts = <GIC_SPI 6 IRQ_TYPE_LEVEL_HIGH>;
+			reg = <0x50800000 0x200>,
+			      <0x98000000 0x08000000>;
+			clocks = <&srcm3_clk STA_CLK_SQIO>;
+			clock-names = "sqiclk";
+			reg-names = "sqi-regs", "sqi-mmap";
+		};
+
+		rproc {
+			compatible = "st,sta-rproc";
+			st,rp-name = "rproc-CSS";
+			mboxes = <&mailbox 0>;
+			system_resources {
+				compatible = "rproc-srm-core";
+			};
+		};
+
+		rtc: rtc@50100000 {
+			compatible = "arm,pl031", "arm,primecell";
+			reg = <0x50100000 0x1000>;
+			interrupts = <GIC_SPI 56 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&srca7_clk STA_CLK_HCLKDIV>;
+			clock-names = "apb_pclk";
+		};
+
+		saradc: adc@48110000 {
+			compatible = "st,sta-saradc";
+			reg = <0x48110000 0x1000>;
+			interrupts = <GIC_SPI 8 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&srca7_clk STA_CLK_PSARADC>;
+			clock-names = "apb_pclk";
+			#io-channel-cells = <1>;
+		};
+
+		sdi0: sdi@50080000 {
+			compatible = "st,sta-sdhci-8.9a";
+			reg = <0x50080000 0x1000>;
+			interrupts = <GIC_SPI 22 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&srcm3_clk STA_CLK_SDIO>,
+				 <&srca7_clk STA_CLK_PSDIO>;
+			clock-names = "clk_xin", "clk_ahb";
+			bus-width = <4>;
+			mmc-cap-sd-highspeed;
+			mmc-cap-mmc-highspeed;
+			mmc-cap-sdio-irq;
+			arasan,soc-ctl-syscon = <&mscr>;
+			max-frequency = <100000000>;
+		};
+
+		sdi1: sdi@50070000 {
+			compatible = "arm,pl18x", "arm,primecell";
+			arm,primecell-periphid = <0x10480180>;
+			reg = <0x50070000 0x1000>;
+			interrupts = <GIC_SPI 23 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&srcm3_clk STA_CLK_SDMMC1>,
+				 <&srca7_clk STA_CLK_PSDMMC1>;
+			clock-names = "sdiclk", "apb_pclk";
+			bus-width = <8>;
+			mmc-cap-sd-highspeed;
+			mmc-cap-mmc-highspeed;
+			mmc-cap-sdio-irq;
+			dmas = <&dmasel 0 29 2>;
+			dma-names = "rx";
+			st,dma-device-fc;
+			vmmc-supply = <&reg_vcc3v3>;
+		};
+
+		sdi2: sdi@500B0000 {
+			status = "disabled";
+			compatible = "arm,pl18x", "arm,primecell";
+			arm,primecell-periphid = <0x10480180>;
+			reg = <0x500B0000 0x1000>;
+			interrupts = <GIC_SPI 82 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&srcm3_clk STA_CLK_SDMMC2>,
+				 <&srca7_clk STA_CLK_PSDMMC2>;
+			clock-names = "sdiclk", "apb_pclk";
+			bus-width = <8>;
+			mmc-cap-sd-highspeed;
+			mmc-cap-mmc-highspeed;
+			mmc-cap-sdio-irq;
+			dmas = <&dmasel 0 28 2>;
+			dma-names = "rx";
+			st,dma-device-fc;
+			vmmc-supply = <&reg_vcc3v3>;
+		};
+
+		spi0: spi@50170000 {
+			compatible = "arm,pl022", "arm,primecell";
+			reg = <0x50170000 0x1000>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			interrupts = <GIC_SPI 28 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&srcm3_clk STA_CLK_SSP0>,
+				 <&srca7_clk STA_CLK_PSSP0>;
+			clock-names = "spiclk", "apb_pclk";
+			dmas = <&dmasel 0 5 2>, <&dmasel 0 8 2>;
+			dma-names = "rx", "tx";
+		};
+
+		spi1: spi@50060000 {
+			compatible = "arm,pl022", "arm,primecell";
+			reg = <0x50060000 0x1000>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			interrupts = <GIC_SPI 29 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&srcm3_clk STA_CLK_SSP1>,
+				 <&srca7_clk STA_CLK_PSSP1>;
+			clock-names = "spiclk", "apb_pclk";
+			dmas = <&dmasel 0 6 2>, <&dmasel 0 9 2>;
+			dma-names = "rx", "tx";
+		};
+
+		spi2: spi@50050000 {
+			compatible = "arm,pl022", "arm,primecell";
+			reg = <0x50050000 0x1000>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			interrupts = <GIC_SPI 30 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&srcm3_clk STA_CLK_SSP2>,
+				 <&srca7_clk STA_CLK_PSSP2>;
+			clock-names = "spiclk", "apb_pclk";
+			dmas = <&dmasel 0 7 2>, <&dmasel 0 10 2>;
+			dma-names = "rx", "tx";
+		};
+
+		srcm3_clk: srcm3@40020000 {
+			compatible = "st,sta1295-src-m3-clk";
+			reg = <0x40020000 0x100>;
+			#clock-cells = <1>;
+		};
+
+		srca7_clk: srca7@48100000 {
+			compatible = "st,sta1295-src-a7-clk";
+			reg = <0x48100000 0x100>;
+			#clock-cells = <1>;
+		};
+
+		stm@50411000 {
+			status = "disabled";
+			compatible = "arm,coresight-stm", "arm,primecell";
+			reg = <0x50411000 0x1000>, <0x50910000 0x400000>;
+			reg-names = "stm-base", "stm-stimulus-base";
+			clocks = <&srca7_clk STA_CLK_HCLKDIV>;
+			clock-names = "apb_pclk";
+			st,stm;
+			port {
+				stm_out_port: endpoint {
+					remote-endpoint = <&tpiu_in_port>;
+				};
+			};
+		};
+
+		suspend {
+			compatible = "st,sta-suspend";
+			mboxes = <&mailbox 9>;
+			st,cpu-resume-addr = <0x200001F4>;
+		};
+
+		timer {
+			compatible = "arm,armv7-timer";
+			interrupts = <GIC_PPI 13 (GIC_CPU_MASK_SIMPLE(4) | IRQ_TYPE_LEVEL_LOW)>,
+				     <GIC_PPI 14 (GIC_CPU_MASK_SIMPLE(4) | IRQ_TYPE_LEVEL_LOW)>,
+				     <GIC_PPI 11 (GIC_CPU_MASK_SIMPLE(4) | IRQ_TYPE_LEVEL_LOW)>,
+				     <GIC_PPI 10 (GIC_CPU_MASK_SIMPLE(4) | IRQ_TYPE_LEVEL_LOW)>;
+		};
+
+		timer0: timer@48150000 {
+			status = "disabled";
+			compatible = "st,nomadik-mtu";
+			reg = <0x48150000 0x1000>;
+			interrupts = <GIC_SPI 1 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&srcm3_clk STA_CLK_TIMER0>,
+				 <&srca7_clk STA_CLK_HCLKDIV>;
+			clock-names = "timclk", "apb_pclk";
+		};
+
+		timer1: timer@48140000 {
+			compatible = "st,nomadik-mtu";
+			reg = <0x48140000 0x1000>;
+			interrupts = <GIC_SPI 2 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&srcm3_clk STA_CLK_TIMER1>,
+				 <&srca7_clk STA_CLK_HCLKDIV>;
+			clock-names = "timclk", "apb_pclk";
+		};
+
+		tpiu@50412000 {
+			status = "disabled";
+			compatible = "arm,coresight-tpiu", "arm,primecell";
+			reg = <0x50412000 0x1000>;
+			clocks = <&srca7_clk STA_CLK_HCLKDIV>;
+			clock-names = "apb_pclk";
+			port {
+				tpiu_in_port: endpoint {
+					slave-mode;
+					remote-endpoint = <&stm_out_port>;
+				};
+			};
+		};
+
+		tuner_backup {
+			compatible = "st,tuner_backup";
+			mboxes = <&mailbox 2>;
+		};
+
+		uart0: uart@50150000 {
+			compatible = "arm,pl011", "arm,primecell";
+			reg = <0x50150000 0x1000>;
+			interrupts = <GIC_SPI 24 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&srcm3_clk STA_CLK_UART0>,
+				 <&srca7_clk STA_CLK_PUART0>;
+			clock-names = "uartclk", "apb_pclk";
+			dmas = <&dmasel 0 11 2>, <&dmasel 0 15 2>;
+			dma-names = "rx", "tx";
+		};
+
+		uart1: uart@50000000 {
+			compatible = "arm,pl011", "arm,primecell";
+			reg = <0x50000000 0x1000>;
+			interrupts = <GIC_SPI 25 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&srcm3_clk STA_CLK_UART1>,
+				 <&srca7_clk STA_CLK_PUART1>;
+			clock-names = "uartclk", "apb_pclk";
+			dmas = <&dmasel 0 12 2>, <&dmasel 0 16 2>;
+			dma-names = "rx", "tx";
+		};
+
+		uart2: uart@50010000 {
+			compatible = "arm,pl011", "arm,primecell";
+			reg = <0x50010000 0x1000>;
+			interrupts = <GIC_SPI 26 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&srcm3_clk STA_CLK_UART2>,
+				 <&srca7_clk STA_CLK_PUART2>;
+			clock-names = "uartclk", "apb_pclk";
+			dmas = <&dmasel 0 13 2>, <&dmasel 0 17 2>;
+			dma-names = "rx", "tx";
+		};
+
+		uart3: uart@50020000 {
+			compatible = "arm,pl011", "arm,primecell";
+			reg = <0x50020000 0x1000>;
+			interrupts = <GIC_SPI 27 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&srcm3_clk STA_CLK_UART3>,
+				 <&srca7_clk STA_CLK_PUART3>;
+			clock-names = "uartclk", "apb_pclk";
+			dmas = <&dmasel 0 14 2>, <&dmasel 0 18 2>;
+			dma-names = "rx", "tx";
+		};
+
+		usb0: usb@48400000 {
+			compatible = "snps,dwc_otg";
+			reg = <0x48400000 0x1000>;
+			interrupts = <GIC_SPI 20 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&srca7_clk STA_CLK_HUSB>;
+			clock-names = "apb_pclk";
+			dwc_otg,optim;
+			dwc_otg,hptxsize = <0x4000800>;
+			dwc_otg,dptxsize = <0x200>;
+		};
+
+		usb1: usb@48500000 {
+			compatible = "snps,dwc_otg";
+			reg = <0x48500000 0x1000>;
+			interrupts = <GIC_SPI 21 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&srca7_clk STA_CLK_HUSB>;
+			clock-names = "apb_pclk";
+			dwc_otg,optim;
+			dwc_otg,hptxsize = <0x4000800>;
+			dwc_otg,dptxsize = <0x200>;
+		};
+
+		usbphy: usb-phy@48440000 {
+			compatible = "st,sta1295-usb2-phy";
+			reg = <0x48440000 0x1000>,
+			      <0x48400000 0x1000>,
+			      <0x48500000 0x1000>;
+			reg-names = "phy_regs", "usb0_regs", "usb1_regs";
+			interrupts = <GIC_SPI 20 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 21 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "usb0_irq", "usb1_irq";
+			#phy-cells = <0>;
+			clocks = <&srca7_clk STA_CLK_PAPBREG>;
+			clock-names = "apbreg_clk";
+		};
+
+		wdt@48130000 {
+			compatible = "arm,sp805", "arm,primecell";
+			arm,primecell-periphid = <0x00141805>;
+			reg = <0x48130000 0x1000>;
+			interrupts = <GIC_SPI 3 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&srcm3_clk STA_CLK_WDT>,
+				 <&srca7_clk STA_CLK_HCLKDIV>;
+			clock-names = "wdtclk", "apb_pclk";
+		};
+	};
+
+	reg_vcc3v3: vmmc {
+		compatible = "regulator-fixed";
+		regulator-name = "vmmc";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+	};
+};

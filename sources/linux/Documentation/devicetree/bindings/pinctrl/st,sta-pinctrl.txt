@@ -1,0 +1,15 @@
+STMicroelectronics Automotive car processor pinmux controller
+
+Required properties:
+- compatible: "st,sta1295-pinctrl", "st,sta1385-pinctrl"
+- nomadik-gpio-chips: array of phandles to the corresponding GPIO chips
+              (these have the register ranges used by the pin controller).
+
+Please refer to:
+
+- pinctrl-bindings.txt in this directory for details of the
+  common pinctrl bindings used by client devices, including the meaning of the
+  phrase "pin configuration node".
+
+- ste,nomadik.txt in this directory for details about pinctrl nodes and
+  sub-nodes configuration.

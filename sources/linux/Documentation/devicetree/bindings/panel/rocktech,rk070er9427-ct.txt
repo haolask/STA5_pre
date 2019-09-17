@@ -1,0 +1,7 @@
+Rocktech RK070ER9427-CT 7" (800x480 pixels) TFT LCD panel
+
+Required properties:
+- compatible: should be "rocktech,rk070er9427-ct"
+
+This binding is compatible with the simple-panel binding, which is
+specified in simple-panel.txt in this directory.

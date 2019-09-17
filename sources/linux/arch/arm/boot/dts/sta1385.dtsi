@@ -1,0 +1,95 @@
+/*
+ * Copyright (C) 2016 STMicroelectronics
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2, as
+ * published by the Free Software Foundation.
+ */
+
+#include "sta.dtsi"
+
+/ {
+	aliases {
+		ethernet1 = &ethernet1;
+	};
+
+	memory {
+		reg = <0xa0000000 0x20000000>;
+	};
+
+	soc {
+		ethernet1: dwmac@500c0000 {
+			compatible = "st,sta1295-dwmac", "snps,dwmac-4.10a";
+			reg = <0x500c0000 0x2000>;
+			reg-names = "stmmaceth";
+			interrupts = <GIC_SPI 94 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "macirq";
+			clocks = <&srca7_clk STA_CLK_AETH>,
+				 <&srcm3_clk STA_CLK_ETH1PTP>;
+			clock-names = "stmmaceth", "clk_ptp_ref";
+			tx-fifo-depth = <16384>;
+			rx-fifo-depth = <32768>;
+			snps,force_sf_dma_mode;
+			sta,misc-reg = <&mscr>;
+		};
+
+		gpio_m3: gpio@40008000 {
+			gpio-bank = <4>;
+			gpio-ranges = <&pinctrl 0 128 16>;
+		};
+
+		gpio_s: gpio@50140000 {
+			gpio-bank = <3>;
+			gpio-ranges = <&pinctrl 0 96 32>;
+		};
+
+		mscr: syscon@50700000 {
+			dmasel: dmasel@0 {
+				compatible = "st,sta1385-dmasel";
+			};
+		};
+
+		pinctrl: pinctrl {
+			compatible = "st,sta1385-pinctrl";
+			nomadik-gpio-chips = <&gpio0>, <&gpio1>, <&gpio2>,
+					     <&gpio_s>, <&gpio_m3>;
+		};
+
+		srcm3_clk: srcm3@40020000 {
+			compatible = "st,sta1385-src-m3-clk";
+		};
+
+		uart2: uart@50010000 {
+			dmas = <&dmasel 1 22 2>, <&dmasel 1 26 2>;
+		};
+
+		uart4: uart@60835000 {
+			compatible = "arm,pl011", "arm,primecell";
+			reg = <0x60835000 0x1000>;
+			interrupts = <GIC_SPI 13 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&srcm3_clk STA_CLK_WLAN>,
+				 <&srcm3_clk STA_CLK_WLAN>;
+			clock-names = "uartclk", "apb_pclk";
+			dmas = <&dmasel 0 13 2>, <&dmasel 0 17 2>;
+			dma-names = "rx", "tx";
+		};
+
+		uart5: uart@60836000 {
+			compatible = "arm,pl011", "arm,primecell";
+			reg = <0x60836000 0x1000>;
+			interrupts = <GIC_SPI 15 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&srcm3_clk STA_CLK_WLAN>,
+				 <&srcm3_clk STA_CLK_WLAN>;
+			clock-names = "uartclk", "apb_pclk";
+			/* dma mode is disabled by default as it's
+			 * not functional. Reason is that DMACLR
+			 * signal is not properly bound to DMAC1
+			 */
+			/*
+			dmas = <&dmasel 1 23 2>, <&dmasel 1 27 2>;
+			dma-names = "rx", "tx";
+			*/
+		};
+	};
+};
+

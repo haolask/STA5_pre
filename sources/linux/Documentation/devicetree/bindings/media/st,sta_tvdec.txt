@@ -1,0 +1,15 @@
+* STMicroelectronics TV decoder virtual driver
+
+Required properties:
+- compatible: Should be "st,sta_tvdec"
+
+Examples:
+
+	tvdec: tvdec {
+		compatible = "st,sta_tvdec";
+		port {
+			tvdec_1: endpoint {
+				remote-endpoint = <&vip_0>;
+			};
+		};
+	};

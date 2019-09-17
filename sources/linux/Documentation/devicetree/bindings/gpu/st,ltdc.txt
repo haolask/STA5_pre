@@ -1,0 +1,76 @@
+STMicroelectronics platforms with ltdc IP display controller.
+
+- sta-display-subsystem: Master device for drm sub-components
+  This device must be the parent of all the sub-components and is responsible of bind them.
+  Required properties:
+  - compatible: "st,display-subsystem"
+  - ranges: to allow probing of subdevices
+
+- clcd: lcd tft controller with composition capabilities, must be a child of sta-display-subsystem
+  Required properties:
+  - compatible: "st,ltdc"
+  - interrupts : Display Controller interrupt numbers to the CPU.
+  - reg: Physical base address of the ip registers and length of memory mapped region.
+  - clocks: from common clock binding: handle hardware ip needed clocks, the number of clocks may depend of the soc type.
+    See ../clocks/clock-bindings.txt for details.
+  - bus-width: width in bits of the display controller data bus
+  - port: a port pointing to a remote display panel phandle
+
+  Optional properties:
+  - resets: resets to be used by the device. See ../reset/reset.txt for details.
+
+Device node example:
+
+		sta-display-subsystem {
+			compatible = "st,display-subsystem";
+			ranges;
+
+			clcd@48600000 {
+				compatible = "st,ltdc";
+				reg = <0x48600000 0x10000>, <0x50700000 0x10000>;
+				reg-names = "clcd", "misc";
+				interrupts = <GIC_SPI 46 IRQ_TYPE_LEVEL_HIGH>;
+				clocks = <&hclkclcd>, <&clcdclk>;
+				clock-names = "clk", "lcd_clk";
+				bus-width = <64>;
+				port {
+					clcd_out: endpoint {
+						remote-endpoint = <&mi0700sat3_in>;
+					};
+				};
+			};
+		};
+
+		panel_rgb: panel-rgb {
+			compatible = "multi-inno,mi0700sat3";
+
+			reg = <0x50110000 0x100>; /* EFT3 / PWM control */
+
+			pinctrl-names = "default";
+			pinctrl-0 = <&clcd_default_mux &eft3_default_mux>;
+
+			panel-width-mm = <154>;
+			panel-height-mm = <86>;
+
+			display-timings {
+				timing {
+					clock-frequency = <33264000>;
+					hactive = <800>;
+					vactive = <480>;
+					hback-porch = <26>;
+					hfront-porch = <210>;
+					vback-porch = <13>;
+					vfront-porch = <22>;
+					hsync-len = <20>;
+					vsync-len = <10>;
+					hsync-active = <1>;
+					vsync-active = <1>;
+				};
+			};
+
+			port {
+				mi0700sat3_in: endpoint {
+					remote-endpoint = <&clcd_out>;
+				};
+			};
+		};

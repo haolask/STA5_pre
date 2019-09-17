@@ -1,0 +1,44 @@
+STMICROELECTRONICS STA1295 USB2 PHY
+
+Required properties:
+ - compatible: st,sta1295-usb2-phy
+ - reg/reg-names: offset and length of the PHY registers
+ (only needed if CDP feature enabled)  USB0 controller / USB1 controller
+ - interrupts/interuppt-names:
+ (only needed if CDP feature enabled) IRQ of USB0 and USB1 controller
+ - st,misc_reg: offset and length of the MISC registers
+ - #phy-cells: must be 0
+
+Refer to phy/phy-bindings.txt for the generic PHY binding properties
+
+Optional parameters
+-st,usb0_mode: It offers the default mode selection for USB0, it can be
+"DEVICE" or "HOST"
+-st,usb1_mode: It offers the default mode selection for USB1, it can be
+"DEVICE" or "HOST"
+-st,usb0_cdp / usb0_regs : Enable the CDP feature for USB0 / indicate the
+register base of USB0 controller as it's a common irq between USB controller
+and usb phy
+-st,usb1_cdp / usb1_regs : Enable the CDP feature for USB1 / indicate the
+register base of USB1 controller as it's a common irq between USB controller
+and usb phy
+- st,xcver_trim0: tuning register setting for XCVER_TRIM0. Applied only when
+supplied value is non-zero.
+- st,xcver_trim1: tuning register setting for XCVER_TRIM1. Applied only when
+supplied value is non-zero.
+
+Example:
+		usbphy: usb-phy@48440000 {
+			compatible = "st,sta1295-usb2-phy";
+			reg = <0x48440000 0x1000>,
+			      <0x48400000 0x1000>;
+			reg-names = "phy_regs", "usb0_regs";
+			st, usb0_mode = DEVICE;
+			st,usb0_cdp;
+			usb0_regs = <0x48400000 0x1000>;
+			interrupts = <GIC_SPI 20 IRQ_TYPE_LEVEL_HIGH>,
+			interrupt-names = "usb0_irq";
+			#phy-cells = <0>;
+			clocks = <&pclkapbreg>;
+			clock-names = "apbreg_clk";
+		};

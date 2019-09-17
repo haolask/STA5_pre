@@ -1,0 +1,20 @@
+STMicroelectronics STA SoC family: DWMAC glue layer controller
+
+Required properties:
+ - compatible	: "st,sta1295-dwmac", "snps,dwmac-4.10a"
+		  Must specify both the glue and dwmac core compatibilities
+ - sta,misc-reg : phandle of the syson node that describes the STA MISC register bank
+
+For all other required/optional propreties, please refer to stmmac.txt.
+
+Example:
+		ethernet0: dwmac@500a0000 {
+			compatible = "st,sta1295-dwmac", "snps,dwmac-4.10a";
+			reg = <0x500a0000 0x2000>;
+			reg-names = "stmmaceth";
+			interrupts = <GIC_SPI 64 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "macirq";
+			clocks = <&pclketh>, <&ethptpclk>;
+			clock-names = "stmmaceth", "clk_ptp_ref";
+			sta,misc-reg = <&mscr>;
+		};

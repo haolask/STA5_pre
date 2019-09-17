@@ -1,0 +1,76 @@
+Device Tree bindings for STMicroelectronics Successive Approximation ADC
+and resistive touch screen driver.
+
+Required properties:
+ - compatible: Should be "st,sta-saradc"
+ - reg: Offset and length of the register set for the ADC device.
+ - interrupts: The interrupt number for the ADC device.
+ - clocks: The root clock of the ADC controller.
+ - clock-names: clock alias, must be equal to "apb_pclk".
+ - #io-channel-cells = <1>;
+
+Optional properties:
+- st,tsc-enable: Enable the touchscreen functionality. If disabled,
+	adc channels [0-3] become free for general purpose usage.
+- st,averaging-samples: Averaging Control
+	00 = 1 sample (No Averaging)
+	01 = 2 samples
+	10 = 4 samples
+	11 = 8 samples
+- st,tracking-index: Window Tracking Index
+	It is the minimum expected difference between previous
+	and current coordinates that identify a new acquisition.
+	Condition needs to be true for both X and Y.
+	000 = No Window Tracking (Difference must at least be 1)
+	001 = 4
+	010 = 8
+	011 = 16
+	100 = 32
+	101 = 64 (The value 48 has been intentionally omitted)
+	110 = 92
+	111 = 127
+- st,volt-settling-time: Panel Voltage Settling Time
+	Delays from the time when the touch screen analog buffers
+	are enabled to the time when the sampling starts.
+	000 = 10 us
+	001 = 100 us
+	010 = 500 us
+	011 = 1 ms
+	100 = 5 ms
+	101 = 10 ms
+	110 = 50 ms
+	111 = 100 ms
+- st,touch-detect-delay: Touch Detect Delay
+	Delay upon a touch is detected.
+	000 = 10 us
+	001 = 50 us
+	010 = 100 us
+	011 = 500 us
+	100 = 1 ms
+	101 = 5 ms
+	110 = 10 ms
+	111 = 50 ms
+- st,samples-per-second: Define interval between 2 samples reading.
+- st,swap-xy: Permutes x, y axis.
+- st,flip-x: Invert x axis.
+- st,flip-y: Invert y axis.
+
+Example:
+
+saradc: adc@48110000 {
+	compatible = "st,sta-saradc";
+	reg = <0x48110000 0x1000>;
+	interrupts = <GIC_SPI 8 IRQ_TYPE_LEVEL_HIGH>;
+	clocks = <&pclksaradc>;
+	clock-names = "apb_pclk";
+	#io-channel-cells = <1>;
+	st,tsc-enable;
+	st,averaging-samples = <3>;
+	st,tracking-index = <7>;
+	st,volt-settling-time = <0>;
+	st,touch-detect-delay = <2>;
+	st,samples-per-second = <0>;
+	st,swap-xy;
+	st,flip-x;
+	st,flip-y;
+};

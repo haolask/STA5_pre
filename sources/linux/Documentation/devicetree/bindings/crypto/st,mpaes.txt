@@ -1,0 +1,22 @@
+* ST Microelectronics hardware cryptographic accelerator
+
+This is an AES hardware cryptographic accelerator found on some ST products.
+
+* Micro-Programmable Advanced Encryption Standard (MPAES)
+
+This hardware cryptographic accelerator is likely to be a channel of a C3
+Channel Controller (see st,ccc.txt). Therefore this channel, as others do, must
+be a child of a C3 device tree node.
+
+Required properties:
+- compatible: Should be "st,mpaes-v0.3".
+- index: u8, from 0 to 15, where is located the channel in C3 hardware
+  implementation.
+- gp-key-slots: u16 bit field to depict available general purpose key slots.
+
+Example:
+mpaes@2 {
+	compatible = "st,mpaes-v0.3";
+	index = /bits/ 8 <2>;
+	gp-key-slots = /bits/ 16 <0xfffc>;
+};

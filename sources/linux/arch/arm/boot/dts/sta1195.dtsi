@@ -1,0 +1,34 @@
+/*
+ * Copyright (C) 2015 STMicroelectronics
+ * Author: Jean-Nicolas Graux <jean-nicolas.graux@st.com>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2, as
+ * published by the Free Software Foundation.
+ */
+
+#include "sta.dtsi"
+
+/ {
+	soc {
+		ccc: ccc@49000000 {
+			status = "okay";
+		};
+
+		gpio3: gpio@48123000 {
+			status = "okay";
+		};
+
+		sdi2: sdi@500B0000 {
+			status = "okay";
+		};
+
+		stm@50411000 {
+			status = "okay";
+		};
+
+		tpiu@50412000 {
+			status = "okay";
+		};
+	};
+};

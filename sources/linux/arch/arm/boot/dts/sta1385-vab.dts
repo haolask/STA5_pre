@@ -1,0 +1,309 @@
+/*
+ * Copyright (C) 2016 STMicroelectronics
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2, as
+ * published by the Free Software Foundation.
+ */
+
+/dts-v1/;
+#include "sta1385.dtsi"
+#include "ste-nomadik-pinctrl.dtsi"
+
+/ {
+	model = "ST TELEMACO3P STA1385 Validation Board";
+	compatible = "st,sta1385";
+
+	chosen {
+		bootargs = "console=ttyAMA2,115200n8 rw rootwait quiet earlyprintk
+					root=/dev/mmcblk0p1 rootfstype=ext4 systemd.gpt_auto=0
+					coherent_pool=4M";
+	};
+
+	soc {
+		can0: c_can@40010000 {
+			status = "disabled";
+		};
+
+		can1: m_can@50183000 {
+			pinctrl-names = "default", "sleep";
+			pinctrl-0 = <&can1_default_mux>;
+			pinctrl-1 = <&can1_default_mux>;
+		};
+
+		can2: m_can@50183400 {
+			pinctrl-names = "default", "sleep";
+			pinctrl-0 = <&can2_default_mux>;
+			pinctrl-1 = <&can2_default_mux>;
+		};
+
+		ethernet0: dwmac@500a0000 {
+			pinctrl-names = "default", "sleep";
+			pinctrl-0 = <&eth_default_mux>;
+			pinctrl-1 = <&eth_default_mux>;
+			snps,reset-gpio = <&gpio1 3 0>;
+			snps,reset-active-low;
+			snps,reset-delays-us = <1000 10000 1000000>;
+			snps,phy-scan-from-address-1;
+			phy-mode = "rmii";
+			max-speed = <100>;
+			mac-address = [00 00 00 00 00 00];
+		};
+
+		fsmc: flash@80000000 {
+			pinctrl-names = "default", "sleep";
+			pinctrl-0 = <&fsmc_default_mux>;
+			pinctrl-1 = <&fsmc_default_mux>;
+		};
+
+		i2c0: i2c@50160000 {
+			pinctrl-names = "default", "sleep";
+			pinctrl-0 = <&i2c0_default_mux>;
+			pinctrl-1 = <&i2c0_default_mux>;
+		};
+
+		i2c1: i2c@50040000 {
+			pinctrl-names = "default", "sleep";
+			pinctrl-0 = <&i2c1_default_mux>;
+			pinctrl-1 = <&i2c1_default_mux>;
+			status = "disabled";
+		};
+
+		i2c2: i2c@50030000 {
+			pinctrl-names = "default", "sleep";
+			pinctrl-0 = <&i2c2_default_mux>;
+			pinctrl-1 = <&i2c2_default_mux>;
+			status = "disabled";
+		};
+
+		sdi0: sdi@50080000 {
+			pinctrl-names = "default", "sleep";
+			pinctrl-0 = <&sdi0_default_mux>;
+			pinctrl-1 = <&sdi0_default_mux>;
+			status = "disabled";
+		};
+
+		sdi1: sdi@50070000 {
+			pinctrl-names = "default", "sleep";
+			pinctrl-0 = <&sdi1_default_mux>;
+			pinctrl-1 = <&sdi1_default_mux>;
+			bus-width = <4>;
+			max-frequency = <50000000>;
+			st,sig-pin-fbclk;
+			broken-cd;
+		};
+
+		spi0: spi@50170000 {
+			status = "disabled";
+		};
+
+		spi1: spi@50060000 {
+			status = "disabled";
+		};
+
+		spi2: spi@50050000 {
+			pinctrl-names = "default", "sleep";
+			pinctrl-0 = <&spi2_default_mux>;
+			pinctrl-1 = <&spi2_default_mux>;
+			num-cs = <1>;
+			status = "disabled";
+			spidev@0 {
+				compatible = "st,sta662";
+				spi-max-frequency = <1000000>;
+				reg = <0>;
+				spi-cpol;
+				spi-cpha;
+				pl022,hierarchy = <0>;
+				pl022,interface = <0>;
+				pl022,duplex = <0>;
+			};
+		};
+
+		uart0: uart@50150000 {
+			pinctrl-names = "default", "sleep";
+			pinctrl-0 = <&uart0_default_mux>;
+			pinctrl-1 = <&uart0_default_mux>;
+		};
+
+		uart1: uart@50000000 {
+			pinctrl-names = "default", "sleep";
+			pinctrl-0 = <&uart1_default_mux>;
+			pinctrl-1 = <&uart1_default_mux>;
+		};
+
+		uart2: uart@50010000 {
+			status = "disabled";
+		};
+
+		uart3: uart@50020000 {
+			pinctrl-names = "default", "sleep";
+			pinctrl-0 = <&uart3_default_mux>;
+			pinctrl-1 = <&uart3_default_mux>;
+		};
+
+		uart4: uart@60835000 {
+			status = "disabled";
+		};
+
+		uart5: uart@60836000 {
+			status = "disabled";
+		};
+
+		usbphy: usb-phy@48440000 {
+			pinctrl-names = "default", "sleep";
+			pinctrl-0 = <&drvvbus_default_mux>;
+			pinctrl-1 = <&drvvbus_default_mux>;
+		};
+
+		pinctrl {
+			can1 {
+				can1_default_mux: can_mux {
+					default_mux {
+						function = "can1";
+						groups = "can1_a_1";
+					};
+				};
+			};
+			can2 {
+				can2_default_mux: can_mux {
+					default_mux {
+						function = "can2";
+						groups = "can2_a_1";
+					};
+				};
+			};
+			eth {
+				eth_default_mux: eth_mux {
+					default_mux {
+						function = "eth0";
+						groups = "eth0tx_a_1",
+							"eth0rx_a_1",
+							"eth0mdio_a_1",
+							"eth0mdc_a_1",
+							"eth0rmiiclk_a_1";
+					};
+				};
+			};
+			fsmc {
+				fsmc_default_mux: fsmc_mux {
+					default_mux {
+						function = "fsmc";
+						groups = "fsmcsmadq0to7_a_1",
+							"fsmcwpn_a_1",
+							"fsmcbusy_a_1",
+							"fsmcoen_a_1",
+							"fsmcwen_a_1",
+							"fsmcsmad17ale_a_1",
+							"fsmcsmad16cle_a_1",
+							"fsmcnandcs0n_a_1";
+					};
+				};
+			};
+			i2c0 {
+				i2c0_default_mux: i2c_mux {
+					default_mux {
+						function = "i2c0";
+						groups = "i2c0_a_1";
+					};
+				};
+			};
+			i2c1 {
+				i2c1_default_mux: i2c_mux {
+					default_mux {
+						function = "i2c1";
+						groups = "i2c1_a_1";
+					};
+				};
+			};
+			i2c2 {
+				i2c2_default_mux: i2c_mux {
+					default_mux {
+						function = "i2c2";
+						groups = "i2c2_a_1";
+					};
+				};
+			};
+			sdi0 {
+				sdi0_default_mux: sdi_mux {
+					default_mux {
+						function = "mc0";
+						groups = "mc0fbclk_b_1";
+					};
+				};
+			};
+			sdi1 {
+				sdi1_default_mux: sdi_mux {
+					default_mux {
+						function = "mc1";
+						groups = "mc1cmd_a_1",
+							"mc1clk_a_1",
+							"mc1fbclk_a_1",
+							"mc1dat0to7_a_1";
+					};
+				};
+			};
+			spi1 {
+				spi1_default_mux: spi_mux {
+					default_mux {
+						function = "spi1";
+						groups = "spi1_a_1";
+					};
+				};
+			};
+			spi2 {
+				spi2_default_mux: spi_mux {
+					default_mux {
+						function = "spi2";
+						groups = "spi2_b_1";
+					};
+				};
+			};
+			uart0 {
+				uart0_default_mux: uart_mux {
+					default_mux {
+						function = "u0";
+						groups = "u0rxtx_a_1",
+							"u0rtscts_a_1";
+					};
+				};
+			};
+			uart1 {
+				uart1_default_mux: uart_mux {
+					default_mux {
+						function = "u1";
+						groups = "u1rxtx_b_1";
+					};
+					default_cfg {
+						pins = "GPIO29";
+						ste,config = <&in_nopull>;
+					};
+				};
+			};
+			uart3 {
+				uart3_default_mux: uart_mux {
+					default_mux {
+						function = "u3";
+						groups = "u3rxtx_a_1";
+					};
+				};
+			};
+			usbphy {
+				drvvbus_default_mux: drvvbus_default_mux {
+					default_mux {
+						function = "usb";
+						groups = "usb0drvvbus_b_1",
+							 "usb1drvvbus_b_1";
+					};
+				};
+			};
+			wdg {
+				wdg_default_mux: wdg_mux {
+					default_mux {
+						function = "wdg";
+						groups = "wdgswrstout_a_1";
+					};
+				};
+			};
+		};
+	};
+};

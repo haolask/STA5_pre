@@ -1,0 +1,73 @@
+#
+# STA SoC audio configuration
+#
+config SND_SOC_STA
+	tristate "SoC Audio support for STA platform"
+	depends on SND_SOC
+	depends on ARCH_STA
+        select SND_SOC_GENERIC_DMAENGINE_PCM
+	help
+		Say Y if you want to enable the ASoC support for the STA platforms.
+		The STA Sound Subsystem includes:
+		 audio ports (MSP, DPMAILBOX)
+		 Emerald DSPs
+		 The Audio Interface (AIF) with HW sample rate converter and a dedicated BUS for audio
+		By default it enables also MSP, AIF, DPMAILBOX and STAUDIOLIB
+
+config SND_SOC_STA_MSP
+	tristate
+	default SND_SOC_STA
+
+config SND_SOC_STA_AIF
+	tristate
+	default SND_SOC_STA
+
+config SND_SOC_STA_DPMAILBOX
+	tristate "Enable DP-Mailbox"
+	depends on SND_SOC_STA
+	default SND_SOC_STA
+	help
+		DP-Mailbox is the module that allows the transfer of samples between the
+		asynchronous Bus Matrix and the isochronous Sound Subsystem.
+		It is composed by FIFO1 and FIFO2.
+		Enable FIFO1 to transfer data from the Sound Subsystem to the Bus Matrix
+		and FIFO2 to transfer data from the Bus Matrix to the Sound Subsystem.
+
+config SND_SOC_STA_NO_RESIDUE
+	bool "PCM avail reported without DMA residue"
+	depends on SND_SOC_STA
+	default n
+	help
+	  STA PCM support report of PCM avail both with or without DMA residue
+	  Say N if you want reported accurate PCM avail
+	  Say Y if you want reported best performance PCM avail (deprecated)
+
+config SND_SOC_STA_STAUDIOLIB
+	tristate "DSP - STA"
+	default SND_SOC_STA
+	help
+		Enable the ST Audio library for DSPs.
+		The STaudiolib initializes the DSPs
+		and exposes a set of API to compose a network
+		with different modules inside the DSP.
+
+config STAUDIOLIB_EMBEDDED_FW
+	bool "Embeds DSP FW"
+	depends on SND_SOC_STA_STAUDIOLIB
+	help
+	  staudiolib requires a firmware loaded into STA DSP
+	  Say N if the FW is loaded by the bootloader,
+	  Say N if you want load DSP FW from /lib/firmware
+	  Say Y if you want the DSP FW embedded in staudiolib
+
+config SND_SOC_EXT_DSP
+	tristate "DSP - EXT"
+	default m
+	help
+		Enable the loading of non-ST DSP firmware.
+		The FW file must be present in /lib/firmware/st/dspfw
+		and the driver must be compiled as module.
+		The driver can be customized adding ALSA control
+		to configure the FW.
+
+

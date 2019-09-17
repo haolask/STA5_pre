@@ -1,0 +1,15 @@
+STMicroelectronics STA1xxx cpu freqrency scaling
+
+Required properties:
+- compatible:	must be "st,sta-cpufreq"
+- clocks:	clock used to scale the cpus
+- clock-names:	must be "cpu_clk"
+
+Example:
+
+cpu_freq: cpu_freq@0 {
+	compatible = "st,sta-cpufreq";
+	clocks = <&a7ssc_clk STA_CLK_CPU>;
+	clock-names = "cpu_clk";
+};
+

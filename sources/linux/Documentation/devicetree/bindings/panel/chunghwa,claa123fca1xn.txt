@@ -1,0 +1,7 @@
+Chunghwa CLAA123FCA1XN 12.3" (1920x720 pixels) TFT LCD panel
+
+Required properties:
+- compatible: should be "chunghwa,claa123fca1xn"
+
+This binding is compatible with the simple-panel binding, which is specified
+in simple-panel.txt in this directory.

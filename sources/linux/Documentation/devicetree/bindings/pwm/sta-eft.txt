@@ -1,0 +1,14 @@
+STMicroelectronics Extended Function Timer
+
+Required properties:
+- compatible		: Should be "st,sta-eft"
+- reg			: contain the base adresse of the different eft's
+			  registers
+- reg-names		: Should contains the reg name "eft_reg"
+
+Exemples:
+eft0: eft@48180000 {
+	compatible = "st,sta-eft";
+	reg = <0x48180000 0x1000>;
+	reg-names = "eft_regs";
+};

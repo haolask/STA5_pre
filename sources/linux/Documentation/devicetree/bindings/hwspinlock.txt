@@ -1,0 +1,18 @@
+HWSPINLOCK
+
+Required properties:
+  - compatible : should be "<manufacturer>,<type>"
+  - reg : offset and length of the register set for the device
+  - base-id : the base id for this hwspinlock device
+
+Optional properties:
+
+   - interrupts : should contain hwspinlock controller interrupt
+
+Example:
+
+hsem@481b0000 {
+	compatible = "st,sta-hsem";
+	reg = <0x481b0000 0x1000>;
+	base-id = <0>;
+};

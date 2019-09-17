@@ -1,0 +1,7 @@
+Ampire AM-1280800P2TZQW-T01H 7" (1280x800 pixels) TFT LCD panel
+
+Required properties:
+- compatible: should be "ampire,am-1280800p2tzqw-t01h"
+
+This binding is compatible with the simple-panel binding, which is specified
+in simple-panel.txt in this directory.

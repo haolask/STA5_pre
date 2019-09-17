@@ -1,0 +1,14 @@
+STMicroelectronics Mailbox service for tuner context backup
+-----------------------------------------------------------
+
+Rquired properties:
+ - compatible: "st,tuner_backup"
+ - mboxes: phandle to a specific mailbox channel
+	   refer to sta-mailbox.txt
+
+Example:
+	tuner_backup {
+		compatible = "st,tuner_backup";
+		mboxes = <&mailbox 2>;
+	};
+

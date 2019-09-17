@@ -1,0 +1,33 @@
+* ST Microelectronics Automotive Serial Quad Interface (SQI)
+
+Required properties:
+  - compatible : Should be "st,sta-qspi"
+  - reg : the first contains the register location and length,
+          the second contains the memory mapping address and length
+  - reg-names: Should contain the reg names "sqi-regs" and "sqi-mmap"
+  - interrupts : Should contain the interrupt for the device
+  - clocks : The clocks needed by the QuadSPI controller
+  - clock-names : the name of the clocks
+
+Example:
+
+qspi0: sqi@50200000 {
+	compatible = "st,sta-qspi";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	reg = <0x50200000 0x200>,
+	      <0x90000000 0x08000000>;
+	reg-names = "sqi-regs", "sqi-mmap";
+	interrupts = <GIC_SPI 6 IRQ_TYPE_LEVEL_HIGH>;
+	clocks = <&sqiclk>;
+	clock-names = "sqiclk";
+
+	pinctrl-names = "default";
+	pinctrl-0 = <&sqi_default_mux>;
+
+	flash0: serial-flash@0 {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		spi-max-frequency = <133000000>;
+	};
+};
