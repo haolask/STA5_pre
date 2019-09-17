@@ -1,0 +1,32 @@
+From e6856bb7968ab1248f384cfb1f6f08ddc7a37359 Mon Sep 17 00:00:00 2001
+From: Christophe Priouzeau <christophe.priouzeau@linaro.org>
+Date: Wed, 6 Apr 2016 15:50:51 +0200
+Subject: [PATCH 2/7] STM: alsasink: endianess fix for iec61937
+
+if format supported by driver is S16_LE, data should be swapped only for big endian systems
+
+Change-Id: Iff0cdae411286d0ea0c2333badef7cf5776e53cf
+Signed-off-by: Arnaud Pouliquen <arnaud.pouliquen@st.com>
+
+diff --git a/ext/alsa/gstalsasink.c b/ext/alsa/gstalsasink.c
+index 3cd5469..eed4d6c 100644
+--- a/ext/alsa/gstalsasink.c
++++ b/ext/alsa/gstalsasink.c
+@@ -451,10 +451,12 @@ retry:
+     /* Try to use big endian first else fallback to le and swap bytes */
+     if (snd_pcm_hw_params_set_format (alsa->handle, params, alsa->format) < 0) {
+       alsa->format = SND_PCM_FORMAT_S16_LE;
+-      alsa->need_swap = TRUE;
++      /* swap needed if system is big endian */
++      alsa->need_swap = (G_BYTE_ORDER == G_BIG_ENDIAN);
+       GST_DEBUG_OBJECT (alsa, "falling back to little endian with swapping");
+     } else {
+-      alsa->need_swap = FALSE;
++      /* swap needed if system is little endian */
++      alsa->need_swap = (G_BYTE_ORDER != G_BIG_ENDIAN);
+     }
+   }
+   CHECK (snd_pcm_hw_params_set_format (alsa->handle, params, alsa->format),
+-- 
+2.7.4
+

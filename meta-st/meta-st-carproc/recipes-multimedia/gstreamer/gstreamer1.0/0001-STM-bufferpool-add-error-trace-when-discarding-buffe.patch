@@ -1,0 +1,45 @@
+From bc6e4ce8812b2c9ce668cf5a4a243c1a9b93aece Mon Sep 17 00:00:00 2001
+From: Christophe Priouzeau <christophe.priouzeau@linaro.org>
+Date: Wed, 6 Apr 2016 14:54:15 +0200
+Subject: [PATCH 1/3] STM: bufferpool: add error trace when discarding buffers
+ @ release
+
+Change-Id: I66a9ff1c0146bde7ca0b7e2267b56215a3975fa9
+Tested-by: Hugues FRUCHET <hugues.fruchet@st.com>
+Signed-off-by: Christophe Priouzeau <christophe.priouzeau@linaro.org>
+
+diff --git a/gst/gstbufferpool.c b/gst/gstbufferpool.c
+index 133859d..a36ffc7 100644
+--- a/gst/gstbufferpool.c
++++ b/gst/gstbufferpool.c
+@@ -1280,17 +1280,24 @@ default_release_buffer (GstBufferPool * pool, GstBuffer * buffer)
+       GST_MINI_OBJECT_FLAGS (buffer));
+ 
+   /* memory should be untouched */
+-  if (G_UNLIKELY (GST_BUFFER_FLAG_IS_SET (buffer, GST_BUFFER_FLAG_TAG_MEMORY)))
++  if (G_UNLIKELY (GST_BUFFER_FLAG_IS_SET (buffer, GST_BUFFER_FLAG_TAG_MEMORY))) {
++    GST_WARNING_OBJECT (pool, "discard buffer: GST_BUFFER_FLAG_TAG_MEMORY is set");
+     goto memory_tagged;
++  }
+ 
+   /* size should have been reset. This is not a catch all, pool with
+    * size requirement per memory should do their own check. */
+-  if (G_UNLIKELY (gst_buffer_get_size (buffer) != pool->priv->size))
++  if (G_UNLIKELY (gst_buffer_get_size (buffer) != pool->priv->size)) {
++    GST_WARNING_OBJECT (pool, "discard buffer: buffer size (%d) != of pool size (%d)",
++            gst_buffer_get_size (buffer), pool->priv->size);
+     goto size_changed;
++  }
+ 
+   /* all memory should be exclusive to this buffer (and thus be writable) */
+-  if (G_UNLIKELY (!gst_buffer_is_all_memory_writable (buffer)))
++  if (G_UNLIKELY (!gst_buffer_is_all_memory_writable (buffer))) {
++    GST_WARNING_OBJECT (pool, "discard buffer: memory is not writable");
+     goto not_writable;
++  }
+ 
+   /* keep it around in our queue */
+   gst_atomic_queue_push (pool->priv->queue, buffer);
+-- 
+2.7.4
+

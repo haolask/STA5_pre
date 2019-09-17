@@ -1,0 +1,38 @@
+From d7c59257f0129e7edb8cc5b6de55fe4a591d3cc1 Mon Sep 17 00:00:00 2001
+From: Stephane Danieau <stephane.danieau@st.com>
+Date: Wed, 7 Mar 2018 16:46:25 +0100
+Subject: [PATCH 29/37] compositor-st: release buffer when drmModeSetPlane
+ fails
+
+A buffer assigned to an overlay is 'reffed' by drm_fb_set_buffer().
+It is later 'unreffed' upon vblank reception by drm_output_release_fb().
+Since no vblank is expected if drmModeSetPlane() fails, the buffer has
+to be released in that case.
+This fixes a GStreamer "frozen" video playback issue when the driver can
+not set the plane (invalid scaling parameters) which ends in locking
+all the buffers of the pool.
+
+Change-Id: Ia95ef02f9d7f272007f003773fb78025769d1fa7
+Signed-off-by: Fabien Dessenne <fabien.dessenne@st.com>
+Reviewed-on: https://gerrit.st.com/63900
+Reviewed-by: Vincent ABRIOU <vincent.abriou@st.com>
+Tested-by: Vincent ABRIOU <vincent.abriou@st.com>
+---
+ libweston/compositor-st.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/libweston/compositor-st.c b/libweston/compositor-st.c
+index 2c1c829..29e37ea 100644
+--- a/libweston/compositor-st.c
++++ b/libweston/compositor-st.c
+@@ -929,6 +929,7 @@ drm_output_repaint(struct weston_output *output_base,
+ 		if (ret) {
+ 			weston_log("setplane failed: %d: %s\n",
+ 				ret, strerror(errno));
++			drm_output_release_fb(output, s->next);
+ 			s->output = NULL;
+ 			s->next = NULL;
+ 			s->vblank_pending = false;
+-- 
+1.9.1
+

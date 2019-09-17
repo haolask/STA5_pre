@@ -1,0 +1,39 @@
+From 46c565b904ad5de1afb5c10b294d36fd4efe4549 Mon Sep 17 00:00:00 2001
+From: Stephane Danieau <stephane.danieau@st.com>
+Date: Thu, 5 Jul 2018 16:44:45 +0200
+Subject: [PATCH] h264parse: early set src caps when input is avc
+
+    When input is in AVC format there is no need to wait for the first buffer
+    before setting src caps. We already have all the information from the
+    input codec_data.
+
+    This allow us to already configure downstream elements allowing them,
+    for example, to already allocate their internal buffers as they know
+    the format of the input they are about to receive.
+
+    https://bugzilla.gnome.org/show_bug.cgi?id=790709
+
+    Reviewed-on: https://gerrit.st.com/89280
+    Reviewed-by: CITOOLS <smet-aci-reviews@lists.codex.cro.st.com>
+    Reviewed-by: Stephane DANIEAU <stephane.danieau@st.com>
+    Tested-by: Stephane DANIEAU <stephane.danieau@st.com>
+
+diff --git a/gst/videoparsers/gsth264parse.c b/gst/videoparsers/gsth264parse.c
+index 8bb5158..db45cbf 100644
+--- a/gst/videoparsers/gsth264parse.c
++++ b/gst/videoparsers/gsth264parse.c
+@@ -2717,6 +2717,11 @@ gst_h264_parse_set_caps (GstBaseParse * parse, GstCaps * caps)
+     if (h264parse->align == GST_H264_PARSE_ALIGN_NAL)
+       h264parse->split_packetized = TRUE;
+     h264parse->packetized = TRUE;
++
++    if (format == GST_H264_PARSE_FORMAT_AVC)
++      /* We got all the caps infos from the codec_data so can already set the
++       * src caps. */
++      gst_h264_parse_update_src_caps (h264parse, caps);
+   }
+ 
+   h264parse->in_align = align;
+-- 
+1.9.1
+

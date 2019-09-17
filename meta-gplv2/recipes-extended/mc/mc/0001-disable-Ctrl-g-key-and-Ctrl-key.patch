@@ -1,0 +1,86 @@
+From 91a1068015a09232bacac9b86fc13b318860f44e Mon Sep 17 00:00:00 2001
+From: Hongxu Jia <hongxu.jia@windriver.com>
+Date: Fri, 18 Aug 2017 17:05:42 +0800
+Subject: [PATCH] disable Ctrl-g key and Ctrl-\ key
+
+Since ncurses upgraded to 6.0+20170715, it compile failed
+...
+| ../../../mc-4.7.5.2/lib/tty/tty-ncurses.c: In function 'tty_init':
+| ../../../mc-4.7.5.2/lib/tty/tty-ncurses.c:163:13: error:
+dereferencing pointer to incomplete type 'TERMINAL {aka struct term}'
+|      cur_term->Nttyb.c_cc[VINTR] = CTRL ('g');   /* ^g */
+...
+
+We could not backport fix from the latest master which introduce
+gplv3 contamination, but we could revert the following commits.
+...
+commit a20ebb38184e177f2ead8466f3ef1f131352aba7
+Author: Andrew Borodin <aborodin@vmail.ru>
+Date:   Wed Dec 23 16:18:25 2009 +0000
+
+    Ticket #1876: use Ctrl-g key to generate SIGINT signal.
+
+commit 56bf77ae57ba493126a2d1a1e0dd56eb947ccca1
+Author: Andrew Borodin <aborodin@vmail.ru>
+Date:   Sat Feb 6 13:07:35 2010 +0300
+
+    Ticket #1926: Ctrl-\ key behaviour in NCurses-based MC.
+...
+
+Upstream-Status: Inappropriate [gplv2 specific]
+https://github.com/MidnightCommander/mc.git
+
+Signed-off-by: Hongxu Jia <hongxu.jia@windriver.com>
+---
+ lib/tty/tty-ncurses.c  | 6 ------
+ lib/tty/tty-slang.c    | 4 ++--
+ src/keybind-defaults.c | 1 -
+ 3 files changed, 2 insertions(+), 9 deletions(-)
+
+diff --git a/lib/tty/tty-ncurses.c b/lib/tty/tty-ncurses.c
+index ab61891..6c614ac 100644
+--- a/lib/tty/tty-ncurses.c
++++ b/lib/tty/tty-ncurses.c
+@@ -159,12 +159,6 @@ tty_init (gboolean slow, gboolean ugly_lines)
+     ESCDELAY = 200;
+ #endif /* HAVE_ESCDELAY */
+ 
+-    /* use Ctrl-g to generate SIGINT */
+-    cur_term->Nttyb.c_cc[VINTR] = CTRL ('g');   /* ^g */
+-    /* disable SIGQUIT to allow use Ctrl-\ key */
+-    cur_term->Nttyb.c_cc[VQUIT] = NULL_VALUE;
+-    tcsetattr (cur_term->Filedes, TCSANOW, &cur_term->Nttyb);
+-
+     tty_start_interrupt_key ();
+ 
+     do_enter_ca_mode ();
+diff --git a/lib/tty/tty-slang.c b/lib/tty/tty-slang.c
+index f42fd4a..0e92c52 100644
+--- a/lib/tty/tty-slang.c
++++ b/lib/tty/tty-slang.c
+@@ -268,8 +268,8 @@ tty_init (gboolean slow, gboolean ugly_lines)
+ 
+     tcgetattr (fileno (stdin), &boot_mode);
+     /* 255 = ignore abort char; XCTRL('g') for abort char = ^g */
+-    SLang_init_tty (XCTRL ('g'), 1, 0);
+-
++    /* SLang_init_tty (XCTRL ('c'), 1, 0); */
++    SLang_init_tty (255, 1, 0);
+     if (ugly_lines)
+         SLtt_Has_Alt_Charset = 0;
+ 
+diff --git a/src/keybind-defaults.c b/src/keybind-defaults.c
+index 28e3613..075e6b6 100644
+--- a/src/keybind-defaults.c
++++ b/src/keybind-defaults.c
+@@ -368,7 +368,6 @@ const global_keymap_t default_dialog_keymap[] = {
+     {'\n', CK_DialogOK, "Enter"},
+     {KEY_ENTER, CK_DialogOK, "Enter"},
+     {ESC_CHAR, CK_DialogCancel, "Esc"},
+-    {XCTRL ('g'), CK_DialogCancel, "C-g"},
+     {KEY_F (10), CK_DialogCancel, "F10"},
+     {KEY_LEFT, CK_DialogPrevItem, "Left"},
+     {KEY_UP, CK_DialogPrevItem, "Up"},
+-- 
+1.8.3.1
+

@@ -1,0 +1,35 @@
+From c6170fa5ee26cf9d0f2140d998fba2420ad1ed79 Mon Sep 17 00:00:00 2001
+From: Nobuaki Sukegawa <nsukeg@gmail.com>
+Date: Sun, 30 Nov 2014 18:24:48 +0900
+Subject: [PATCH] Fix clang C++11 build
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+clang with "-std=c++11" does not allow implicit conversion from false
+to null pointer.
+Although clang with C++03 and gcc with C++03/11 treat it as warning,
+not error, the conversion was in fact invalid.
+
+Change-Id: I92629f9e313d0a00c4d39ce2e539ed140707ad5c
+Reviewed-by: Jędrzej Nowacki <jedrzej.nowacki@theqtcompany.com>
+---
+ src/3rdparty/javascriptcore/JavaScriptCore/yarr/RegexCompiler.cpp | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/3rdparty/javascriptcore/JavaScriptCore/yarr/RegexCompiler.cpp b/src/3rdparty/javascriptcore/JavaScriptCore/yarr/RegexCompiler.cpp
+index 9cd3d12..c37bf51 100644
+--- a/src/3rdparty/javascriptcore/JavaScriptCore/yarr/RegexCompiler.cpp
++++ b/src/3rdparty/javascriptcore/JavaScriptCore/yarr/RegexCompiler.cpp
+@@ -719,7 +719,7 @@ const char* compileRegex(const UString& patternString, RegexPattern& pattern)
+ 
+     constructor.setupOffsets();
+ 
+-    return false;
++    return NULL;
+ };
+ 
+ 
+-- 
+2.7.4
+

@@ -1,0 +1,69 @@
+From 6a16f79a884b9b94caf38aac242ab92a52f81e47 Mon Sep 17 00:00:00 2001
+From: Stephane Danieau <stephane.danieau@st.com>
+Date: Wed, 7 Mar 2018 11:46:05 +0100
+Subject: [PATCH 05/37] pixman-renderer: support SHM and DMABUF NV12 pixel
+ formats
+
+Pixman handles 32 bpp images, and needs a stride multiple of 4.
+Align the DMABUF stride according to this constraint, so pixman accepts
+to use a DMABUF NV12 format image.
+
+Change-Id: I73d92b1bdf3672acb2cf790353a528c4a94f9486
+Signed-off-by: Fabien Dessenne <fabien.dessenne@st.com>
+Signed-off-by: Vincent Abriou <vincent.abriou@st.com>
+---
+ libweston/pixman-renderer.c | 13 ++++++++++++-
+ 1 file changed, 12 insertions(+), 1 deletion(-)
+
+diff --git a/libweston/pixman-renderer.c b/libweston/pixman-renderer.c
+index 7dc3b58..76484bd 100644
+--- a/libweston/pixman-renderer.c
++++ b/libweston/pixman-renderer.c
+@@ -639,6 +639,9 @@ pixman_renderer_attach(struct weston_surface *es, struct weston_buffer *buffer)
+ 		case WL_SHM_FORMAT_RGB565:
+ 			pixman_format = PIXMAN_r5g6b5;
+ 			break;
++		case WL_SHM_FORMAT_NV12:
++			pixman_format = PIXMAN_nv12;
++			break;
+ 		default:
+ 			weston_log("Unsupported SHM buffer format\n");
+ 			weston_buffer_reference(&ps->buffer_ref, NULL);
+@@ -668,6 +671,9 @@ pixman_renderer_attach(struct weston_surface *es, struct weston_buffer *buffer)
+ 		case DRM_FORMAT_RGB565:
+ 			pixman_format = PIXMAN_r5g6b5;
+ 			break;
++		case DRM_FORMAT_NV12:
++			pixman_format = PIXMAN_nv12;
++			break;
+ 		default:
+ 			weston_log("Unsupported DMABUF buffer format\n");
+ 			weston_buffer_reference(&ps->buffer_ref, NULL);
+@@ -680,11 +686,15 @@ pixman_renderer_attach(struct weston_surface *es, struct weston_buffer *buffer)
+ 
+ 		data = linux_dmabuf_buffer_get_user_data(dmabuf_buffer);
+ 		if (data) {
++			int stride = dmabuf_buffer->attributes.stride[0];
++			/* workaround for pixman handling only 32 bits format */
++			if (stride & 3)
++				stride = (stride & ~3) + 4;
+ 			ps->image = pixman_image_create_bits(pixman_format,
+ 												 buffer->width,
+ 												 buffer->height,
+ 												 data,
+-												 dmabuf_buffer->attributes.stride[0]);
++												 stride);
+ 		} else
+ 			weston_log("failed to get data from dmabuf buffer\n");
+ 	}
+@@ -976,6 +986,7 @@ pixman_renderer_init(struct weston_compositor *ec)
+ 						    debug_binding, ec);
+ 
+ 	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_RGB565);
++	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_NV12);
+ 
+ 	wl_signal_init(&renderer->destroy_signal);
+ 
+-- 
+1.9.1
+

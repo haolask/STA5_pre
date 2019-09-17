@@ -1,0 +1,32 @@
+From ec372c9add88fc48e6e5ca78fd74c7acf66a0210 Mon Sep 17 00:00:00 2001
+From: Christophe Priouzeau <christophe.priouzeau@linaro.org>
+Date: Wed, 6 Apr 2016 15:27:29 +0200
+Subject: [PATCH 1/7] STM: playbin: force the default_flag value
+
+When you use a colorconverter on hardware, we need to force the
+behaviour of playbin.
+
+Change-Id: Ia19fedd02543c4616c75143157cf316be8189f8d
+
+diff --git a/gst/playback/gstplaybin2.c b/gst/playback/gstplaybin2.c
+index 04eeb2b..f81b584 100644
+--- a/gst/playback/gstplaybin2.c
++++ b/gst/playback/gstplaybin2.c
+@@ -499,9 +499,14 @@ struct _GstPlayBinClass
+ #define DEFAULT_URI               NULL
+ #define DEFAULT_SUBURI            NULL
+ #define DEFAULT_SOURCE            NULL
++
++#ifndef GST_PLAYBIN_DEFAULT_FLAGS
+ #define DEFAULT_FLAGS             GST_PLAY_FLAG_AUDIO | GST_PLAY_FLAG_VIDEO | GST_PLAY_FLAG_TEXT | \
+                                   GST_PLAY_FLAG_SOFT_VOLUME | GST_PLAY_FLAG_DEINTERLACE | \
+                                   GST_PLAY_FLAG_SOFT_COLORBALANCE
++#else
++#define DEFAULT_FLAGS           GST_PLAYBIN_DEFAULT_FLAGS
++#endif
+ #define DEFAULT_N_VIDEO           0
+ #define DEFAULT_CURRENT_VIDEO     -1
+ #define DEFAULT_N_AUDIO           0
+-- 
+2.7.4
+

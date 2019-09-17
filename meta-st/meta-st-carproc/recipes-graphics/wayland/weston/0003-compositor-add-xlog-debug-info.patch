@@ -1,0 +1,46 @@
+From cddcd08431c7987730d6a2c92a04c35700990ba9 Mon Sep 17 00:00:00 2001
+From: Stephane Danieau <stephane.danieau@st.com>
+Date: Wed, 7 Mar 2018 11:43:13 +0100
+Subject: [PATCH 03/37] compositor: add xlog debug info
+
+Change-Id: Ie21b4bde623a4c6c27efab9d3c7d4172902a9b7a
+Signed-off-by: Fabien Dessenne <fabien.dessenne@st.com>
+---
+ libweston/compositor.c | 2 ++
+ libweston/compositor.h | 7 +++++++
+ 2 files changed, 9 insertions(+)
+
+diff --git a/libweston/compositor.c b/libweston/compositor.c
+index 9ded23f..a78de52 100644
+--- a/libweston/compositor.c
++++ b/libweston/compositor.c
+@@ -2578,6 +2578,8 @@ surface_attach(struct wl_client *client,
+ 		}
+ 	}
+ 
++	weston_xlog("surface_attach surf=%p  wl_buf=%p\n", surface, buffer);
++
+ 	/* Attach, attach, without commit in between does not send
+ 	 * wl_buffer.release. */
+ 	weston_surface_state_set_buffer(&surface->pending, buffer);
+diff --git a/libweston/compositor.h b/libweston/compositor.h
+index 08e728a..e8acd2c 100644
+--- a/libweston/compositor.h
++++ b/libweston/compositor.h
+@@ -45,6 +45,13 @@ extern "C" {
+ #include "zalloc.h"
+ #include "timeline-object.h"
+ 
++//#define DEBUG_VERBOSE
++#ifdef DEBUG_VERBOSE
++#define weston_xlog(...) weston_log(__VA_ARGS__)
++#else
++#define weston_xlog(...) ((void)0)
++#endif
++
+ struct weston_geometry {
+ 	int32_t x, y;
+ 	int32_t width, height;
+-- 
+1.9.1
+

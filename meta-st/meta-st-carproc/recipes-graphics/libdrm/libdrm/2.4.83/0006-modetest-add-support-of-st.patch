@@ -1,0 +1,22 @@
+From 5bd271f7c7da37046c78b416b40419e6c7af8b9e Mon Sep 17 00:00:00 2001
+From: Stephane Danieau <stephane.danieau@st.com>
+Date: Wed, 7 Mar 2018 10:46:10 +0100
+Subject: [PATCH 6/6] modetest: add support of st
+
+Signed-off-by: Stephane Danieau <stephane.danieau@st.com>
+
+diff --git a/tests/util/kms.c b/tests/util/kms.c
+index 028cc8d..c29de7e 100644
+--- a/tests/util/kms.c
++++ b/tests/util/kms.c
+@@ -128,6 +128,7 @@ const char *util_lookup_connector_type_name(unsigned int type)
+ }
+ 
+ static const char * const modules[] = {
++	"st",
+ 	"i915",
+ 	"amdgpu",
+ 	"radeon",
+-- 
+2.7.4
+

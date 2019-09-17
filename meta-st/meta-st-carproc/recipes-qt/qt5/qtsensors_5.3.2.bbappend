@@ -1,0 +1,1 @@
+INSANE_SKIP_${PN}-examples-dev += "libdir dev-elf"

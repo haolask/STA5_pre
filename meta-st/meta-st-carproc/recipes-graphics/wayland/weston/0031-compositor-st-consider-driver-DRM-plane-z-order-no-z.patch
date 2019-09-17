@@ -1,0 +1,84 @@
+From 07c0698e4ca4d8fa286a2b483d8a5a5f6536eb84 Mon Sep 17 00:00:00 2001
+From: Stephane Danieau <stephane.danieau@st.com>
+Date: Wed, 7 Mar 2018 17:06:59 +0100
+Subject: [PATCH 31/37] compositor-st: consider driver DRM plane z-order (no
+ zpos property)
+
+drm_backend->sprite_list is built according to the driver DRM plane list
+If the DRM driver does not provide with any "zpos" property for the
+planes, then we shall consider that the plane list is z-ordered.
+Hence, when assigning views to sprites, take this under consideration
+
+Change-Id: I7f6c9b588cfa873460c083d777a6663e0622509f
+Signed-off-by: Fabien Dessenne <fabien.dessenne@st.com>
+Reviewed-on: https://gerrit.st.com/65089
+Reviewed-by: Vincent ABRIOU <vincent.abriou@st.com>
+Tested-by: Vincent ABRIOU <vincent.abriou@st.com>
+---
+ libweston/compositor-st.c | 22 +++++++++++++++++++---
+ 1 file changed, 19 insertions(+), 3 deletions(-)
+
+diff --git a/libweston/compositor-st.c b/libweston/compositor-st.c
+index 0550bae..e7780c4 100644
+--- a/libweston/compositor-st.c
++++ b/libweston/compositor-st.c
+@@ -116,6 +116,7 @@ struct drm_backend {
+ 	struct wl_list sprite_list;
+ 	int sprites_are_broken;
+ 	int sprites_hidden;
++	int has_plane_zpos;
+ 
+ 	int cursors_are_broken[2]; /* per output */
+ 
+@@ -919,7 +920,8 @@ drm_output_repaint(struct weston_output *output_base,
+ 		weston_xlog(" refresh the sprite=%p crtc_id=%d plane_id=%d possible_crtcs=%d fb_id=%d\n",
+ 				s, output->crtc_id, s->plane_id, s->possible_crtcs, fb_id);
+ 
+-		drmModeObjectSetProperty (backend->drm.fd, s->plane_id, DRM_MODE_OBJECT_PLANE, s->zpos_prop_id, s->zorder);
++		if (backend->has_plane_zpos)
++			drmModeObjectSetProperty (backend->drm.fd, s->plane_id, DRM_MODE_OBJECT_PLANE, s->zpos_prop_id, s->zorder);
+ 		ret = drmModeSetPlane(backend->drm.fd, s->plane_id,
+ 				      output->crtc_id, fb_id, flags,
+ 				      s->dest_x, s->dest_y,
+@@ -1194,7 +1196,7 @@ drm_output_prepare_overlay_view(struct drm_output *output,
+ 	struct drm_backend *b = to_drm_backend(ec);
+ 	struct weston_buffer_viewport *viewport = &ev->surface->buffer_viewport;
+ 	struct wl_resource *buffer_resource;
+-	struct drm_sprite *s;
++	struct drm_sprite *s, *s_head;
+ 	struct linux_dmabuf_buffer *dmabuf = NULL;
+ 	int found = 0, format_ok;
+ 	struct gbm_bo *bo = NULL;
+@@ -1269,7 +1271,20 @@ drm_output_prepare_overlay_view(struct drm_output *output,
+ 		}
+ 	}
+ 
+-	wl_list_for_each(s, &b->sprite_list, link) {
++	if (b->has_plane_zpos) {
++		/* Parse b->sprite_list from its head */
++		s_head = wl_container_of(&b->sprite_list, s_head, link);
++	} else {
++		/* Parse b->sprite_list from the last used sprite */
++		wl_list_for_each_reverse(s_head, &b->sprite_list, link)
++			if (s_head->next)
++				break;
++	}
++
++	/* Parse b->sprite_list from valid start */
++	for (s = wl_container_of(s_head->link.next, s, link);
++	     &s->link != &b->sprite_list;
++	     s = wl_container_of(s->link.next, s, link)) {
+ 		if (!drm_sprite_crtc_supported(output, s))
+ 			continue;
+ 
+@@ -3010,6 +3025,7 @@ create_sprites(struct drm_backend *b)
+ 			if (j < properties->count_props) {
+ 				sprite->zpos_prop_id = property->prop_id;
+ 				drmModeFreeProperty (property);
++				b->has_plane_zpos = 1;
+ 			} else {
+ 				weston_log("ERROR : failed to get zorder property id\n");
+ 			}
+-- 
+1.9.1
+

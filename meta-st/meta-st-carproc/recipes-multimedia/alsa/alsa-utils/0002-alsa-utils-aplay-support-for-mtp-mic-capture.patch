@@ -1,0 +1,598 @@
+From 943a1c40ab2b022facb799e5445a747889035808 Mon Sep 17 00:00:00 2001
+From: Baptiste Chauloux <baptiste.chauloux@st.com>
+Date: Wed, 28 Mar 2018 14:41:12 +0200
+Subject: [PATCH] alsa-utils : aplay : support for mtp mic capture
+
+Ported to Rocko alsa-utils version
+
+Signed-off-by: Shija PS <shija.ps@st.com>
+Signed-off-by: Baptiste Chauloux <baptiste.chauloux@st.com>
+---
+ aplay/Makefile.am     |   3 +-
+ aplay/OpenPDMFilter.c | 334 ++++++++++++++++++++++++++++++++++++++++++++++++++
+ aplay/OpenPDMFilter.h |  74 +++++++++++
+ aplay/aplay.c         |  52 ++++++--
+ 4 files changed, 455 insertions(+), 8 deletions(-)
+ create mode 100644 aplay/OpenPDMFilter.c
+ create mode 100644 aplay/OpenPDMFilter.h
+
+diff --git a/aplay/Makefile.am b/aplay/Makefile.am
+index c3256e9..9736add 100644
+--- a/aplay/Makefile.am
++++ b/aplay/Makefile.am
+@@ -9,7 +9,8 @@ LDADD = $(LIBINTL) $(LIBRT)
+
+ bin_PROGRAMS = aplay
+ man_MANS = aplay.1 arecord.1
+-noinst_HEADERS = formats.h
++noinst_HEADERS = formats.h OpenPDMFilter.h
++aplay_SOURCES = aplay.c OpenPDMFilter.c
+
+ EXTRA_DIST = aplay.1 arecord.1
+ EXTRA_CLEAN = arecord
+diff --git a/aplay/OpenPDMFilter.c b/aplay/OpenPDMFilter.c
+new file mode 100644
+index 0000000..4f6b926
+--- /dev/null
++++ b/aplay/OpenPDMFilter.c
+@@ -0,0 +1,334 @@
++/**
++******************************************************************************
++* @file    OpenPDMFilter.h
++* @author  CL
++* @version V1.0.0
++* @date    9-September-2015
++* @brief   Open PDM audio software decoding Library.
++*          This Library is used to decode and reconstruct the audio signal
++*          produced by ST MEMS microphone (MP45Dxxx, MP34Dxxx).
++******************************************************************************
++* @attention
++*
++* <h2><center>&copy; COPYRIGHT 2013 STMicroelectronics</center></h2>
++*
++* Licensed under MCD-ST Image SW License Agreement V2, (the "License");
++* You may not use this file except in compliance with the License.
++* You may obtain a copy of the License at:
++*
++*        http://www.st.com/software_license_agreement_image_v2
++*
++* Unless required by applicable law or agreed to in writing, software
++* distributed under the License is distributed on an "AS IS" BASIS,
++* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++* See the License for the specific language governing permissions and
++* limitations under the License.
++*
++******************************************************************************
++*/
++
++/* Includes ------------------------------------------------------------------*/
++#include "OpenPDMFilter.h"
++
++#define maxDecFactor 128
++#define maxVol 64
++#define FilterGain 16;
++
++#define RoundDiv(a, b) (((a)>0)?(((a)+(b)/2)/(b)):(((a)-(b)/2)/(b)))
++#define SaturaLH(N, L, H) (((N)<(L))?(L):(((N)>(H))?(H):(N)))
++
++/* Private var */
++uint32_t coef[5][maxDecFactor]; // Max sinc 5 with decimation 128
++uint32_t DivideConst = 0;
++int64_t SubConst = 0;
++
++uint32_t sinc1[maxDecFactor];
++uint32_t sinc2[maxDecFactor*2];
++uint32_t sinc3[maxDecFactor*3];
++uint32_t sinc4[maxDecFactor*4];
++uint32_t sinc[maxDecFactor*5];
++
++
++//uint16_t PDM_Buffer[AUDIO_CHANNELS*AUDIO_SAMPLING_FREQUENCY/1000*DECIMATION/8];
++//static uint16_t PCM_Buffer[AUDIO_CHANNELS*AUDIO_SAMPLING_FREQUENCY/1000];
++
++static TPDMFilter Filter_OpenPDM[AUDIO_CHANNELS];
++/* Private functions */
++int64_t filterTable(uint8_t *data, uint8_t table, TPDMFilter *Param);
++void convolve(uint32_t Signal[/* SignalLen */], unsigned short SignalLen,
++uint32_t Kernel[/* KernelLen */], unsigned short KernelLen,
++uint32_t Result[/* SignalLen + KernelLen - 1 */]);
++
++
++int64_t filterTable(uint8_t *data, uint8_t table, TPDMFilter *Param)
++{
++    uint16_t contatore = 0;
++    int64_t F = 0;
++    uint8_t c;
++    uint8_t i;
++    uint16_t internalBit = Param->bit[table];
++    uint16_t In_Mic = Param->In_MicChannels;
++    c = data[0];
++    for(i=0; i<Param->Decimation;i++)
++    {
++        if (c & (1<<((7-internalBit))))
++            F += coef[table][i];
++        internalBit++;
++        if(internalBit==8)
++        {
++            contatore+=In_Mic;
++            internalBit = 0;
++            c = data[contatore];
++        }
++    }
++    Param->bit[table] = internalBit;
++    Param->byte = contatore;
++    return F;
++}
++
++
++
++
++void OpenPDM_Filter_Init(TPDMFilter *Param)
++{
++    uint16_t i,j;
++    int64_t sum = 0;
++    Param->Coef[0] = Param->Coef[1] = Param->Coef[2] = Param->Coef[3] = Param->Coef[4] = 0;
++    for(i=0;i<5;i++)
++    {
++        Param->bit[i]=0;
++    }
++
++    for(i=0;i<Param->Decimation;i++)
++    {
++        sinc1[i]=1;
++    }
++    Param->OldOut = Param->OldIn = Param->OldZ = 0;
++    if(Param->LP_HZ!=0)
++    {
++        Param->LP_ALFA = (uint16_t)(Param->LP_HZ*256 / (Param->LP_HZ +  Param->Fs/(2*3.14)));
++    }else
++    {
++        Param->LP_ALFA = 0;
++    }
++
++    if(Param->HP_HZ!=0)
++    {
++        Param->HP_ALFA = (uint16_t)(Param->Fs*256 / (2*3.14*Param->HP_HZ +  Param->Fs));
++    }else
++    {
++        Param->HP_ALFA = 0;
++    }
++
++    switch(Param->SincN)
++    {
++    case 1:
++        Param->FilterLen = Param->Decimation;
++
++        for(i=0;i<Param->Decimation;i++)
++        {
++            coef[0][i]=1;
++            sum+= 1;
++        }
++        break;
++    case 2:
++        Param->FilterLen = Param->Decimation * 2;
++
++        sinc[0] = 0;
++
++        convolve(sinc1, Param->Decimation,sinc1,Param->Decimation,&sinc[1]);
++
++        for(j=0;j<2;j++)
++        {
++            for(i=0;i<Param->Decimation;i++)
++            {
++                coef[j][i] = sinc[j*Param->Decimation+i];
++                sum+= sinc[j*Param->Decimation+i];
++            }
++        }
++
++        break;
++    case 3:
++        Param->FilterLen = Param->Decimation * 3;
++        sinc[0] = 0;
++        sinc[Param->Decimation*3-1] = 0;
++        convolve(sinc1, Param->Decimation,sinc1,Param->Decimation,sinc2);
++        convolve(sinc2, Param->Decimation*2-1,sinc1,Param->Decimation,&sinc[1]);
++        for(j=0;j<3;j++)
++        {
++            for(i=0;i<Param->Decimation;i++)
++            {
++                coef[j][i] = sinc[j*Param->Decimation+i];
++                sum+= sinc[j*Param->Decimation+i];
++            }
++        }
++        break;
++    case 4:
++        Param->FilterLen =  Param->Decimation * 4;
++        sinc[0] = 0;
++        sinc[1] = 0;
++        sinc[Param->Decimation*4-1] = 0;
++        convolve(sinc1, Param->Decimation,sinc1,Param->Decimation,sinc2);
++        convolve(sinc2, Param->Decimation*2-1,sinc1,Param->Decimation,sinc3);
++        convolve(sinc3, Param->Decimation*3-2,sinc1,Param->Decimation,&sinc[2]);
++        for(j=0;j<4;j++)
++        {
++            for(i=0;i<Param->Decimation;i++)
++            {
++                coef[j][i] = sinc[j*Param->Decimation+i];
++                sum+= sinc[j*Param->Decimation+i];
++            }
++        }
++
++        break;
++    case 5:
++        Param->FilterLen = Param->Decimation*5;  // Dec * 5 - 2
++        sinc[0] = 0;
++        sinc[1] = 0;
++        sinc[Param->Decimation*5-2] = 0;
++        sinc[Param->Decimation*5-1] = 0;
++
++        convolve(sinc1, Param->Decimation,sinc1,Param->Decimation,sinc2);
++        convolve(sinc2, Param->Decimation*2-1,sinc1,Param->Decimation,sinc3);
++        convolve(sinc3, Param->Decimation*3-2,sinc1,Param->Decimation,sinc4);
++        convolve(sinc4, Param->Decimation*4-3,sinc1,Param->Decimation,&sinc[2]);
++
++        for(j=0;j<5;j++)
++        {
++            for(i=0;i<Param->Decimation;i++)
++            {
++                coef[j][i] = sinc[j*Param->Decimation+i];
++                sum+= sinc[j*Param->Decimation+i];
++            }
++        }
++        break;
++    }
++    SubConst = sum  / 2;
++    DivideConst = SubConst*maxVol/32768/FilterGain;
++    if(DivideConst == 0 ) DivideConst = 1;
++}
++
++void convolve(uint32_t Signal[/* SignalLen */], unsigned short SignalLen,
++uint32_t Kernel[/* KernelLen */], unsigned short KernelLen,
++uint32_t Result[/* SignalLen + KernelLen - 1 */])
++{
++    uint16_t n;
++    for (n = 0; n < SignalLen + KernelLen - 1; n++)
++    {
++        unsigned short kmin, kmax, k;
++
++        Result[n] = 0;
++
++        kmin = (n >= KernelLen - 1) ? n - (KernelLen - 1) : 0;
++        kmax = (n < SignalLen - 1) ? n : SignalLen - 1;
++
++        for (k = kmin; k <= kmax; k++)
++        {
++            Result[n] += Signal[k] * Kernel[n - k];
++        }
++    }
++}
++
++int64_t Z = 0;
++uint16_t app;
++void OpenPDM_Filter(uint8_t* data, uint16_t* dataOut, uint16_t MicGain, TPDMFilter *Param)
++{
++    uint32_t i;
++    int64_t OldOut, OldIn, OldZ;
++    OldOut=Param->OldOut;
++    OldIn=Param->OldIn;
++    OldZ=Param->OldZ;
++    for (i = 0; i < Param->Fs/1000; i++)
++    {
++        switch(Param->SincN)
++        {
++        case 1:
++            Z = filterTable(data,0, Param);
++            break;
++        case 2:
++            Z = Param->Coef[0] + filterTable(data,1, Param);
++            Param->Coef[0] = filterTable(data,0, Param);
++            break;
++        case 3:
++            Z = Param->Coef[1] + filterTable(data,2, Param);
++            Param->Coef[1] = Param->Coef[0] + filterTable(data,1, Param);
++            Param->Coef[0] = filterTable(data,0, Param);
++            break;
++        case 4:
++            Z = Param->Coef[2] + filterTable(data,3, Param);
++            Param->Coef[2] = Param->Coef[1] + filterTable(data,2, Param);
++            Param->Coef[1] = Param->Coef[0] + filterTable(data,1, Param);
++            Param->Coef[0] = filterTable(data,0, Param);
++            break;
++        case 5:
++            Z = Param->Coef[3] + filterTable(data,4, Param);
++            Param->Coef[3] = Param->Coef[2] + filterTable(data,3, Param);
++            Param->Coef[2] = Param->Coef[1] + filterTable(data,2, Param);
++            Param->Coef[1] = Param->Coef[0] + filterTable(data,1, Param);
++            Param->Coef[0] = filterTable(data,0, Param);
++            break;
++        }
++
++        Z-=SubConst;
++
++        if(Param->HP_ALFA!= 0)
++        {
++            OldOut = (Param->HP_ALFA * (OldOut + Z - OldIn))/256;
++            OldIn=Z;
++            Z=OldOut;
++        }
++
++        if(Param->LP_ALFA != 0)
++        {
++            OldZ = ((256-Param->LP_ALFA)*OldZ+Param->LP_ALFA*Z)/256;
++            Z = OldZ;
++        }
++
++        //                if(Param->SincN>=3){
++        //                  Z = RoundDiv(Z, DivideConst);
++        //                  Z *= MicGain;
++        //                }else{
++        Z *= MicGain;
++        Z = RoundDiv(Z, DivideConst);
++        //                }
++        Z = SaturaLH(Z, -32700, 32700); // saturation
++        dataOut[i*Param->Out_MicChannels] = Z ;
++        //                data+=(Param->Decimation-app)/8 * Param->In_MicChannels;
++        data+=Param->byte;
++        //		data+=Param->Decimation/8*Param->In_MicChannels;
++    }
++    Param->OldOut=OldOut;
++    Param->OldIn=OldIn;
++    Param->OldZ=OldZ;
++}
++void OpenPDM_Filter_Main_Init(void)
++{
++	int i;
++	unsigned int AudioFreq = AUDIO_SAMPLING_FREQUENCY;
++	for(i=0;i<AUDIO_CHANNELS;i++)
++	{
++			Filter_OpenPDM[i].LP_HZ = AudioFreq / 2;
++			Filter_OpenPDM[i].HP_HZ = 10;
++			Filter_OpenPDM[i].Fs = AudioFreq;
++			Filter_OpenPDM[i].Out_MicChannels = AUDIO_CHANNELS;
++			Filter_OpenPDM[i].In_MicChannels = AUDIO_CHANNELS;
++			Filter_OpenPDM[i].Decimation = DECIMATION;
++			Filter_OpenPDM[i].SincN = 5;
++
++			OpenPDM_Filter_Init((TPDMFilter *)&Filter_OpenPDM[i]);
++	}
++
++}
++void OpenPDM_Filter_Transfer(uint16_t* dataIn,uint16_t* dataOut)
++{
++	int i;
++	uint16_t AudioInVolume = 16;	/* min 1 to max 64 */
++	uint16_t n_bytes_1_ms = (DECIMATION * AUDIO_SAMPLING_FREQUENCY)/8000;
++
++   for(i=0;i<n_bytes_1_ms/2;i++)
++   	{
++		dataIn[i] = HTONS(dataIn[i]);
++	}
++
++	OpenPDM_Filter((uint8_t*)dataIn,(uint16_t*)dataOut, AudioInVolume, (TPDMFilter *) &Filter_OpenPDM[0]);
++}
+diff --git a/aplay/OpenPDMFilter.h b/aplay/OpenPDMFilter.h
+new file mode 100644
+index 0000000..70aa7c4
+--- /dev/null
++++ b/aplay/OpenPDMFilter.h
+@@ -0,0 +1,74 @@
++/**
++  ******************************************************************************
++  * @file    OpenPDMFilter.h
++  * @author  CL
++  * @version V1.0.0
++  * @date    9-September-2015
++  * @brief   Header file for Open PDM audio software decoding Library.
++  *          This Library is used to decode and reconstruct the audio signal
++  *          produced by ST MEMS microphone (MP45Dxxx, MP34Dxxx).
++ ******************************************************************************
++  * @attention
++  *
++  * <h2><center>&copy; COPYRIGHT 2013 STMicroelectronics</center></h2>
++  *
++  * Licensed under MCD-ST Image SW License Agreement V2, (the "License");
++  * You may not use this file except in compliance with the License.
++  * You may obtain a copy of the License at:
++  *
++  *        http://www.st.com/software_license_agreement_image_v2
++  *
++  * Unless required by applicable law or agreed to in writing, software
++  * distributed under the License is distributed on an "AS IS" BASIS,
++  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++  * See the License for the specific language governing permissions and
++  * limitations under the License.
++  *
++  ******************************************************************************
++  */
++
++/* Define to prevent recursive inclusion -------------------------------------*/
++#ifndef __OPENPDMFILTER_H
++#define __OPENPDMFILTER_H
++
++#include <stdint.h>
++#include <stdio.h>
++#include <unistd.h>
++
++#define HTONS(A)  ((((uint16_t)(A) & 0xff00) >> 8) | \
++                  (((uint16_t)(A) & 0x00ff) << 8))
++
++typedef struct {
++  /* Public */
++  uint16_t Fs;
++  float LP_HZ;
++  float HP_HZ;
++  uint16_t In_MicChannels;
++  uint16_t Out_MicChannels;
++  uint16_t Decimation;
++  uint16_t SincN;
++  /* Private */
++  uint32_t Coef[5];
++  uint16_t FilterLen;
++  int64_t OldOut, OldIn, OldZ;
++  uint16_t LP_ALFA;
++  uint16_t HP_ALFA;
++  uint16_t bit[5];
++  uint16_t byte;
++
++} TPDMFilter;
++
++#define AUDIO_CHANNELS 					1
++#define AUDIO_SAMPLING_FREQUENCY 		44100
++#define DECIMATION 64
++
++/* Exported define -----------------------------------------------------------*/
++/* Exported functions ------------------------------------------------------- */
++void OpenPDM_Filter_Init(TPDMFilter *Param);
++void OpenPDM_Filter(uint8_t* data, uint16_t* dataOut, uint16_t MicGain, TPDMFilter *Param);
++void OpenPDM_Filter_Main_Init(void);
++void OpenPDM_Filter_Transfer(uint16_t* dataIn,uint16_t* dataOut);
++
++#endif // __OPENPDMFILTER_H
++
++/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
+diff --git a/aplay/aplay.c b/aplay/aplay.c
+index f793c82..9b77078 100644
+--- a/aplay/aplay.c
++++ b/aplay/aplay.c
+@@ -53,6 +53,7 @@
+ #include "gettext.h"
+ #include "formats.h"
+ #include "version.h"
++#include "OpenPDMFilter.h"
+ 
+ #ifdef SND_CHMAP_API_VERSION
+ #define CONFIG_SUPPORT_CHMAP	1
+@@ -150,6 +151,9 @@ static snd_pcm_chmap_t *channel_map = NULL; /* chmap to override */
+ static unsigned int *hw_map = NULL; /* chmap to follow */
+ #endif
+ 
++static u_char *pcmbuf = NULL;
++static int mic_mode = 0;
++
+ /* needed prototypes */
+ 
+ static void done_stdin(void);
+@@ -227,6 +231,7 @@ _("Usage: %s [OPTION]... [FILE]...\n"
+ "-I, --separate-channels one file for each channel\n"
+ "-i, --interactive       allow interactive operation from stdin\n"
+ "-m, --chmap=ch1,ch2,..  Give the channel map to override or follow\n"
++"-s, --mtp-mic           allow to capture audio via mtp mic\n"
+ "    --disable-resample  disable automatic rate resample\n"
+ "    --disable-channels  disable automatic channel conversions\n"
+ "    --disable-format    disable automatic format conversions\n"
+@@ -467,7 +472,7 @@ static long parse_long(const char *str, int *err)
+ int main(int argc, char *argv[])
+ {
+ 	int option_index;
+-	static const char short_options[] = "hnlLD:qt:c:f:r:d:MNF:A:R:T:B:vV:IPCi"
++	static const char short_options[] = "hnlLD:qt:c:f:r:d:MNF:A:R:T:B:vV:IPCis"
+ #ifdef CONFIG_SUPPORT_CHMAP
+ 		"m:"
+ #endif
+@@ -515,6 +520,7 @@ int main(int argc, char *argv[])
+ #ifdef CONFIG_SUPPORT_CHMAP
+ 		{"chmap", 1, 0, 'm'},
+ #endif
++		{"mtp-mic", 0, 0, 's'},
+ 		{0, 0, 0, 0}
+ 	};
+ 	char *pcm_name = "default";
+@@ -787,6 +793,9 @@ int main(int argc, char *argv[])
+ 			}
+ 			break;
+ #endif
++		case 's':
++			mic_mode=1;
++			break;
+ 		default:
+ 			fprintf(stderr, _("Try `%s --help' for more information.\n"), command);
+ 			return 1;
+@@ -885,6 +894,8 @@ int main(int argc, char *argv[])
+ 	snd_pcm_close(handle);
+ 	handle = NULL;
+ 	free(audiobuf);
++	if(mic_mode==1 && pcmbuf !=NULL)
++		free(pcmbuf);
+       __end:
+ 	snd_output_close(log);
+ 	snd_config_update_free_global();
+@@ -2571,6 +2582,8 @@ static void begin_wave(int fd, size_t cnt)
+ 		error(_("Wave doesn't support %s format..."), snd_pcm_format_name(hwparams.format));
+ 		prg_exit(EXIT_FAILURE);
+ 	}
++	if(mic_mode == 1)
++		bits = 16;
+ 	h.magic = WAV_RIFF;
+ 	tmp = cnt + sizeof(WaveHeader) + sizeof(WaveChunkHeader) + sizeof(WaveFmtBody) + sizeof(WaveChunkHeader) - 8;
+ 	h.length = LE_INT(tmp);
+@@ -2583,14 +2596,20 @@ static void begin_wave(int fd, size_t cnt)
+                 f.format = LE_SHORT(WAV_FMT_IEEE_FLOAT);
+         else
+                 f.format = LE_SHORT(WAV_FMT_PCM);
+-	f.channels = LE_SHORT(hwparams.channels);
++	if(mic_mode == 1)
++		f.channels = LE_SHORT(1);
++	else
++		f.channels = LE_SHORT(hwparams.channels);
+ 	f.sample_fq = LE_INT(hwparams.rate);
+ #if 0
+ 	tmp2 = (samplesize == 8) ? 1 : 2;
+ 	f.byte_p_spl = LE_SHORT(tmp2);
+ 	tmp = dsp_speed * hwparams.channels * (u_int) tmp2;
+ #else
+-	tmp2 = hwparams.channels * snd_pcm_format_physical_width(hwparams.format) / 8;
++	if(mic_mode == 1)
++		tmp2 = 1 * snd_pcm_format_physical_width(hwparams.format) / 8;
++	else
++		tmp2 = hwparams.channels * snd_pcm_format_physical_width(hwparams.format) / 8;
+ 	f.byte_p_spl = LE_SHORT(tmp2);
+ 	tmp = (u_int) tmp2 * hwparams.rate;
+ #endif
+@@ -3044,6 +3063,11 @@ static void capture(char *orig_name)
+ 	set_params();
+ 
+ 	/* write to stdout? */
++	if(mic_mode==1) {
++		OpenPDM_Filter_Main_Init();
++		pcmbuf = malloc(AUDIO_CHANNELS*AUDIO_SAMPLING_FREQUENCY*2/1000);
++	}
++	/* write to stdout? */
+ 	if (!name || !strcmp(name, "-")) {
+ 		fd = fileno(stdout);
+ 		name = "stdout";
+@@ -3093,14 +3117,28 @@ static void capture(char *orig_name)
+ 			size_t c = (rest <= (off64_t)chunk_bytes) ?
+ 				(size_t)rest : chunk_bytes;
+ 			size_t f = c * 8 / bits_per_frame;
++			if(mic_mode==1){
++				c =AUDIO_CHANNELS*AUDIO_SAMPLING_FREQUENCY*2/1000;
++				f = (AUDIO_CHANNELS*AUDIO_SAMPLING_FREQUENCY*DECIMATION/8000)/8;
++			}
+ 			if (pcm_read(audiobuf, f) != f) {
+ 				in_aborting = 1;
+ 				break;
+ 			}
+-			if (xwrite(fd, audiobuf, c) != c) {
+-				perror(name);
+-				in_aborting = 1;
+-				break;
++			if(mic_mode==1){
++				OpenPDM_Filter_Transfer((uint16_t*)audiobuf,(uint16_t*)pcmbuf);
++				if (xwrite(fd, pcmbuf, c) != c) {
++					perror(name);
++					in_aborting = 1;
++					break;
++				}
++			}
++			else{
++				if (xwrite(fd, audiobuf, c) != c) {
++					perror(name);
++					in_aborting = 1;
++					break;
++				}
+ 			}
+ 			count -= c;
+ 			rest -= c;
+-- 
+2.7.4
+

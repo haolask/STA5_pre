@@ -1,0 +1,32 @@
+From cf9f3624eb839629db6f4f069d6a62435fe9c91c Mon Sep 17 00:00:00 2001
+From: Arnaud Pouliquen <arnaud.pouliquen@st.com>
+Date: Mon, 21 Nov 2016 11:47:35 +0100
+Subject: [PATCH] deamon-conf: disable volume-flat
+
+disbale volume flat to avoid side effect with gstreamer. If enable
+sink volume is increased when gstreamer requests to increase
+sink-input volume. But when gst requests to decrease the sink-input volume.
+sink-volume is not updated. This lead to clipping because sink volume
+is stored with value more than 100%.
+
+Signed-off-by: Arnaud Pouliquen <arnaud.pouliquen@st.com>
+---
+ src/daemon/daemon.conf.in | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/daemon/daemon.conf.in b/src/daemon/daemon.conf.in
+index b48afa2..2af958a 100644
+--- a/src/daemon/daemon.conf.in
++++ b/src/daemon/daemon.conf.in
+@@ -57,7 +57,7 @@ ifelse(@HAVE_DBUS@, 1, [dnl
+ ; enable-lfe-remixing = yes
+ ; lfe-crossover-freq = 120
+ 
+-; flat-volumes = yes
++flat-volumes = no
+ 
+ ifelse(@HAVE_SYS_RESOURCE_H@, 1, [dnl
+ ; rlimit-fsize = -1
+-- 
+1.9.1
+

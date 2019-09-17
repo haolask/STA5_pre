@@ -1,0 +1,151 @@
+From 1af35cf0dcc7b10a7536d6b8ebb9bda196a5b70f Mon Sep 17 00:00:00 2001
+From: Baptiste Chauloux <baptiste.chauloux@st.com>
+Date: Tue, 29 May 2018 17:34:05 +0200
+Subject: [PATCH 1/2] # envsetup patch # Change way to manage the external
+ sources for eSDK build
+
+eSDK is difficultly supporting the packaging done by recipes
+using external sources. Mainly because these recipes are
+not using sstate cache, used to install all the file in
+the final eSDK.
+This patch is changing the way the sources are handled by
+using the SRC_URI parameter to point to the sources.
+Consequence, the sources are copied in the WORKDIR folder
+in the do_unpack task each time a change is done, causing
+the build of a package to be executed completely even for
+a small change. But use of sstate cache is then correctly
+done.
+
+Signed-off-by: Baptiste Chauloux <baptiste.chauloux@st.com>
+---
+ eSDK_support/atf.bbappend              | 4 ++++
+ eSDK_support/certcreate.bbappend       | 5 +++++
+ eSDK_support/fip-image.bbappend        | 4 ++++
+ eSDK_support/fiptool.bbappend          | 4 ++++
+ eSDK_support/linux-dt-overlay.bbappend | 4 ++++
+ eSDK_support/linux-sta12xx.bbappend    | 5 +++++
+ eSDK_support/ltp_%.bbappend            | 6 ++++++
+ eSDK_support/m3-loaders_%.bbappend     | 4 ++++
+ eSDK_support/optee-os_%.bbappend       | 5 +++++
+ eSDK_support/u-boot_%.bbappend         | 5 +++++
+ 10 files changed, 46 insertions(+)
+ create mode 100644 eSDK_support/atf.bbappend
+ create mode 100644 eSDK_support/certcreate.bbappend
+ create mode 100644 eSDK_support/fip-image.bbappend
+ create mode 100644 eSDK_support/fiptool.bbappend
+ create mode 100644 eSDK_support/linux-dt-overlay.bbappend
+ create mode 100644 eSDK_support/linux-sta12xx.bbappend
+ create mode 100644 eSDK_support/ltp_%.bbappend
+ create mode 100644 eSDK_support/m3-loaders_%.bbappend
+ create mode 100644 eSDK_support/optee-os_%.bbappend
+ create mode 100644 eSDK_support/u-boot_%.bbappend
+
+diff --git a/eSDK_support/atf.bbappend b/eSDK_support/atf.bbappend
+new file mode 100644
+index 0000000..4f8792c
+--- /dev/null
++++ b/eSDK_support/atf.bbappend
+@@ -0,0 +1,4 @@
++EXTERNALSRC_pn-${PN} = ""
++FILESEXTRAPATHS_prepend := "${ST_LOCAL_SRC}/:"
++SRC_URI = "file://atf"
++S = "${WORKDIR}/atf"
+diff --git a/eSDK_support/certcreate.bbappend b/eSDK_support/certcreate.bbappend
+new file mode 100644
+index 0000000..7ab2405
+--- /dev/null
++++ b/eSDK_support/certcreate.bbappend
+@@ -0,0 +1,5 @@
++EXTERNALSRC_pn-${PN} = ""
++FILESEXTRAPATHS_prepend := "${ST_LOCAL_SRC}/:"
++SRC_URI = "file://atf"
++S = "${WORKDIR}/atf"
++B = "${WORKDIR}/build"
+diff --git a/eSDK_support/fip-image.bbappend b/eSDK_support/fip-image.bbappend
+new file mode 100644
+index 0000000..4f8792c
+--- /dev/null
++++ b/eSDK_support/fip-image.bbappend
+@@ -0,0 +1,4 @@
++EXTERNALSRC_pn-${PN} = ""
++FILESEXTRAPATHS_prepend := "${ST_LOCAL_SRC}/:"
++SRC_URI = "file://atf"
++S = "${WORKDIR}/atf"
+diff --git a/eSDK_support/fiptool.bbappend b/eSDK_support/fiptool.bbappend
+new file mode 100644
+index 0000000..4f8792c
+--- /dev/null
++++ b/eSDK_support/fiptool.bbappend
+@@ -0,0 +1,4 @@
++EXTERNALSRC_pn-${PN} = ""
++FILESEXTRAPATHS_prepend := "${ST_LOCAL_SRC}/:"
++SRC_URI = "file://atf"
++S = "${WORKDIR}/atf"
+diff --git a/eSDK_support/linux-dt-overlay.bbappend b/eSDK_support/linux-dt-overlay.bbappend
+new file mode 100644
+index 0000000..f8e125e
+--- /dev/null
++++ b/eSDK_support/linux-dt-overlay.bbappend
+@@ -0,0 +1,4 @@
++EXTERNALSRC_pn-linux-dt-overlay = ""
++FILESEXTRAPATHS_prepend := "${ST_LOCAL_SRC}/:"
++SRC_URI = "file://linux-dt-overlay"
++S = "${WORKDIR}/linux-dt-overlay"
+diff --git a/eSDK_support/linux-sta12xx.bbappend b/eSDK_support/linux-sta12xx.bbappend
+new file mode 100644
+index 0000000..75dc096
+--- /dev/null
++++ b/eSDK_support/linux-sta12xx.bbappend
+@@ -0,0 +1,5 @@
++EXTERNALSRC_pn-${PN} = ""
++SRCTREECOVEREDTASKS_pn-${PN} = ""
++FILESEXTRAPATHS_prepend := "${ST_LOCAL_SRC}/:"
++SRC_URI = "file://linux"
++S = "${WORKDIR}/linux"
+diff --git a/eSDK_support/ltp_%.bbappend b/eSDK_support/ltp_%.bbappend
+new file mode 100644
+index 0000000..f9e453e
+--- /dev/null
++++ b/eSDK_support/ltp_%.bbappend
+@@ -0,0 +1,6 @@
++EXTERNALSRC_pn-ltp = ""
++EXTERNALSRC_BUILD_pn-ltp = ""
++FILESEXTRAPATHS_prepend := "${ST_LOCAL_SRC}/:"
++SRC_URI = "file://ltp"
++S = "${WORKDIR}/ltp"
++B = "${WORKDIR}/ltp"
+diff --git a/eSDK_support/m3-loaders_%.bbappend b/eSDK_support/m3-loaders_%.bbappend
+new file mode 100644
+index 0000000..ea82671
+--- /dev/null
++++ b/eSDK_support/m3-loaders_%.bbappend
+@@ -0,0 +1,4 @@
++EXTERNALSRC_pn-m3-loaders = ""
++FILESEXTRAPATHS_prepend := "${ST_LOCAL_SRC}/:"
++SRC_URI = "file://m3-loaders"
++S = "${WORKDIR}/m3-loaders"
+diff --git a/eSDK_support/optee-os_%.bbappend b/eSDK_support/optee-os_%.bbappend
+new file mode 100644
+index 0000000..05996f8
+--- /dev/null
++++ b/eSDK_support/optee-os_%.bbappend
+@@ -0,0 +1,5 @@
++EXTERNALSRC_pn-optee-os = ""
++FILESEXTRAPATHS_prepend := "${ST_LOCAL_SRC}/:"
++SRC_URI = "file://optee_os"
++S = "${WORKDIR}/optee_os"
++B = "${WORKDIR}/build"
+diff --git a/eSDK_support/u-boot_%.bbappend b/eSDK_support/u-boot_%.bbappend
+new file mode 100644
+index 0000000..fca70f4
+--- /dev/null
++++ b/eSDK_support/u-boot_%.bbappend
+@@ -0,0 +1,5 @@
++EXTERNALSRC_pn-${PN} = ""
++EXTERNALSRC_BUILD_pn-${PN} = ""
++FILESEXTRAPATHS_prepend := "${ST_LOCAL_SRC}/:"
++SRC_URI = "file://u-boot"
++S = "${WORKDIR}/u-boot"
+-- 
+2.7.4
+

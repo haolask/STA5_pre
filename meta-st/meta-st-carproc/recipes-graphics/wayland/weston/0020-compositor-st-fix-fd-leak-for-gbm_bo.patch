@@ -1,0 +1,156 @@
+From ac79607324b86b02cc3b63cc2c89737c42176742 Mon Sep 17 00:00:00 2001
+From: Stephane Danieau <stephane.danieau@st.com>
+Date: Wed, 7 Mar 2018 14:45:56 +0100
+Subject: [PATCH 20/37] compositor-st: fix fd leak for gbm_bo
+
+Since we call gbm_bo_import, we have to call gbm_bo_destroy if we decide
+to not assign the related view in a sprite.
+
+Change-Id: I456ebe7ce78274b8fa4350490bda7d9c91d46cd8
+Signed-off-by: Fabien Dessenne <fabien.dessenne@st.com>
+Reviewed-on: https://gerrit.st.com/58019
+Reviewed-by: Vincent ABRIOU <vincent.abriou@st.com>
+Tested-by: Vincent ABRIOU <vincent.abriou@st.com>
+---
+ libweston/compositor-st.c | 40 ++++++++++++++++++++++------------------
+ 1 file changed, 22 insertions(+), 18 deletions(-)
+
+diff --git a/libweston/compositor-st.c b/libweston/compositor-st.c
+index 9ba0a28..7471240 100644
+--- a/libweston/compositor-st.c
++++ b/libweston/compositor-st.c
+@@ -1129,27 +1129,27 @@ drm_output_prepare_overlay_view(struct drm_output *output,
+ 
+ 	if (b->sprites_are_broken) {
+ 		weston_xlog("    sprites are broken\n");
+-		return NULL;
++		goto no_overlay;
+ 	}
+ 
+ 	/* Don't import buffers which span multiple outputs. */
+ 	if (ev->output_mask != (1u << output->base.id)) {
+ 		weston_xlog("    surface is out of the refresh area\n");
+-		return NULL;
++		goto no_overlay;
+ 	}
+ 
+ 	/* We can only import GBM buffers. */
+ 	if ((b->gbm == NULL) && !b->use_pixman)
+-		return NULL;
++		goto no_overlay;
+ 
+ 	if (ev->surface->buffer_ref.buffer == NULL)
+-		return NULL;
++		goto no_overlay;
+ 
+ 	buffer_resource = ev->surface->buffer_ref.buffer->resource;
+ 
+ 	if (wl_shm_buffer_get(buffer_resource)) {
+ 		weston_xlog("    shm buffer => could not be assigned to a plane\n");
+-		return NULL;
++		goto no_overlay;
+ 	}
+ 
+ 	if ((dmabuf = linux_dmabuf_buffer_get(buffer_resource))) {
+@@ -1160,34 +1160,34 @@ drm_output_prepare_overlay_view(struct drm_output *output,
+ 				ev->surface, ev->surface->buffer_ref.buffer);
+ 	} else {
+ 		weston_xlog("    not a dmabuf nor gbm_bo => could not be assigned to a plane\n");
+-		return NULL;
++		goto no_overlay;
+ 	}
+ 
+ 	if (viewport->buffer.transform != output->base.transform) {
+ 		weston_xlog("    transform\n");
+-		return NULL;
++		goto no_overlay;
+ 	}
+ 
+ 	if (viewport->buffer.scale != output->base.current_scale) {
+ 		weston_xlog("    scale\n");
+-		return NULL;
++		goto no_overlay;
+ 	}
+ 
+ 	if (!drm_view_transform_supported(ev)) {
+ 		weston_xlog("    overlay check: transform not supported\n");
+-		return NULL;
++		goto no_overlay;
+ 	}
+ 
+ 	if (ev->alpha < 0.99f) {
+ 		weston_xlog("    overlay check: alpha not ~1.0: %f\n", ev->alpha);
+-		return NULL;
++		goto no_overlay;
+ 	}
+ 
+ 	if (dmabuf) {
+ 		format = dmabuf->attributes.format;
+ 		if (format == 0) {
+ 			weston_xlog("    overlay check: dmabuf format not supported\n");
+-			return NULL;
++			goto no_overlay;
+ 		}
+ 	}
+ 
+@@ -1213,7 +1213,7 @@ drm_output_prepare_overlay_view(struct drm_output *output,
+ 
+ 		if (s->vblank_pending && format_ok) {
+ 			weston_xlog("    sprite is currently being rendered\n");
+-			return NULL;
++			goto no_overlay;
+ 		}
+ 
+ 		if ((!s->next) && format_ok) {
+@@ -1223,31 +1223,29 @@ drm_output_prepare_overlay_view(struct drm_output *output,
+ 	}
+ 
+ 	if (bo && format == 0) {
+-		gbm_bo_destroy(bo);
+ 		weston_xlog("    overlay check: bo format not supported\n");
+-		return NULL;
++		goto no_overlay;
+ 	}
+ 
+ 	/* No sprites available */
+ 	if (!found) {
+ 		weston_xlog("    no sprite available\n");
+-		return NULL;
++		goto no_overlay;
+ 	}
+ 
+ 	if (dmabuf) {
+ 		s->next = drm_fb_get_from_dmabuf(dmabuf, b, format);
+ 		if (!s->next) {
+ 			weston_xlog("    overlay check: to FB failed\n");
+-			return NULL;
++			goto no_overlay;
+ 		}
+ 		weston_xlog("    got dmabuf handle %d (s->plane_id= 0x%x)\n",
+ 				s->next->handle, s->plane_id);
+ 	} else if (bo) {
+ 		s->next = drm_fb_get_from_bo(bo, b, format);
+ 		if (!s->next) {
+-			gbm_bo_destroy(bo);
+ 			weston_xlog("    overlay check: to FB failed\n");
+-			return NULL;
++			goto no_overlay;
+ 		}
+ 	}
+ 
+@@ -1324,6 +1322,12 @@ drm_output_prepare_overlay_view(struct drm_output *output,
+ 	pixman_region32_fini(&src_rect);
+ 
+ 	return &s->plane;
++
++no_overlay:
++	if (bo)
++		gbm_bo_destroy(bo);
++
++	return NULL;
+ }
+ 
+ static struct weston_plane *
+-- 
+1.9.1
+

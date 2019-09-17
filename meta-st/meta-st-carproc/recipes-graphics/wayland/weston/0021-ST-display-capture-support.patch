@@ -1,0 +1,619 @@
+From 01dd6dd2563ae082f8adef6ce0dffc39a159af33 Mon Sep 17 00:00:00 2001
+From: Stephane Danieau <stephane.danieau@st.com>
+Date: Wed, 7 Mar 2018 14:48:11 +0100
+Subject: [PATCH 21/37] ST display capture support
+
+Add the wl_capture protocol that allows a client to be notified of
+display updates: the compositor sends the 'update' event that identifies
+a dmabuf buffer which is the result of the GL renderer full composition
+(no DRM plane).
+This implementation depends on EGL and dmabuf support.
+
+This is a squashed commit of these oe-weston-1_9 commits:
+- ST display capture support
+- compositor-st: fix build issue
+- compositor-st: capture on gbm
+- rework not using frame signal
+
+Change-Id: Id61c4b878a07e43da33ab2712eb6ed938cbd6dae
+Signed-off-by: Fabien Dessenne <fabien.dessenne@st.com>
+---
+ Makefile.am               |  23 +++++
+ clients/simple-capture.c  | 192 +++++++++++++++++++++++++++++++++++++++
+ configure.ac              |  13 +++
+ libweston/compositor-st.c | 222 ++++++++++++++++++++++++++++++++++++++++++++++
+ protocol/capture.xml      |  43 +++++++++
+ 5 files changed, 493 insertions(+)
+ create mode 100644 clients/simple-capture.c
+ create mode 100644 protocol/capture.xml
+
+diff --git a/Makefile.am b/Makefile.am
+index fda9b99..636c69f 100644
+--- a/Makefile.am
++++ b/Makefile.am
+@@ -419,6 +419,17 @@ st_backend_la_SOURCES =				\
+ 	libweston/libbacklight.c		\
+ 	libweston/libbacklight.h
+ 
++if ENABLE_DISPLAY_CAPTURE
++st_backend_la_SOURCES += protocol/capture-protocol.c
++
++BUILT_SOURCES +=				\
++	protocol/capture-protocol.c		\
++	protocol/capture-server-protocol.h
++
++EXTRA_DIST +=					\
++	protocol/capture.xml
++endif
++
+ if ENABLE_VAAPI_RECORDER
+ st_backend_la_SOURCES += libweston/vaapi-recorder.c libweston/vaapi-recorder.h
+ st_backend_la_LIBADD += $(LIBVA_LIBS)
+@@ -723,6 +734,18 @@ nodist_weston_screenshooter_SOURCES =			\
+ weston_screenshooter_LDADD = $(CLIENT_LIBS) libshared.la
+ weston_screenshooter_CFLAGS = $(AM_CFLAGS) $(CLIENT_CFLAGS)
+ 
++if ENABLE_DISPLAY_CAPTURE
++demo_clients += weston-simple-capture
++nodist_weston_simple_capture_SOURCES =			\
++	protocol/capture-protocol.c		\
++	protocol/capture-client-protocol.h
++weston_simple_capture_SOURCES = clients/simple-capture.c
++weston_simple_capture_CFLAGS = $(AM_CFLAGS) $(SIMPLE_CLIENT_CFLAGS)
++weston_simple_capture_LDADD = $(SIMPLE_CLIENT_LIBS)
++
++BUILT_SOURCES += protocol/capture-client-protocol.h
++endif
++
+ weston_terminal_SOURCES = 				\
+ 	clients/terminal.c				\
+ 	shared/helpers.h
+diff --git a/clients/simple-capture.c b/clients/simple-capture.c
+new file mode 100644
+index 0000000..d0b6550
+--- /dev/null
++++ b/clients/simple-capture.c
+@@ -0,0 +1,192 @@
++/*
++ * Copyright (C) STMicroelectronics SA 2015
++ * Author: Fabien Dessenne <fabien.dessenne@st.com> for STMicroelectronics.
++ *
++ * Permission to use, copy, modify, distribute, and sell this software and
++ * its documentation for any purpose is hereby granted without fee, provided
++ * that the above copyright notice appear in all copies and that both that
++ * copyright notice and this permission notice appear in supporting
++ * documentation, and that the name of the copyright holders not be used in
++ * advertising or publicity pertaining to distribution of the software
++ * without specific, written prior permission.  The copyright holders make
++ * no representations about the suitability of this software for any
++ * purpose.  It is provided "as is" without express or implied warranty.
++ *
++ * THE COPYRIGHT HOLDERS DISCLAIM ALL WARRANTIES WITH REGARD TO THIS
++ * SOFTWARE, INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND
++ * FITNESS, IN NO EVENT SHALL THE COPYRIGHT HOLDERS BE LIABLE FOR ANY
++ * SPECIAL, INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER
++ * RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF
++ * CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
++ * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
++ */
++
++#include "config.h"
++
++#include <stdlib.h>
++#include <stdio.h>
++#include <string.h>
++#include <unistd.h>
++#include <sys/param.h>
++
++#include <wayland-client.h>
++#include "capture-client-protocol.h"
++
++struct capture {
++	struct wl_display *display;
++	struct wl_registry *registry;
++	struct wl_output *output;
++	struct wl_capture *capture;
++	unsigned int output_width, output_height;
++	int nb;
++};
++
++static void
++capture_update(void *data, struct wl_capture *wl_capture,  struct wl_output *output,
++	       int32_t dmabuf_fd, uint32_t width, uint32_t height, uint32_t stride,
++	       uint32_t format, uint32_t msecs)
++{
++	struct capture *cap = data;
++
++	cap->nb++;
++
++	fprintf(stderr, "   Got buffer #%d  ts=%d.%03d %.4s %dx%d fd=%d\n",
++			cap->nb, msecs / 1000, msecs % 1000,
++			(char *)&format, width, height, dmabuf_fd);
++
++	/* Do whatever we want, for example mmap the dmabuf and copy its content
++	 * into a file */
++
++	close(dmabuf_fd);
++}
++
++static const struct wl_capture_listener capture_listener = {
++	capture_update
++};
++
++static void
++display_handle_geometry(void *data, struct wl_output *wl_output,
++			int x, int y, int phy_w, int phy_h, int subpixel,
++			const char *make, const char *model, int transform)
++{
++	/* ignored */
++}
++
++static void
++display_handle_mode(void *data, struct wl_output *wl_output,  uint32_t flags,
++		    int width, int height, int refresh)
++{
++	struct capture *cap = data;
++
++	if (flags & WL_OUTPUT_MODE_CURRENT) {
++		fprintf(stderr, " Using output %dx%d\n", width, height);
++		cap->output_width = width;
++		cap->output_height = height;
++	}
++}
++
++static const struct wl_output_listener output_listener = {
++	display_handle_geometry,
++	display_handle_mode
++};
++
++static void
++handle_global(void *data, struct wl_registry *registry,
++	      uint32_t name, const char *interface, uint32_t version)
++{
++	struct capture *cap = data;
++
++	if (strcmp(interface, "wl_output") == 0) {
++		/* Use the first output */
++		if (!cap->output) {
++			cap->output = wl_registry_bind(registry, name, &wl_output_interface, 1);
++			wl_output_add_listener(cap->output, &output_listener, cap);
++		}
++	} else if (strcmp(interface, "wl_capture") == 0) {
++		cap->capture = wl_registry_bind(registry, name, &wl_capture_interface, 1);
++		wl_capture_add_listener(cap->capture, &capture_listener, cap);
++	}
++}
++
++static const struct wl_registry_listener registry_listener = {
++	handle_global
++};
++
++static int running = 1;
++
++static void
++signal_int(int signum)
++{
++       running = 0;
++}
++
++int
++main(int argc, char **argv)
++{
++	struct capture *cap;
++	struct sigaction sigint;
++	int err;
++
++	sigint.sa_handler = signal_int;
++	sigemptyset(&sigint.sa_mask);
++	sigint.sa_flags = SA_RESETHAND;
++	sigaction(SIGINT, &sigint, NULL);
++
++	cap = calloc(1, sizeof *cap);
++	if (!cap ) {
++		fprintf(stderr, " Error: out of memory\n");
++		exit(1);
++	}
++
++	cap->display = wl_display_connect(NULL);
++	if (!cap->display) {
++		fprintf(stderr, " Error: can't connect to display\n");
++		exit(1);
++	}
++
++	cap->registry = wl_display_get_registry(cap->display);
++	wl_registry_add_listener(cap->registry, &registry_listener, cap);
++	wl_display_dispatch(cap->display);
++	wl_display_roundtrip(cap->display);
++
++	if (!cap->output) {
++		fprintf(stderr, " Error: output protocol not supported\n");
++		exit(1);
++	}
++
++	if (!cap->capture) {
++		fprintf(stderr, " Error: capture protocol not supported\n");
++		exit(1);
++	}
++
++	fprintf(stderr, " Starting capture\n");
++	wl_capture_start(cap->capture, cap->output);
++
++	/* Check for error */
++	wl_display_roundtrip(cap->display);
++	err = wl_display_get_error(cap->display);
++	if (err) {
++		fprintf(stderr, " Error: start failed (%d)\n",err );
++		exit(1);
++	}
++
++	while (running)
++		wl_display_roundtrip(cap->display);
++
++	fprintf(stderr, " Stopping capture\n");
++
++	wl_capture_stop(cap->capture, cap->output);
++	wl_display_roundtrip(cap->display);
++
++	usleep(1000*1000);
++
++	wl_output_destroy(cap->output);
++	wl_capture_destroy(cap->capture);
++	wl_registry_destroy(cap->registry);
++	wl_display_flush(cap->display);
++	wl_display_disconnect(cap->display);
++
++	free(cap);
++
++	return 0;
++}
+diff --git a/configure.ac b/configure.ac
+index 7339829..78d2420 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -292,6 +292,18 @@ if test x$enable_screen_sharing = xyes; then
+   fi
+ fi
+ 
++AC_ARG_ENABLE([display-capture], [  --enable-display-capture],,
++              enable_display_capture=no)
++AM_CONDITIONAL([ENABLE_DISPLAY_CAPTURE],
++               [test x$enable_display_capture = xyes])
++if test "x$enable_display_capture" = "xyes"; then
++  if test "x$enable_st_compositor" = "xno"; then
++    AC_MSG_ERROR([Display capture requires compositor-st])
++  else
++    AC_DEFINE([ENABLE_DISPLAY_CAPTURE], [1], [Build with capture support])
++  fi
++fi
++
+ AC_ARG_WITH(cairo,
+ 	    AS_HELP_STRING([--with-cairo=@<:@image|gl|glesv2@:>@]
+ 			   [Which Cairo renderer to use for the clients]),
+@@ -727,6 +739,7 @@ AC_MSG_RESULT([
+ 	RDP Compositor			${enable_rdp_compositor}
+ 	Screen Sharing			${enable_screen_sharing}
+ 	JUnit XML output		${enable_junit_xml}
++	Display Capture (ST)		${enable_display_capture}
+ 
+ 	Build Clients			${enable_clients}
+ 	Build EGL Clients		${have_cairo_egl}
+diff --git a/libweston/compositor-st.c b/libweston/compositor-st.c
+index 7471240..02262e0 100644
+--- a/libweston/compositor-st.c
++++ b/libweston/compositor-st.c
+@@ -63,6 +63,10 @@
+ #include "linux-dmabuf.h"
+ #include "linux-dmabuf-unstable-v1-server-protocol.h"
+ 
++#ifdef ENABLE_DISPLAY_CAPTURE
++#include "capture-server-protocol.h"
++#endif
++
+ #ifndef DRM_CAP_TIMESTAMP_MONOTONIC
+ #define DRM_CAP_TIMESTAMP_MONOTONIC 0x6
+ #endif
+@@ -151,6 +155,23 @@ struct drm_edid {
+ 	char serial_number[13];
+ };
+ 
++#ifdef ENABLE_DISPLAY_CAPTURE
++struct drm_output_capture {
++	struct drm_backend *backend;
++	struct drm_output *output;
++	struct wl_global *global;
++	struct wl_resource *resource;
++	struct wl_resource *output_resource;
++	struct wl_listener destroy_listener;
++	unsigned int nb_frames;
++	uint32_t start_msecs;
++	bool stopping;
++};
++
++static void
++capture_output_repainted(struct drm_output_capture *doc, struct gbm_bo *bo);
++#endif
++
+ struct drm_output {
+ 	struct weston_output base;
+ 	drmModeConnector *connector;
+@@ -186,6 +207,10 @@ struct drm_output {
+ 
+ 	struct vaapi_recorder *recorder;
+ 	struct wl_listener recorder_frame_listener;
++
++#ifdef ENABLE_DISPLAY_CAPTURE
++	struct drm_output_capture *doc;
++#endif
+ };
+ 
+ /*
+@@ -693,6 +718,11 @@ drm_output_render_gl(struct drm_output *output, pixman_region32_t *damage)
+ 		gbm_surface_release_buffer(output->gbm_surface, bo);
+ 		return;
+ 	}
++
++#ifdef ENABLE_DISPLAY_CAPTURE
++	if (output->doc)
++		capture_output_repainted(output->doc, bo);
++#endif
+ }
+ 
+ static void
+@@ -3392,6 +3422,196 @@ recorder_binding(struct weston_keyboard *keyboard, uint32_t time, uint32_t key,
+ }
+ #endif
+ 
++#ifdef ENABLE_DISPLAY_CAPTURE
++static void
++capture_finish(struct drm_output_capture *doc)
++{
++	/* Restore plane composition */
++	doc->output->base.disable_planes = 0;
++
++	doc->output->doc = NULL;
++	doc->resource = NULL;
++	doc->output_resource = NULL;
++	doc->stopping = false;
++	doc->nb_frames = 0;
++	doc->start_msecs = 0;
++	doc->output = NULL;
++}
++
++static void
++capture_output_repainted(struct drm_output_capture *doc, struct gbm_bo *bo)
++{
++	if (doc->stopping) {
++		weston_log("Captured %d frames\n", doc->nb_frames);
++		capture_finish(doc);
++		return;
++	}
++
++	if (!bo) {
++		weston_log("Error: no bo\n");
++		return;
++	}
++
++	weston_xlog("%s bo fd=%d  msecs=%d\n", __func__, gbm_bo_get_fd(bo),
++			doc->output->base.frame_time);
++
++	if (!doc->start_msecs)
++		doc->start_msecs = doc->output->base.frame_time;
++
++	if (doc->resource && doc->output_resource) {
++		wl_capture_send_update(doc->resource, doc->output_resource,
++				gbm_bo_get_fd(bo),
++				gbm_bo_get_width(bo), gbm_bo_get_height(bo),
++				gbm_bo_get_stride(bo),
++				gbm_bo_get_format(bo),
++				doc->output->base.frame_time - doc->start_msecs);
++
++		doc->nb_frames++;
++	} else {
++		weston_log("Error: capture resources are not defined\n");
++	}
++}
++
++static void
++capture_start(struct wl_client *client,
++		struct wl_resource *resource, struct wl_resource *output_resource)
++{
++	struct drm_output *output = wl_resource_get_user_data(output_resource);
++	struct drm_output *compo_output;
++	struct drm_output_capture *doc = wl_resource_get_user_data(resource);
++
++	weston_log("Starting capture\n");
++
++	/* Check for output validity */
++	wl_list_for_each(compo_output, &doc->backend->compositor->output_list, base.link)
++		if (output == compo_output) {
++			if (output->doc) {
++				weston_log("Capture already started\n");
++				return;
++			}
++			doc->output = output;
++		}
++
++	if (!doc->output) {
++		weston_log("Capture failed: invalid output\n");
++		wl_resource_post_error(resource, WL_CAPTURE_ERROR_BAD_OUTPUT,
++				       "capture failed: invalid output");
++		return;
++	}
++
++	/* Check for GL support */
++	if (!doc->backend->gbm) {
++		weston_log("Capture error: GL not set up\n");
++		wl_resource_post_error(resource, WL_CAPTURE_ERROR_NO_GL,
++				       "Capture error: GL not set up");
++		return;
++	}
++
++	doc->resource = resource;
++	doc->output_resource = output_resource;
++
++	/* Force "one plane" composition, and redraw */
++	output->doc = doc;
++	doc->output->base.disable_planes = 1;
++	weston_output_damage(&doc->output->base);
++}
++
++static void
++capture_stop(struct wl_client *client,
++		struct wl_resource *resource, struct wl_resource *output_resource)
++{
++	struct drm_output *output = wl_resource_get_user_data(output_resource);
++	struct drm_output_capture *doc = wl_resource_get_user_data(resource);
++
++	weston_log("Stopping capture\n");
++
++	/* Check for output validity */
++	if (output != doc->output) {
++		weston_log("Capture failed: invalid output\n");
++		wl_resource_post_error(resource, WL_CAPTURE_ERROR_BAD_OUTPUT,
++				       "capture failed: invalid output");
++		return;
++	}
++
++	if (!output->doc) {
++		weston_log("Capture already stopped\n");
++		return;
++	}
++
++	/* Capture will stop at next frame */
++	doc->stopping = true;
++	weston_output_schedule_repaint(&doc->output->base);
++}
++
++struct wl_capture_interface capture_interface = {
++	capture_start,
++	capture_stop
++};
++
++static void
++capture_unbind(struct wl_resource *resource)
++{
++	struct drm_output_capture *doc = wl_resource_get_user_data(resource);
++
++	if (doc->output && !doc->stopping)  {
++		/* The client did not ask for capture_stop before quitting */
++		weston_log("Stopping capture (client unbind)\n");
++		capture_finish(doc);
++	}
++}
++
++static void
++capture_bind(struct wl_client *client, void *data, uint32_t version, uint32_t id)
++{
++	struct wl_resource *resource;
++
++	resource = wl_resource_create(client, &wl_capture_interface, 1, id);
++	if (!resource) {
++		wl_client_post_no_memory(client);
++		return;
++	}
++
++	wl_resource_set_implementation(resource, &capture_interface, data,
++				       capture_unbind);
++}
++
++static void
++capture_destroy(struct wl_listener *listener, void *data)
++{
++	struct drm_output_capture *doc =
++		container_of(listener, struct drm_output_capture, destroy_listener);
++
++	wl_global_destroy(doc->global);
++	free(doc);
++}
++
++static int
++capture_create(struct drm_backend *backend)
++{
++	struct drm_output_capture *doc;
++
++	doc = zalloc(sizeof *doc);
++	if (!doc)
++		return -1;
++
++	doc->backend = backend;
++	doc->global = wl_global_create(backend->compositor->wl_display,
++			&wl_capture_interface, 1, doc, capture_bind);
++	doc->destroy_listener.notify = capture_destroy;
++	wl_signal_add(&backend->compositor->destroy_signal, &doc->destroy_listener);
++
++	weston_log("display capture ST: initialized\n");
++
++	return 0;
++}
++#else
++static void
++capture_create(struct drm_backend *backend)
++{
++	weston_log("Compiled without capture support\n");
++}
++#endif
++
+ static void
+ switch_to_gl_renderer(struct drm_backend *b)
+ {
+@@ -3583,6 +3803,8 @@ drm_backend_create(struct weston_compositor *compositor,
+ 
+ 	udev_device_unref(drm_device);
+ 
++	capture_create(b);
++
+ 	weston_compositor_add_debug_binding(compositor, KEY_O,
+ 					    planes_binding, b);
+ 	weston_compositor_add_debug_binding(compositor, KEY_C,
+diff --git a/protocol/capture.xml b/protocol/capture.xml
+new file mode 100644
+index 0000000..9c7cc3e
+--- /dev/null
++++ b/protocol/capture.xml
+@@ -0,0 +1,43 @@
++<protocol name="capture">
++
++  <interface name="wl_capture" version="1">
++    <request name="start">
++      <description summary="start display capture">
++	From this request, the compositor starts informing the client
++	each time the display output is updated with the related event
++      </description>
++       <arg name="output" type="object" interface="wl_output"/>
++    </request>
++
++    <request name="stop">
++      <description summary="start display capture">
++	From this request, the compositor stops informing the client
++	of any update
++      </description>
++      <arg name="output" type="object" interface="wl_output"/>
++    </request>
++
++    <enum name="error">
++      <entry name="bad_output" value="0"
++             summary="cannot capture wl_output"/>
++      <entry name="no_gl" value="1"
++             summary="gl renderer not set up"/>
++    </enum>
++
++    <event name="update">
++      <description summary="display output updated">
++	The display output has been updated.
++	dmabuf_fd identifies the buffer on display
++      </description>
++      <arg name="output" type="object" interface="wl_output"/>
++      <arg name="dmabuf_fd" type="fd"/>
++      <arg name="width" type="uint"/>
++      <arg name="height" type="uint"/>
++      <arg name="stride" type="uint"/>
++      <arg name="format" type="uint"/>
++      <arg name="msecs" type="uint"/>
++    </event>
++
++  </interface>
++
++</protocol>
+-- 
+1.9.1
+

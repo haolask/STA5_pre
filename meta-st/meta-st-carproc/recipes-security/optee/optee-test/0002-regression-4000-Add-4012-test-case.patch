@@ -1,0 +1,312 @@
+From 21b1b10a35cddbbf0318c88772401358d30b1b2b Mon Sep 17 00:00:00 2001
+From: Olivier Claude LEBRETON <olivier.lebreton@st.com>
+Date: Fri, 8 Jun 2018 10:53:40 +0200
+Subject: [PATCH 2/2] regression: 4000: Add 4012 test case
+
+Add regression 4012 case to test ECDSA asymmetric cipher operations with
+a generated key
+
+Signed-off-by: Olivier Claude LEBRETON <olivier.lebreton@st.com>
+---
+ host/xtest/regression_4000.c | 274 +++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 274 insertions(+)
+
+diff --git a/host/xtest/regression_4000.c b/host/xtest/regression_4000.c
+index dd71c27..b6c2660 100644
+--- a/host/xtest/regression_4000.c
++++ b/host/xtest/regression_4000.c
+@@ -45,6 +45,9 @@ static void xtest_tee_test_4008(ADBG_Case_t *Case_p);
+ static void xtest_tee_test_4009(ADBG_Case_t *Case_p);
+ static void xtest_tee_test_4010(ADBG_Case_t *Case_p);
+ static void xtest_tee_test_4011(ADBG_Case_t *Case_p);
++#if !defined(CFG_CRYPTO_ECC_FROM_CRYPTOLIB)
++static void xtest_tee_test_4012(ADBG_Case_t *Case_p);
++#endif
+ 
+ ADBG_CASE_DEFINE(regression, 4001, xtest_tee_test_4001,
+ 		"Test TEE Internal API hash operations");
+@@ -70,6 +73,11 @@ ADBG_CASE_DEFINE(regression, 4010, xtest_tee_test_4010,
+ 		"Test TEE Internal API create transient object (negative)");
+ ADBG_CASE_DEFINE(regression, 4011, xtest_tee_test_4011,
+ 		"Test TEE Internal API Bleichenbacher attack (negative)");
++#if !defined(CFG_CRYPTO_ECC_FROM_CRYPTOLIB)
++ADBG_CASE_DEFINE(regression, 4012, xtest_tee_test_4012,
++		"Test TEE Internal API Generate key and Asymmetric Cipher operations");
++#endif
++
+ 
+ static TEEC_Result ta_crypt_cmd_random_number_generate(ADBG_Case_t *c,
+ 						       TEEC_Session *s,
+@@ -5340,3 +5348,269 @@ static void xtest_tee_test_4011(ADBG_Case_t *c)
+ out:
+ 	TEEC_CloseSession(&s);
+ }
++
++#if !defined(CFG_CRYPTO_ECC_FROM_CRYPTOLIB)
++static const struct xtest_ac_case xtest_genkey_ac_cases[] = {
++	/* [P-256,SHA-256] */
++	XTEST_AC_ECDSA_CASE(0, TEE_ALG_ECDSA_P256, TEE_MODE_SIGN,
++			    nist_186_2_ecdsa_testvector_31),
++	XTEST_AC_ECDSA_CASE(15, TEE_ALG_ECDSA_P256, TEE_MODE_SIGN,
++			    nist_186_2_ecdsa_testvector_32),
++	XTEST_AC_ECDSA_CASE(15, TEE_ALG_ECDSA_P256, TEE_MODE_SIGN,
++			    nist_186_2_ecdsa_testvector_33),
++	XTEST_AC_ECDSA_CASE(15, TEE_ALG_ECDSA_P256, TEE_MODE_SIGN,
++			    nist_186_2_ecdsa_testvector_34),
++	XTEST_AC_ECDSA_CASE(15, TEE_ALG_ECDSA_P256, TEE_MODE_SIGN,
++			    nist_186_2_ecdsa_testvector_35),
++	XTEST_AC_ECDSA_CASE(0, TEE_ALG_ECDSA_P256, TEE_MODE_SIGN,
++			    nist_186_3_ecdsa_testvector_76),
++	XTEST_AC_ECDSA_CASE(15, TEE_ALG_ECDSA_P256, TEE_MODE_SIGN,
++			    nist_186_3_ecdsa_testvector_77),
++	XTEST_AC_ECDSA_CASE(15, TEE_ALG_ECDSA_P256, TEE_MODE_SIGN,
++			    nist_186_3_ecdsa_testvector_78),
++	XTEST_AC_ECDSA_CASE(15, TEE_ALG_ECDSA_P256, TEE_MODE_SIGN,
++			    nist_186_3_ecdsa_testvector_79),
++	XTEST_AC_ECDSA_CASE(15, TEE_ALG_ECDSA_P256, TEE_MODE_SIGN,
++			    nist_186_3_ecdsa_testvector_80),
++
++	/* [P-384,SHA-384] */
++	XTEST_AC_ECDSA_CASE(0, TEE_ALG_ECDSA_P384, TEE_MODE_SIGN,
++			    nist_186_2_ecdsa_testvector_46),
++	XTEST_AC_ECDSA_CASE(15, TEE_ALG_ECDSA_P384, TEE_MODE_SIGN,
++			    nist_186_2_ecdsa_testvector_47),
++	XTEST_AC_ECDSA_CASE(15, TEE_ALG_ECDSA_P384, TEE_MODE_SIGN,
++			    nist_186_2_ecdsa_testvector_48),
++	XTEST_AC_ECDSA_CASE(15, TEE_ALG_ECDSA_P384, TEE_MODE_SIGN,
++			    nist_186_2_ecdsa_testvector_49),
++	XTEST_AC_ECDSA_CASE(15, TEE_ALG_ECDSA_P384, TEE_MODE_SIGN,
++			    nist_186_2_ecdsa_testvector_50),
++	XTEST_AC_ECDSA_CASE(0, TEE_ALG_ECDSA_P384, TEE_MODE_SIGN,
++			    nist_186_3_ecdsa_testvector_151),
++	XTEST_AC_ECDSA_CASE(15, TEE_ALG_ECDSA_P384, TEE_MODE_SIGN,
++			    nist_186_3_ecdsa_testvector_152),
++	XTEST_AC_ECDSA_CASE(15, TEE_ALG_ECDSA_P384, TEE_MODE_SIGN,
++			    nist_186_3_ecdsa_testvector_153),
++	XTEST_AC_ECDSA_CASE(15, TEE_ALG_ECDSA_P384, TEE_MODE_SIGN,
++			    nist_186_3_ecdsa_testvector_154),
++	XTEST_AC_ECDSA_CASE(15, TEE_ALG_ECDSA_P384, TEE_MODE_SIGN,
++			    nist_186_3_ecdsa_testvector_155),
++
++	/* [P-521,SHA-512] */
++	XTEST_AC_ECDSA_CASE(0, TEE_ALG_ECDSA_P521, TEE_MODE_SIGN,
++			    nist_186_2_ecdsa_testvector_61),
++	XTEST_AC_ECDSA_CASE(15, TEE_ALG_ECDSA_P521, TEE_MODE_SIGN,
++			    nist_186_2_ecdsa_testvector_62),
++	XTEST_AC_ECDSA_CASE(15, TEE_ALG_ECDSA_P521, TEE_MODE_SIGN,
++			    nist_186_2_ecdsa_testvector_63),
++	XTEST_AC_ECDSA_CASE(15, TEE_ALG_ECDSA_P521, TEE_MODE_SIGN,
++			    nist_186_2_ecdsa_testvector_64),
++	XTEST_AC_ECDSA_CASE(15, TEE_ALG_ECDSA_P521, TEE_MODE_SIGN,
++			    nist_186_2_ecdsa_testvector_65),
++	XTEST_AC_ECDSA_CASE(0, TEE_ALG_ECDSA_P521, TEE_MODE_SIGN,
++			    nist_186_3_ecdsa_testvector_226),
++	XTEST_AC_ECDSA_CASE(15, TEE_ALG_ECDSA_P521, TEE_MODE_SIGN,
++			    nist_186_3_ecdsa_testvector_227),
++	XTEST_AC_ECDSA_CASE(15, TEE_ALG_ECDSA_P521, TEE_MODE_SIGN,
++			    nist_186_3_ecdsa_testvector_228),
++	XTEST_AC_ECDSA_CASE(15, TEE_ALG_ECDSA_P521, TEE_MODE_SIGN,
++			    nist_186_3_ecdsa_testvector_229),
++	XTEST_AC_ECDSA_CASE(15, TEE_ALG_ECDSA_P521, TEE_MODE_SIGN,
++			    nist_186_3_ecdsa_testvector_230),
++};
++
++
++static void xtest_tee_test_4012(ADBG_Case_t *c)
++{
++	TEEC_Session session = { 0 };
++	TEE_OperationHandle op = TEE_HANDLE_NULL;
++	TEE_ObjectHandle priv_key_handle = TEE_HANDLE_NULL;
++	TEE_Attribute key_attrs[8];
++	TEE_Attribute algo_params[1];
++	size_t num_algo_params;
++	uint8_t out[512];
++	size_t out_size;
++	uint8_t ptx_hash[TEE_MAX_HASH_SIZE];
++	size_t ptx_hash_size;
++	size_t max_key_size;
++	size_t num_key_attrs;
++	uint32_t ret_orig;
++	size_t n;
++	uint32_t curve;
++	uint32_t hash_algo;
++
++	if (!ADBG_EXPECT_TEEC_SUCCESS(c,
++		xtest_teec_open_session(&session, &crypt_user_ta_uuid, NULL,
++			&ret_orig)))
++		return;
++
++	for (n = 0; n < ARRAY_SIZE(xtest_genkey_ac_cases); n++) {
++		const struct xtest_ac_case *tv = xtest_genkey_ac_cases + n;
++
++		if (tv->level > level)
++			continue;
++
++		Do_ADBG_BeginSubCase(c, "Asym Crypto case %d algo 0x%x line %d",
++				     (int)n, (unsigned int)tv->algo,
++				     (int)tv->line);
++
++		/*
++		 * When signing or verifying we're working with the hash of
++		 * the payload.
++		 */
++		if (tv->mode == TEE_MODE_SIGN) {
++			hash_algo = TEE_ALG_HASH_ALGO(
++					TEE_ALG_GET_DIGEST_HASH(tv->algo) + 1);
++
++			if (!ADBG_EXPECT_TEEC_SUCCESS(c,
++				ta_crypt_cmd_allocate_operation(c, &session,
++					&op, hash_algo, TEE_MODE_DIGEST, 0)))
++				goto out;
++
++			ptx_hash_size = sizeof(ptx_hash);
++			if (!ADBG_EXPECT_TEEC_SUCCESS(c,
++				ta_crypt_cmd_digest_do_final(c, & session, op,
++					tv->ptx, tv->ptx_len, ptx_hash,
++					&ptx_hash_size)))
++				goto out;
++
++			if (!ADBG_EXPECT_TEEC_SUCCESS(c,
++				ta_crypt_cmd_free_operation(c, &session, op)))
++				goto out;
++		} else {
++			ADBG_EXPECT_TRUE(c, false);
++			goto out;
++		}
++
++		num_algo_params = 0;
++		num_key_attrs = 0;
++		switch (TEE_ALG_GET_MAIN_ALG(tv->algo)) {
++		case TEE_MAIN_ALGO_ECDSA:
++			switch (tv->algo) {
++			case TEE_ALG_ECDSA_P192:
++				curve = TEE_ECC_CURVE_NIST_P192;
++				break;
++			case TEE_ALG_ECDSA_P224:
++				curve = TEE_ECC_CURVE_NIST_P224;
++				break;
++			case TEE_ALG_ECDSA_P256:
++				curve = TEE_ECC_CURVE_NIST_P256;
++				break;
++			case TEE_ALG_ECDSA_P384:
++				curve = TEE_ECC_CURVE_NIST_P384;
++				break;
++			case TEE_ALG_ECDSA_P521:
++				curve = TEE_ECC_CURVE_NIST_P521;
++				break;
++			default:
++				curve = 0xFF;
++				break;
++			}
++
++			if (tv->algo == TEE_ALG_ECDSA_P521)
++				max_key_size = 521;
++			else
++				max_key_size = tv->params.ecdsa.private_len * 8;
++
++			xtest_add_attr_value(&num_key_attrs, key_attrs,
++					    TEE_ATTR_ECC_CURVE, curve, 0);
++
++			if (!ADBG_EXPECT_TEEC_SUCCESS(c,
++				ta_crypt_cmd_allocate_transient_object(c, &session,
++						TEE_TYPE_ECDSA_KEYPAIR, max_key_size,
++						&priv_key_handle)))
++				goto out;
++
++			if (!ADBG_EXPECT_TEEC_SUCCESS(c,
++				ta_crypt_cmd_generate_key(c, &session, priv_key_handle,
++						max_key_size, key_attrs, num_key_attrs)))
++				goto out;
++			break;
++
++		case TEE_MAIN_ALGO_RSA:
++		case TEE_MAIN_ALGO_DSA:
++		default:
++			ADBG_EXPECT_TRUE(c, false);
++			goto out;
++		}
++
++		out_size = sizeof(out);
++		memset(out, 0, sizeof(out));
++		switch (tv->mode) {
++		case TEE_MODE_SIGN:
++			if (!ADBG_EXPECT_TEEC_SUCCESS(c,
++				ta_crypt_cmd_allocate_operation(c, &session,
++					&op, tv->algo, TEE_MODE_SIGN,
++					max_key_size)))
++				goto out;
++
++			if (!ADBG_EXPECT_TEEC_SUCCESS(c,
++				ta_crypt_cmd_set_operation_key(c, &session, op,
++					priv_key_handle)))
++				goto out;
++
++			if (!ADBG_EXPECT_TEEC_SUCCESS(c,
++				ta_crypt_cmd_asymmetric_sign(c, &session, op,
++					algo_params, num_algo_params, ptx_hash,
++					ptx_hash_size, out, &out_size)))
++				goto out;
++
++			if (!ADBG_EXPECT_TEEC_SUCCESS(c,
++						ta_crypt_cmd_free_operation(c, &session,
++							op)))
++				goto out;
++			/*
++			 * The salt or K is random so we can't verify
++			 * signing against precomputed values, instead
++			 * we use the verify operation to see that
++			 * output is correct.
++			 */
++			if (!ADBG_EXPECT_TEEC_SUCCESS(c,
++				ta_crypt_cmd_allocate_operation(c,
++							&session, &op, tv->algo,
++							TEE_MODE_VERIFY, max_key_size)))
++				goto out;
++
++			if (!ADBG_EXPECT_TEEC_SUCCESS(c,
++				ta_crypt_cmd_set_operation_key(c,
++							&session, op, priv_key_handle)))
++				goto out;
++
++			if (!ADBG_EXPECT_TEEC_SUCCESS(c,
++				ta_crypt_cmd_free_transient_object(c,
++							&session, priv_key_handle)))
++				goto out;
++
++			priv_key_handle = TEE_HANDLE_NULL;
++
++			if (!ADBG_EXPECT_TEEC_SUCCESS(c,
++						ta_crypt_cmd_asymmetric_verify(c,
++							&session, op, algo_params,
++							num_algo_params, ptx_hash,
++							ptx_hash_size, out, out_size)))
++				goto out;
++			break;
++
++		case TEE_MODE_VERIFY:
++		case TEE_MODE_ENCRYPT:
++		case TEE_MODE_DECRYPT:
++		default:
++			break;
++		}
++
++		if (!ADBG_EXPECT_TEEC_SUCCESS(c,
++			ta_crypt_cmd_free_operation(c, &session, op)))
++			goto out;
++
++		if (!ADBG_EXPECT_TEEC_SUCCESS(c,
++			ta_crypt_cmd_free_transient_object(c, &session,
++				priv_key_handle)))
++			goto out;
++
++		priv_key_handle = TEE_HANDLE_NULL;
++
++		Do_ADBG_EndSubCase(c, NULL);
++	}
++out:
++	TEEC_CloseSession(&session);
++}
++#endif /* !CFG_CRYPTO_ECC_FROM_CRYPTOLIB */
+-- 
+2.7.4
+

@@ -1,0 +1,67 @@
+From 99d8bbbd81e2a50988018dab82dd56e9634fa5cf Mon Sep 17 00:00:00 2001
+From: Stephane Danieau <stephane.danieau@st.com>
+Date: Tue, 6 Mar 2018 11:19:13 +0100
+Subject: [PATCH 11/25] glupload: add GST_CAPS_FEATURE_MEMORY_DMABUF
+
+    Insert before SystemMemory to advice upstream elements that it is
+    preferable for them to push dmabuf with the caps feature.
+
+    Examples:
+
+    /* Discard memory:DMABuf caps feature */
+    GST_GL_PLATFORM=egl GST_GL_API=gles2 GST_GL_WINDOW=x11 gst-launch-1.0 \
+        filesrc location=test.mp4 ! qtdemux ! h264parse ! vaapih264dec ! \
+        capsfilter caps="video/x-raw(memory:SystemMemory)" ! glimagesink
+
+    /* Force memory:DMABuf caps feature. */
+    GST_GL_PLATFORM=egl GST_GL_API=gles2 GST_GL_WINDOW=x11 gst-launch-1.0 \
+        filesrc location=test.mp4 ! qtdemux ! h264parse ! vaapih264dec ! \
+        capsfilter caps="video/x-raw(memory:DMABuf)" ! glimagesink
+
+    /* Auto select memory:DMABuf caps feature.  */
+    GST_GL_PLATFORM=egl GST_GL_API=gles2 GST_GL_WINDOW=x11 gst-launch-1.0 \
+        filesrc location=test.mp4 ! qtdemux ! h264parse ! vaapih264dec ! \
+        glimagesink
+
+    https://bugzilla.gnome.org/show_bug.cgi?id=774649
+
+Signed-off-by: Stephane Danieau <stephane.danieau@st.com>
+
+%% original patch: 0013-glupload-add-GST_CAPS_FEATURE_MEMORY_DMABUF.patch
+
+%% original patch: 0013-glupload-add-GST_CAPS_FEATURE_MEMORY_DMABUF.patch
+
+%% original patch: 0013-glupload-add-GST_CAPS_FEATURE_MEMORY_DMABUF.patch
+
+%% original patch: 0013-glupload-add-GST_CAPS_FEATURE_MEMORY_DMABUF.patch
+
+%% original patch: 0013-glupload-add-GST_CAPS_FEATURE_MEMORY_DMABUF.patch
+
+diff --git a/gst-libs/gst/gl/gstglupload.c b/gst-libs/gst/gl/gstglupload.c
+index 496ca86..8481b42 100644
+--- a/gst-libs/gst/gl/gstglupload.c
++++ b/gst-libs/gst/gl/gstglupload.c
+@@ -488,7 +488,10 @@ struct DmabufUpload
+ };
+ 
+ static GstStaticCaps _dma_buf_upload_caps =
+-GST_STATIC_CAPS (GST_VIDEO_CAPS_MAKE (GST_GL_MEMORY_VIDEO_FORMATS_STR));
++    GST_STATIC_CAPS (GST_VIDEO_CAPS_MAKE_WITH_FEATURES
++    (GST_CAPS_FEATURE_MEMORY_DMABUF,
++        GST_GL_MEMORY_VIDEO_FORMATS_STR) ";"
++    GST_VIDEO_CAPS_MAKE (GST_GL_MEMORY_VIDEO_FORMATS_STR));
+ 
+ static gpointer
+ _dma_buf_upload_new (GstGLUpload * upload)
+@@ -522,7 +525,7 @@ _dma_buf_upload_transform_caps (gpointer impl, GstGLContext * context,
+ 
+     ret =
+         _set_caps_features_with_passthrough (caps,
+-        GST_CAPS_FEATURE_MEMORY_SYSTEM_MEMORY, passthrough);
++        GST_CAPS_FEATURE_MEMORY_DMABUF, passthrough);
+ 
+     n = gst_caps_get_size (ret);
+     for (i = 0; i < n; i++) {
+-- 
+2.7.4
+

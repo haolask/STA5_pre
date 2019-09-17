@@ -1,0 +1,56 @@
+From aad84cb08e02fbeff02707972d45253b82bca074 Mon Sep 17 00:00:00 2001
+From: Olivier Claude LEBRETON <olivier.lebreton@st.com>
+Date: Wed, 19 Dec 2018 15:26:00 +0100
+Subject: [PATCH] regression: 4011: fix test failure with GCC 8.1 'memmove'
+ error fix
+
+Signed-off-by: Olivier Claude LEBRETON <olivier.lebreton@st.com>
+---
+ host/xtest/regression_4000.c | 13 ++++++++-----
+ 1 file changed, 8 insertions(+), 5 deletions(-)
+
+diff --git a/host/xtest/regression_4000.c b/host/xtest/regression_4000.c
+index b20b90d..74b5ec2 100644
+--- a/host/xtest/regression_4000.c
++++ b/host/xtest/regression_4000.c
+@@ -5231,6 +5231,7 @@ static void xtest_tee_test_4011(ADBG_Case_t *c)
+ 	uint8_t out[1024];
+ 	uint8_t tmp[1024];
+ 	size_t out_size;
++	size_t enc_size;
+ 	size_t tmp_size;
+ 	size_t n;
+ 	size_t m;
+@@ -5317,17 +5318,19 @@ static void xtest_tee_test_4011(ADBG_Case_t *c)
+ 			goto out;
+ 
+ 		/* 3 */
+-		tmp_size = sizeof(tmp);
++		enc_size = sizeof(tmp);
+ 		if (!ADBG_EXPECT_TEEC_SUCCESS(c,
+ 			ta_crypt_cmd_asymmetric_encrypt(c, &s, ope, NULL, 0,
+-				out, out_size, tmp, &tmp_size)))
++				out, out_size, tmp, &enc_size)))
+ 			goto out;
+ 
+ 		/* 4.1 */
+-		for (n = 0; n < tmp_size; n++)
++		if (enc_size > sizeof(tmp))
++			goto out;
++		for (n = 0; n < enc_size; n++)
+ 			if (tmp[n] == 0xff)
+ 				break;
+-		for (m = n + 1; m < tmp_size; m++)
++		for (m = n + 1; m < enc_size; m++)
+ 			if (tmp[m] != 0xff)
+ 				break;
+ 		/* 4.2 */
+@@ -5341,7 +5344,7 @@ static void xtest_tee_test_4011(ADBG_Case_t *c)
+ 		out_size = sizeof(out);
+ 		if (!ADBG_EXPECT_TEEC_SUCCESS(c,
+ 			ta_crypt_cmd_asymmetric_decrypt(c, &s, opd, NULL, 0,
+-				tmp, tmp_size, out, &out_size)))
++				tmp, enc_size, out, &out_size)))
+ 			goto out;
+ 
+ 		/* 6 */

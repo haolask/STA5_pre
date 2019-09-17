@@ -1,0 +1,210 @@
+From 0d9a79576d43492e4997f0456e853c97ee5bb7e5 Mon Sep 17 00:00:00 2001
+From: Baptiste Chauloux <baptiste.chauloux@st.com>
+Date: Wed, 30 May 2018 15:03:19 +0200
+Subject: [PATCH 2/2] # envsetup patch part2 # Change way to manage the
+ external sources for eSDK build
+
+eSDK is difficultly supporting the packaging done by recipes
+using external sources. Mainly because these recipes are
+not using sstate cache, used to install all the file in
+the final eSDK.
+This patch is changing the way the sources are handled by
+using the SRC_URI parameter to point to the sources.
+Consequence, the sources are copied in the WORKDIR folder
+in the do_unpack task each time a change is done, causing
+the build of a package to be executed completely even for
+a small change. But use of sstate cache is then correctly
+done.
+
+Change-Id: I46183c35f6a3b12c7dcde11951176da9ddf70e12
+Signed-off-by: Baptiste Chauloux <baptiste.chauloux@st.com>
+---
+ eSDK_support/anim-handler_%.bbappend                 |  5 +++++
+ eSDK_support/at-handler_%.bbappend                   |  4 ++++
+ eSDK_support/early-audio_%.bbappend                  |  4 ++++
+ eSDK_support/gcnano-driver_%.bbappend                |  6 ++++++
+ eSDK_support/gcnano-userland-multi-binary_%.bbappend |  4 ++++
+ eSDK_support/gnss-teseo_%.bbappend                   |  4 ++++
+ eSDK_support/gstreamer1.0-plugins-stm_%.bbappend     | 15 +++++++++++++++
+ eSDK_support/mem-access_%.bbappend                   |  4 ++++
+ eSDK_support/rvc_%.bbappend                          |  5 +++++
+ eSDK_support/sec-tools_%.bbappend                    |  4 ++++
+ eSDK_support/st-etal_%.bbappend                      |  5 +++++
+ eSDK_support/staudio_%.bbappend                      |  4 ++++
+ eSDK_support/telematics_%.bbappend                   |  4 ++++
+ eSDK_support/timestamp_%.bbappend                    |  4 ++++
+ 14 files changed, 72 insertions(+)
+ create mode 100644 eSDK_support/anim-handler_%.bbappend
+ create mode 100644 eSDK_support/at-handler_%.bbappend
+ create mode 100644 eSDK_support/early-audio_%.bbappend
+ create mode 100644 eSDK_support/gcnano-driver_%.bbappend
+ create mode 100644 eSDK_support/gcnano-userland-multi-binary_%.bbappend
+ create mode 100644 eSDK_support/gnss-teseo_%.bbappend
+ create mode 100644 eSDK_support/gstreamer1.0-plugins-stm_%.bbappend
+ create mode 100644 eSDK_support/mem-access_%.bbappend
+ create mode 100644 eSDK_support/rvc_%.bbappend
+ create mode 100644 eSDK_support/sec-tools_%.bbappend
+ create mode 100644 eSDK_support/st-etal_%.bbappend
+ create mode 100644 eSDK_support/staudio_%.bbappend
+ create mode 100644 eSDK_support/telematics_%.bbappend
+ create mode 100644 eSDK_support/timestamp_%.bbappend
+
+diff --git a/eSDK_support/anim-handler_%.bbappend b/eSDK_support/anim-handler_%.bbappend
+new file mode 100644
+index 0000000..f64b8b1
+--- /dev/null
++++ b/eSDK_support/anim-handler_%.bbappend
+@@ -0,0 +1,5 @@
++EXTERNALSRC_pn-anim-handler = ""
++FILESEXTRAPATHS_prepend := "${ST_LOCAL_SRC}/carproc-app:"
++SRC_URI = "file://anim-handler"
++SRC_URI += "${EXTRA_FILE}"
++S = "${WORKDIR}/anim-handler"
+diff --git a/eSDK_support/at-handler_%.bbappend b/eSDK_support/at-handler_%.bbappend
+new file mode 100644
+index 0000000..50ef7d6
+--- /dev/null
++++ b/eSDK_support/at-handler_%.bbappend
+@@ -0,0 +1,4 @@
++EXTERNALSRC_pn-at-handler = ""
++FILESEXTRAPATHS_prepend := "${ST_LOCAL_SRC}/carproc-app:"
++SRC_URI = "file://at-handler"
++S = "${WORKDIR}/at-handler"
+diff --git a/eSDK_support/early-audio_%.bbappend b/eSDK_support/early-audio_%.bbappend
+new file mode 100644
+index 0000000..8dd389c
+--- /dev/null
++++ b/eSDK_support/early-audio_%.bbappend
+@@ -0,0 +1,4 @@
++EXTERNALSRC_pn-early-audio = ""
++FILESEXTRAPATHS_prepend := "${ST_LOCAL_SRC}/carproc-app:"
++SRC_URI = "file://early_audio"
++S = "${WORKDIR}/early_audio"
+diff --git a/eSDK_support/gcnano-driver_%.bbappend b/eSDK_support/gcnano-driver_%.bbappend
+new file mode 100644
+index 0000000..5d574ab
+--- /dev/null
++++ b/eSDK_support/gcnano-driver_%.bbappend
+@@ -0,0 +1,6 @@
++EXTERNALSRC_pn-gcnano-driver = ""
++EXTERNALSRC_BUILD_pn-gcnano-driver = ""
++FILESEXTRAPATHS_prepend := "${ST_LOCAL_SRC}/:"
++SRC_URI = "file://gcnano-driver"
++S = "${WORKDIR}/gcnano-driver"
++B = "${WORKDIR}/gcnano-driver"
+diff --git a/eSDK_support/gcnano-userland-multi-binary_%.bbappend b/eSDK_support/gcnano-userland-multi-binary_%.bbappend
+new file mode 100644
+index 0000000..d730cff
+--- /dev/null
++++ b/eSDK_support/gcnano-userland-multi-binary_%.bbappend
+@@ -0,0 +1,4 @@
++EXTERNALSRC_pn-gcnano-userland-multi-binary = ""
++FILESEXTRAPATHS_prepend := "${ST_LOCAL_SRC}/:"
++SRC_URI = "file://gcnano-binaries"
++S = "${WORKDIR}/gcnano-binaries"
+diff --git a/eSDK_support/gnss-teseo_%.bbappend b/eSDK_support/gnss-teseo_%.bbappend
+new file mode 100644
+index 0000000..8e79e9b
+--- /dev/null
++++ b/eSDK_support/gnss-teseo_%.bbappend
+@@ -0,0 +1,4 @@
++EXTERNALSRC_pn-gnss-teseo = ""
++FILESEXTRAPATHS_prepend := "${ST_LOCAL_SRC}/:"
++SRC_URI = "file://gnss-teseo"
++S = "${WORKDIR}/gnss-teseo"
+diff --git a/eSDK_support/gstreamer1.0-plugins-stm_%.bbappend b/eSDK_support/gstreamer1.0-plugins-stm_%.bbappend
+new file mode 100644
+index 0000000..782e15d
+--- /dev/null
++++ b/eSDK_support/gstreamer1.0-plugins-stm_%.bbappend
+@@ -0,0 +1,15 @@
++EXTERNALSRC_pn-gstreamer1.0-plugins-stm = ""
++FILESEXTRAPATHS_prepend := "${ST_LOCAL_SRC}/:"
++SRC_URI = "file://gst-plugins-st"
++SRC_URI += "file://gst-plugins-st/common;path=common"
++S = "${WORKDIR}/gst-plugins-st"
++
++
++#We need to update the common submodule before fetching it with SRC_URI, because git is no more available in WORKDIR after recopy
++do_fetch[prefuncs] += "do_prepare_common_submodule"
++do_prepare_common_submodule() {
++   cd ${ST_LOCAL_SRC}/gst-plugins-st
++   git submodule init
++   git submodule update
++}
++deltask do_update_common_submodule
+diff --git a/eSDK_support/mem-access_%.bbappend b/eSDK_support/mem-access_%.bbappend
+new file mode 100644
+index 0000000..1a2f6f0
+--- /dev/null
++++ b/eSDK_support/mem-access_%.bbappend
+@@ -0,0 +1,4 @@
++EXTERNALSRC_pn-mem-access = ""
++FILESEXTRAPATHS_prepend := "${ST_LOCAL_TOOLS}/:"
++SRC_URI = "file://mem-acess"
++S = "${WORKDIR}/mem-access"
+diff --git a/eSDK_support/rvc_%.bbappend b/eSDK_support/rvc_%.bbappend
+new file mode 100644
+index 0000000..05f2fc3
+--- /dev/null
++++ b/eSDK_support/rvc_%.bbappend
+@@ -0,0 +1,5 @@
++EXTERNALSRC_pn-rvc = ""
++FILESEXTRAPATHS_prepend := "${ST_LOCAL_SRC}/carproc-app:"
++SRC_URI = "file://rvc"
++SRC_URI += "${EXTRA_FILES}"
++S = "${WORKDIR}/rvc"
+diff --git a/eSDK_support/sec-tools_%.bbappend b/eSDK_support/sec-tools_%.bbappend
+new file mode 100644
+index 0000000..c06a797
+--- /dev/null
++++ b/eSDK_support/sec-tools_%.bbappend
+@@ -0,0 +1,4 @@
++EXTERNALSRC_pn-sec-tools = ""
++FILESEXTRAPATHS_prepend := "${ST_LOCAL_TOOLS}/:"
++SRC_URI = "file://sec-tools"
++S = "${WORKDIR}/sec-tools"
+diff --git a/eSDK_support/st-etal_%.bbappend b/eSDK_support/st-etal_%.bbappend
+new file mode 100644
+index 0000000..9fd16ff
+--- /dev/null
++++ b/eSDK_support/st-etal_%.bbappend
+@@ -0,0 +1,5 @@
++EXTERNALSRC_pn-st-etal = ""
++FILESEXTRAPATHS_prepend := "${ST_LOCAL_SRC}/:"
++SRC_URI = "file://st-etal"
++S = "${WORKDIR}/st-etal"
++
+diff --git a/eSDK_support/staudio_%.bbappend b/eSDK_support/staudio_%.bbappend
+new file mode 100644
+index 0000000..90e0dca
+--- /dev/null
++++ b/eSDK_support/staudio_%.bbappend
+@@ -0,0 +1,4 @@
++EXTERNALSRC_pn-staudio = ""
++FILESEXTRAPATHS_prepend := "${ST_LOCAL_SRC}/carproc-app:"
++SRC_URI = "file://staudio"
++S = "${WORKDIR}/staudio"
+diff --git a/eSDK_support/telematics_%.bbappend b/eSDK_support/telematics_%.bbappend
+new file mode 100644
+index 0000000..1537938
+--- /dev/null
++++ b/eSDK_support/telematics_%.bbappend
+@@ -0,0 +1,4 @@
++EXTERNALSRC_pn-telematics = ""
++FILESEXTRAPATHS_prepend := "${ST_LOCAL_SRC}/carproc-app:"
++SRC_URI = "file://telematics"
++S = "${WORKDIR}/telematics"
+diff --git a/eSDK_support/timestamp_%.bbappend b/eSDK_support/timestamp_%.bbappend
+new file mode 100644
+index 0000000..702d432
+--- /dev/null
++++ b/eSDK_support/timestamp_%.bbappend
+@@ -0,0 +1,4 @@
++EXTERNALSRC_pn-timestamp = ""
++FILESEXTRAPATHS_prepend := "${ST_LOCAL_SRC}/carproc-app:"
++SRC_URI = "file://timestamp"
++S = "${WORKDIR}/timestamp"
+-- 
+2.7.4
+

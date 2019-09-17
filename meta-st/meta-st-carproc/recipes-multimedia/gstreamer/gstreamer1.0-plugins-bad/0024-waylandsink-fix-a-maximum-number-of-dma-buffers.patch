@@ -1,0 +1,64 @@
+From 67bef4ad7ec2bd7d1c58044e8ceb0bafba30aee8 Mon Sep 17 00:00:00 2001
+From: Stephane Danieau <stephane.danieau@st.com>
+Date: Tue, 6 Mar 2018 18:23:31 +0100
+Subject: [PATCH 24/25] waylandsink: fix a maximum number of dma buffers
+
+Signed-off-by: Stephane Danieau <stephane.danieau@st.com>
+
+%% original patch: 0029-waylandsink-fix-a-maximum-number-of-dma-buffers.patch
+
+%% original patch: 0028-waylandsink-fix-a-maximum-number-of-dma-buffers.patch
+
+diff --git a/ext/wayland/gstwaylandsink.c b/ext/wayland/gstwaylandsink.c
+index fc607a6..67cb8d6 100644
+--- a/ext/wayland/gstwaylandsink.c
++++ b/ext/wayland/gstwaylandsink.c
+@@ -68,6 +68,9 @@ enum
+   PROP_WINDOW_HEIGHT
+ };
+ 
++#define MIN_DMA_BUFFERS 3
++#define MAX_DMA_BUFFERS 10
++
+ GST_DEBUG_CATEGORY (gstwayland_debug);
+ #define GST_CAT_DEFAULT gstwayland_debug
+ 
+@@ -353,7 +356,7 @@ gst_wayland_sink_change_state (GstElement * element, GstStateChange transition)
+ 
+   switch (transition) {
+     case GST_STATE_CHANGE_NULL_TO_READY:
+-      g_clear_object(&sink->display);
++      g_clear_object (&sink->display);
+       if (!gst_wayland_sink_find_display (sink))
+         return GST_STATE_CHANGE_FAILURE;
+       break;
+@@ -519,7 +522,7 @@ gst_wayland_create_pool (GstWaylandSink * sink, GstCaps * caps)
+     /* create a new pool for the new configuration */
+     pool = gst_video_buffer_pool_new ();
+     structure = gst_buffer_pool_get_config (pool);
+-    gst_buffer_pool_config_set_params (structure, caps, size, 3, 0);
++    gst_buffer_pool_config_set_params (structure, caps, size,  2, 0);
+     gst_buffer_pool_config_set_allocator (structure, gst_wl_shm_allocator_get (),
+       NULL);
+ 
+@@ -543,7 +546,7 @@ gst_wayland_create_pool (GstWaylandSink * sink, GstCaps * caps)
+     return pool;
+   }
+   structure = gst_buffer_pool_get_config (pool);
+-  gst_buffer_pool_config_set_params (structure, caps, info.size, 2, 0);
++  gst_buffer_pool_config_set_params (structure, caps, info.size, MIN_DMA_BUFFERS, MAX_DMA_BUFFERS);
+   gst_buffer_pool_config_set_allocator (structure, NULL, &params);
+   if (!gst_buffer_pool_set_config (pool, structure)) {
+     GST_DEBUG_OBJECT (sink, "failed setting config");
+@@ -678,7 +681,7 @@ gst_wayland_sink_propose_allocation (GstBaseSink * bsink, GstQuery * query)
+     pool = gst_wayland_create_pool(sink, caps);
+ 
+   if (pool) {
+-    gst_query_add_allocation_pool (query, pool, size, 3, 0);
++    gst_query_add_allocation_pool (query, pool, size, MIN_DMA_BUFFERS, MAX_DMA_BUFFERS);
+     gst_object_unref (pool);
+     /*Integration of the Dmabuf as the allocator by default */
+     if (sink->display->dmabuf) {
+-- 
+2.7.4
+

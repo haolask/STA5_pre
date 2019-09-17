@@ -1,0 +1,104 @@
+From c1cf501a89a4849b994bc90ec0ac688474f17f1f Mon Sep 17 00:00:00 2001
+From: Christophe Priouzeau <christophe.priouzeau@linaro.org>
+Date: Wed, 6 Apr 2016 15:43:47 +0200
+Subject: [PATCH 5/7] STM: tools: gst-play: latency option
+
+Used to set rtpjitterbuffer latency property.
+Needed to force 0-latency when doing rtsp playback.
+Applicable only when rtp involved, generalization needed
+to cover more cases.
+
+Change-Id: I67be0192d8718571bebf45800e22d093ceb165a6
+Reviewed-on: https://gerrit.st.com/22831
+
+diff --git a/tools/gst-play.c b/tools/gst-play.c
+index 88c51f9..ce60fc1 100644
+--- a/tools/gst-play.c
++++ b/tools/gst-play.c
+@@ -88,6 +88,7 @@ typedef struct
+ 
+   /* configuration */
+   gboolean gapless;
++  gint latency;
+ 
+   GstPlayTrickMode trick_mode;
+   gdouble rate;
+@@ -139,7 +140,7 @@ gst_play_printf (const gchar * format, ...)
+ static GstPlay *
+ play_new (gchar ** uris, const gchar * audio_sink, const gchar * video_sink,
+     gboolean gapless, gdouble initial_volume, gboolean verbose,
+-    const gchar * flags_string)
++    const gchar * flags_string, gint latency)
+ {
+   GstElement *sink, *playbin;
+   GstPlay *play;
+@@ -224,6 +225,8 @@ play_new (gchar ** uris, const gchar * audio_sink, const gchar * video_sink,
+   play->rate = 1.0;
+   play->trick_mode = GST_PLAY_TRICK_MODE_NONE;
+ 
++  play->latency = latency;
++
+   return play;
+ }
+ 
+@@ -289,6 +292,7 @@ static gboolean
+ play_bus_msg (GstBus * bus, GstMessage * msg, gpointer user_data)
+ {
+   GstPlay *play = user_data;
++  static GstElement *rtpjitterbuffer = NULL;
+ 
+   switch (GST_MESSAGE_TYPE (msg)) {
+     case GST_MESSAGE_ASYNC_DONE:
+@@ -303,6 +307,23 @@ play_bus_msg (GstBus * bus, GstMessage * msg, gpointer user_data)
+         --play->cur_idx;
+         play_next (play);
+       }
++      if (play->latency != -1) {
++        /* latency tuning */
++        /* FIXME, done for rtsp playback,
++         * but can this be generalized to
++         * more use-cases ?
++         */
++        rtpjitterbuffer = gst_bin_get_by_name (GST_BIN (play->playbin), "rtpjitterbuffer0");
++        if (rtpjitterbuffer) {
++          g_print ("force 0-latency on rtpjitterbuffer0 (video)\n");
++          g_object_set (G_OBJECT (rtpjitterbuffer), "latency", play->latency, NULL);
++        }
++        rtpjitterbuffer = gst_bin_get_by_name (GST_BIN (play->playbin), "rtpjitterbuffer1");
++        if (rtpjitterbuffer) {
++          g_print ("force 0-latency on rtpjitterbuffer1 (audio)\n");
++          g_object_set (G_OBJECT (rtpjitterbuffer), "latency", play->latency, NULL);
++        }
++      }
+       break;
+     case GST_MESSAGE_BUFFERING:{
+       gint percent;
+@@ -1174,6 +1195,7 @@ main (int argc, char **argv)
+   gboolean interactive = TRUE;
+   gboolean gapless = FALSE;
+   gboolean shuffle = FALSE;
++  gint latency = -1;
+   gdouble volume = -1;
+   gchar **filenames = NULL;
+   gchar *audio_sink = NULL;
+@@ -1200,6 +1222,8 @@ main (int argc, char **argv)
+         N_("Enable gapless playback"), NULL},
+     {"shuffle", 0, 0, G_OPTION_ARG_NONE, &shuffle,
+         N_("Shuffle playlist"), NULL},
++    {"latency", 0, 0, G_OPTION_ARG_INT, &latency,
++        N_("Latency (default (-1): auto, 0: minimum latency"), NULL},
+     {"no-interactive", 0, G_OPTION_FLAG_REVERSE, G_OPTION_ARG_NONE,
+           &interactive,
+         N_("Disable interactive control via the keyboard"), NULL},
+@@ -1315,7 +1339,7 @@ main (int argc, char **argv)
+ 
+   /* prepare */
+   play =
+-      play_new (uris, audio_sink, video_sink, gapless, volume, verbose, flags);
++      play_new (uris, audio_sink, video_sink, gapless, volume, verbose, flags, latency);
+ 
+   if (play == NULL) {
+     g_printerr
+-- 
+2.7.4
+

@@ -1,0 +1,278 @@
+From d645a427a080681857d0a7901c79fc78511fcb70 Mon Sep 17 00:00:00 2001
+From: Stephane Danieau <stephane.danieau@st.com>
+Date: Mon, 4 Feb 2019 15:39:26 +0100
+Subject: [PATCH] waylandsink: update wl_display resources release
+
+wl_buffers must be released (unref) from display
+before being released(unref) from pool.
+Pool must unref display at pool finalization.
+
+Buglink: https://stintbugzilla.st.com/show_bug.cgi?id=118523
+
+Signed-off-by: Stephane Danieau <stephane.danieau@st.com>
+
+%% original patch: 0028-waylandsink-update-wl_display-resources-release.patch
+
+diff --git a/ext/wayland/gstwaylandsink.c b/ext/wayland/gstwaylandsink.c
+index 5a61827..dadd976 100644
+--- a/ext/wayland/gstwaylandsink.c
++++ b/ext/wayland/gstwaylandsink.c
+@@ -406,7 +406,7 @@ gst_wayland_sink_change_state (GstElement * element, GstStateChange transition)
+        * restarted (GstVideoOverlay behaves like that in other sinks)
+        */
+       if (sink->display && !sink->window) {     /* -> the window was toplevel */
+-        gst_object_unref (sink->display);
++        gst_wl_display_release_buffers (sink->display);
+         g_mutex_lock (&sink->render_lock);
+         sink->redraw_pending = FALSE;
+         g_mutex_unlock (&sink->render_lock);
+@@ -521,7 +521,6 @@ gst_wayland_create_pool (GstWaylandSink * sink, GstCaps * caps)
+   GstStructure *structure;
+   GstVideoInfo info;
+   gsize size = sink->video_info.size;
+-  uint format_dmabuf;
+   static GstAllocationParams params = { 0, 0, 0, 15, };
+ 
+   /* extract info from caps */
+@@ -535,9 +534,9 @@ gst_wayland_create_pool (GstWaylandSink * sink, GstCaps * caps)
+     /* create a new pool for the new configuration */
+     pool = gst_video_buffer_pool_new ();
+     structure = gst_buffer_pool_get_config (pool);
+-    gst_buffer_pool_config_set_params (structure, caps, size,  2, 0);
+-    gst_buffer_pool_config_set_allocator (structure, gst_wl_shm_allocator_get (),
+-      NULL);
++    gst_buffer_pool_config_set_params (structure, caps, size, 2, 0);
++    gst_buffer_pool_config_set_allocator (structure,
++        gst_wl_shm_allocator_get (), NULL);
+ 
+     if (!gst_buffer_pool_set_config (pool, structure)) {
+       g_object_unref (pool);
+@@ -546,9 +545,10 @@ gst_wayland_create_pool (GstWaylandSink * sink, GstCaps * caps)
+     return pool;
+   }
+ 
+-  if (!gst_wl_display_check_format_for_dmabuf (sink->display, GST_VIDEO_INFO_FORMAT (&info))) {
++  if (!gst_wl_display_check_format_for_dmabuf (sink->display,
++          GST_VIDEO_INFO_FORMAT (&info))) {
+     GST_DEBUG_OBJECT (sink, "Format %s is not available on the display",
+-      gst_video_format_to_string (GST_VIDEO_INFO_FORMAT (&info)));
++        gst_video_format_to_string (GST_VIDEO_INFO_FORMAT (&info)));
+     return NULL;
+   }
+ 
+@@ -559,7 +559,8 @@ gst_wayland_create_pool (GstWaylandSink * sink, GstCaps * caps)
+     return pool;
+   }
+   structure = gst_buffer_pool_get_config (pool);
+-  gst_buffer_pool_config_set_params (structure, caps, info.size, MIN_DMA_BUFFERS, MAX_DMA_BUFFERS);
++  gst_buffer_pool_config_set_params (structure, caps, info.size,
++      MIN_DMA_BUFFERS, MAX_DMA_BUFFERS);
+   gst_buffer_pool_config_set_allocator (structure, NULL, &params);
+   if (!gst_buffer_pool_set_config (pool, structure)) {
+     GST_DEBUG_OBJECT (sink, "failed setting config");
+@@ -579,7 +580,7 @@ gst_wayland_create_pool (GstWaylandSink * sink, GstCaps * caps)
+   }
+   gst_object_replace ((GstObject **) & sink->pool, (GstObject *) pool);
+   gst_object_unref (pool);
+-  return pool;  
++  return pool;
+ }
+ 
+ static gboolean
+@@ -691,10 +692,11 @@ gst_wayland_sink_propose_allocation (GstBaseSink * bsink, GstQuery * query)
+   }
+ 
+   if (pool == NULL && need_pool)
+-    pool = gst_wayland_create_pool(sink, caps);
++    pool = gst_wayland_create_pool (sink, caps);
+ 
+   if (pool) {
+-    gst_query_add_allocation_pool (query, pool, size, MIN_DMA_BUFFERS, MAX_DMA_BUFFERS);
++    gst_query_add_allocation_pool (query, pool, size, MIN_DMA_BUFFERS,
++        MAX_DMA_BUFFERS);
+     gst_object_unref (pool);
+     /*Integration of the Dmabuf as the allocator by default */
+     if (sink->display->dmabuf) {
+@@ -924,7 +926,7 @@ gst_wayland_sink_show_frame (GstVideoSink * vsink, GstBuffer * buffer)
+         mem = gst_buffer_peek_memory (to_render, 0);
+         if (gst_is_wl_shm_memory (mem))
+           wbuf = gst_wl_shm_memory_construct_wl_buffer (mem, sink->display,
+-            &sink->video_info);
++              &sink->video_info);
+         else if (gst_is_dmabuf_memory (mem))
+           wbuf =
+               gst_wl_linux_dmabuf_construct_wl_buffer (to_render, sink->display,
+diff --git a/ext/wayland/waylandpool.c b/ext/wayland/waylandpool.c
+index 19e6f74..771d49f 100644
+--- a/ext/wayland/waylandpool.c
++++ b/ext/wayland/waylandpool.c
+@@ -85,10 +85,12 @@ gst_wl_meta_free (GstWlMeta * meta, GstBuffer * buffer)
+     wl_buffer_destroy (meta->wbuffer);
+ }
+ 
+-static gboolean gst_wl_meta_init(GstMeta *meta, G_GNUC_UNUSED gpointer params, G_GNUC_UNUSED GstBuffer *buffer)
++static gboolean
++gst_wl_meta_init (GstMeta * meta, G_GNUC_UNUSED gpointer params,
++    G_GNUC_UNUSED GstBuffer * buffer)
+ {
+-	/* Just to avoid a warning */
+-	return TRUE;
++  /* Just to avoid a warning */
++  return TRUE;
+ }
+ 
+ const GstMetaInfo *
+@@ -159,6 +161,11 @@ gst_wayland_buffer_pool_finalize (GObject * object)
+     gst_object_unref (pool->allocator);
+   pool->allocator = NULL;
+ 
++  if (pool->display) {
++    gst_object_unref (pool->display);
++    pool->display = NULL;
++  }
++
+   if (pool->wl_pool)
+     gst_wayland_buffer_pool_stop (GST_BUFFER_POOL (pool));
+ 
+diff --git a/ext/wayland/wlbuffer.c b/ext/wayland/wlbuffer.c
+index 9ec4b86..12dcb05 100644
+--- a/ext/wayland/wlbuffer.c
++++ b/ext/wayland/wlbuffer.c
+@@ -109,8 +109,10 @@ gst_wl_buffer_finalize (GObject * gobject)
+ 
+   GST_TRACE_OBJECT (self, "finalize");
+ 
+-  if (self->wlbuffer)
++  if (self->wlbuffer) {
+     wl_buffer_destroy (self->wlbuffer);
++    self->wlbuffer = NULL;
++  }
+ 
+   G_OBJECT_CLASS (gst_wl_buffer_parent_class)->finalize (gobject);
+ }
+@@ -191,6 +193,9 @@ gst_buffer_get_wl_buffer (GstBuffer * gstbuffer)
+ void
+ gst_wl_buffer_force_release_and_unref (GstWlBuffer * self)
+ {
++  if (!self)
++    return;
++
+   /* Force a buffer release.
+    * At this point, the GstWlDisplay has killed its event loop,
+    * so we don't need to worry about buffer_release() being called
+@@ -210,8 +215,10 @@ gst_wl_buffer_force_release_and_unref (GstWlBuffer * self)
+    * The last reference is either owned by the GstBuffer or by us and
+    * it will be released at the end of this function. */
+   GST_TRACE_OBJECT (self, "finalizing early");
+-  wl_buffer_destroy (self->wlbuffer);
+-  self->wlbuffer = NULL;
++  if (self->wlbuffer) {
++    wl_buffer_destroy (self->wlbuffer);
++    self->wlbuffer = NULL;
++  }
+   self->display = NULL;
+ 
+   /* remove the reference that the caller (GstWlDisplay) owns */
+diff --git a/ext/wayland/wldisplay.c b/ext/wayland/wldisplay.c
+index d724bbc..75ff4ae 100644
+--- a/ext/wayland/wldisplay.c
++++ b/ext/wayland/wldisplay.c
+@@ -55,15 +55,16 @@ gst_wl_display_init (GstWlDisplay * self)
+   self->device_name = g_strdup ("/dev/dri/card0");
+ }
+ 
+-static void
+-gst_wl_display_finalize (GObject * gobject)
++void
++gst_wl_display_release_buffers (GstWlDisplay * self)
+ {
+-  GstWlDisplay *self = GST_WL_DISPLAY (gobject);
++
++  if (!self)
++    return;
+ 
+   gst_poll_set_flushing (self->wl_fd_poll, TRUE);
+   if (self->thread)
+     g_thread_join (self->thread);
+-
+   /* to avoid buffers being unregistered from another thread
+    * at the same time, take their ownership */
+   g_mutex_lock (&self->buffers_mutex);
+@@ -74,6 +75,13 @@ gst_wl_display_finalize (GObject * gobject)
+   g_hash_table_foreach (self->buffers,
+       (GHFunc) gst_wl_buffer_force_release_and_unref, NULL);
+   g_hash_table_remove_all (self->buffers);
++}
++
++static void
++gst_wl_display_finalize (GObject * gobject)
++{
++  GstWlDisplay *self = GST_WL_DISPLAY (gobject);
++
+ 
+   g_array_unref (self->shm_formats);
+   g_array_unref (self->dmabuf_formats);
+@@ -272,7 +280,7 @@ registry_handle_global (void *data, struct wl_registry *registry,
+   } else if (g_strcmp0 (interface, "ivi_application") == 0) {
+     self->ivi_application =
+         wl_registry_bind (registry, id, &ivi_application_interface, 1);
+-   }
++  }
+ 
+ }
+ 
+@@ -376,7 +384,7 @@ gst_wl_display_new_existing (struct wl_display * display,
+   VERIFY_INTERFACE_EXISTS (compositor, "wl_compositor");
+   VERIFY_INTERFACE_EXISTS (subcompositor, "wl_subcompositor");
+   VERIFY_INTERFACE_EXISTS (shm, "wl_shm");
+-  VERIFY_INTERFACE_EXISTS (output, "wl_output");  
++  VERIFY_INTERFACE_EXISTS (output, "wl_output");
+   if (!self->shell) {
+     if (!self->ivi_application) {
+       g_set_error (error, g_quark_from_static_string ("GstWlDisplay"), 0,
+@@ -387,7 +395,6 @@ gst_wl_display_new_existing (struct wl_display * display,
+       return NULL;
+     }
+   }
+-
+ #undef VERIFY_INTERFACE_EXISTS
+ 
+   /* We make the viewporter optional even though it may cause bad display.
+diff --git a/ext/wayland/wldisplay.h b/ext/wayland/wldisplay.h
+index ebdc390..451c2be 100644
+--- a/ext/wayland/wldisplay.h
++++ b/ext/wayland/wldisplay.h
+@@ -94,5 +94,7 @@ gboolean gst_wl_display_check_format_for_shm (GstWlDisplay * display,
+ gboolean gst_wl_display_check_format_for_dmabuf (GstWlDisplay * display,
+     GstVideoFormat format);
+ 
++void gst_wl_display_release_buffers (GstWlDisplay * self);
++
+ G_END_DECLS
+ #endif /* __GST_WL_DISPLAY_H__ */
+diff --git a/ext/wayland/wlwindow.c b/ext/wayland/wlwindow.c
+index a893cd8..38510a5 100644
+--- a/ext/wayland/wlwindow.c
++++ b/ext/wayland/wlwindow.c
+@@ -107,7 +107,8 @@ gst_wl_window_finalize (GObject * gobject)
+ 
+   wl_surface_destroy (self->area_surface);
+ 
+-  g_clear_object (&self->display);
++  if (self->display)
++    g_clear_object (&self->display);
+ 
+   G_OBJECT_CLASS (gst_wl_window_parent_class)->finalize (gobject);
+ }
+@@ -120,7 +121,7 @@ gst_wl_window_new_internal (GstWlDisplay * display, GMutex * render_lock)
+ 
+   window = g_object_new (GST_TYPE_WL_WINDOW, NULL);
+   window->display = g_object_ref (display);
+-  window->render_lock = render_lock;  
++  window->render_lock = render_lock;
+ 
+ 
+   window->area_surface = wl_compositor_create_surface (display->compositor);
+-- 
+2.7.4
+

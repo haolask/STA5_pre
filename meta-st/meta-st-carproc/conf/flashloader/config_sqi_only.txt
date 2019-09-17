@@ -1,0 +1,53 @@
+; -------------------------------
+; Accordo5/Telemaco3 config file
+; -------------------------------
+VERSION         = 7.0
+SOC		= ###SOC###
+
+; ----------
+; M3 entries
+; ----------
+; Append "st-signed-l2" to enforce Security Level 2
+M3_XL			= m3_xloader.bin, 0x10000000
+
+; ----------
+; AP entries
+; ----------
+AP_XL_ENTRY		= ###AP_XL_BASE###
+AP_XL			= atf/bl2.bin, ###AP_XL_BASE###
+FIP			    = atf/fip.bin
+AP_OS    		= image.fit, 0xA0000000
+
+; ---------------
+; Security assets
+; ---------------
+; Customer certificate
+CUSTOMER_CERTIFICATE = ###SOC###-cust-cert.der
+; Only for dev purpose
+CUSTOMER_PRIVATE_KEY = ###SOC###-cust-key.pem
+; Alternate CA certificate
+ALTERNATE_CA_CERTIFICATE = ###SOC###-alt-ca-cert.der
+
+; ----------------------------
+; U-boot environment variables
+; ----------------------------
+UBOOT_ENV           = ###UBOOT_ENV_CONFIG###
+
+; For U-boot base flashloader
+;------------------------
+M3XLOADER			= m3_xl_uflashloader.bin
+FLASHLOADER			= u-boot-flashloader.bin, 0xA0000000
+
+;-------------------------------------------------------------------
+; Flash partitions mapping for M3-loaders, ATF, FIP and Linux Kernel
+;-------------------------------------------------------------------
+; MTD partitions in SQI NOR
+mtdparts=50200000.sqi:256k(M3_XL),64k(UBOOT_ENV),1m(FIP),128k(AP_XL),6m(AP_OS),1m(TEST1),1m(TEST2),-(UBI)
+
+;-----------------------------
+; Linux UBI partitions mapping
+;-----------------------------
+ubiparts=UBI:-(rootfs|###GENERATED_IMAGE_NAME###.ubifs)
+
+
+; END OF CONFIG FILE

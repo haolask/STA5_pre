@@ -1,0 +1,16 @@
+
+[Unit]
+Description=ST A5 Rear View Camera Service Ignition
+After=weston.service
+After=default-display.service
+
+[Service]
+Restart=always
+RestartSec=1
+Environment=XDG_RUNTIME_DIR=/run/user/root
+Environment=DISPLAY=wayland-0
+ExecStart=/usr/bin/rvc_service.sh
+
+[Install]
+WantedBy=multi-user.target
+

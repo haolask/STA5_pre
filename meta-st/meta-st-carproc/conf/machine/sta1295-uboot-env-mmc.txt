@@ -1,0 +1,20 @@
+#
+# U-boot environment variables for Accordo MMC EVB boards
+#
+console=console=tty0 consoleblank=0 console=ttyAMA2,115200n8
+loadaddr=A0000000
+loadzaddr=A1000000
+fdt_high=FFFFFFFF
+# ON A5 EVB boards: mmc0 is Arasan SDIO, mmc1 is an external SD-Card and mmc2 is an EMMC
+mmcdev=2
+mmcbootpart=1
+mmcrootpart=2
+mmcldev=1
+mmcload=ext4load mmc ${mmcdev}:${mmcbootpart} ${loadzaddr} fitImage
+mmcboot=echo Booting from MMC${mmcdev}...; run mmcargs; bootm ${loadzaddr}
+serial#=01010101
+
+# Boot command and args
+commonargs=rw rootwait earlyprintk quiet systemd.gpt_auto=0
+mmcargs=setenv bootargs ${console} root=/dev/mmcblk${mmcldev}p${mmcrootpart} rootfstype=ext4 ${commonargs} coherent_pool=4M
+bootcmd=mmc dev ${mmcdev}; run mmcload mmcboot

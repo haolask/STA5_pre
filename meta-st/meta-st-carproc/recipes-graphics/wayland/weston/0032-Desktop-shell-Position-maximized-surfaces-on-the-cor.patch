@@ -1,0 +1,60 @@
+From 3941e543c57da23edbc880dfbf3462bb6cb693f5 Mon Sep 17 00:00:00 2001
+From: Stephane Danieau <stephane.danieau@st.com>
+Date: Wed, 7 Mar 2018 17:09:22 +0100
+Subject: [PATCH 32/37] Desktop-shell: Position maximized surfaces on the
+ correct output.
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+During a maximize event, a surface was previously always put back to
+the primary output after one frame on the correct output, while keeping
+its size.  This was caused by the shell surface’s last_{width,height}
+not being reset when it was either fullscreen or maximized, leading to
+the unmaximize/maximize dance being done at each commit.
+
+This was introduced in 8f9d90a84bb2888b074fea93c4a28778bc6439c6.
+
+Changes since v1:
+- Fix the actual issue instead of a symptom.
+
+Cherry-pick of SHA1 c394179488e9c84f3f113570cf4079ebd5da8760
+
+Buglink: https://stintbugzilla.st.com/show_bug.cgi?id=110879
+
+Change-Id: I9bbf29bb9c1a14f8f5292025bd4ef0b52de31af4
+Signed-off-by: Mickael Reulier <mickael.reulier@st.com>
+Reviewed-on: https://gerrit.st.com/74185
+Reviewed-by: CITOOLS <smet-aci-reviews@lists.codex.cro.st.com>
+Reviewed-by: Vincent ABRIOU <vincent.abriou@st.com>
+---
+ desktop-shell/shell.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/desktop-shell/shell.c b/desktop-shell/shell.c
+index f80088f..70efcb4 100644
+--- a/desktop-shell/shell.c
++++ b/desktop-shell/shell.c
+@@ -2543,9 +2543,6 @@ desktop_surface_committed(struct weston_desktop_surface *desktop_surface,
+ 		if (shsurf->resize_edges & WL_SHELL_SURFACE_RESIZE_TOP)
+ 			sy = shsurf->last_height - surface->height;
+ 
+-		shsurf->last_width = surface->width;
+-		shsurf->last_height = surface->height;
+-
+ 		weston_view_to_global_float(shsurf->view, 0, 0, &from_x, &from_y);
+ 		weston_view_to_global_float(shsurf->view, sx, sy, &to_x, &to_y);
+ 		x = shsurf->view->geometry.x + to_x - from_x;
+@@ -2554,6 +2551,9 @@ desktop_surface_committed(struct weston_desktop_surface *desktop_surface,
+ 		weston_view_set_position(shsurf->view, x, y);
+ 	}
+ 
++	shsurf->last_width = surface->width;
++	shsurf->last_height = surface->height;
++
+ 	/* XXX: would a fullscreen surface need the same handling? */
+ 	if (surface->output) {
+ 		wl_list_for_each(view, &surface->views, surface_link)
+-- 
+1.9.1
+

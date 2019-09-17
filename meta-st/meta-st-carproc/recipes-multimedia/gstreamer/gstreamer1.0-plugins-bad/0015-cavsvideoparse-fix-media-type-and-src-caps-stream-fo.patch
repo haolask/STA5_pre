@@ -1,0 +1,68 @@
+From ac3a537136f9c07767eecef0ce1b32152722a1ef Mon Sep 17 00:00:00 2001
+From: Stephane Danieau <stephane.danieau@st.com>
+Date: Mon, 19 Sep 2016 14:17:08 +0200
+Subject: [PATCH 15/25] cavsvideoparse: fix media-type and src caps
+ stream-format
+
+Change-Id: Ib45638a20ff2b424b7b216de70702acaf67baa77
+Signed-off-by: Stephane Danieau <stephane.danieau@st.com>
+Reviewed-on: https://gerrit.st.com/58040
+
+%% original patch: 0019-cavsvideoparse-fix-media-type-and-src-caps-stream-fo.patch
+
+%% original patch: 0019-cavsvideoparse-fix-media-type-and-src-caps-stream-fo.patch
+
+%% original patch: 0019-cavsvideoparse-fix-media-type-and-src-caps-stream-fo.patch
+
+diff --git a/gst/videoparsers/gstcavsvideoparse.c b/gst/videoparsers/gstcavsvideoparse.c
+index 9a926fc..9231958 100644
+--- a/gst/videoparsers/gstcavsvideoparse.c
++++ b/gst/videoparsers/gstcavsvideoparse.c
+@@ -48,12 +48,12 @@ GST_DEBUG_CATEGORY (avs_video_parse_debug);
+ static GstStaticPadTemplate sinktemplate = GST_STATIC_PAD_TEMPLATE ("sink",
+     GST_PAD_SINK,
+     GST_PAD_ALWAYS,
+-    GST_STATIC_CAPS ("video/x-gst-av-cavs"));
++    GST_STATIC_CAPS ("video/x-cavs"));
+ 
+ static GstStaticPadTemplate srctemplate = GST_STATIC_PAD_TEMPLATE ("src",
+     GST_PAD_SRC,
+     GST_PAD_ALWAYS,
+-    GST_STATIC_CAPS ("video/x-gst-av-cavs, "
++    GST_STATIC_CAPS ("video/x-cavs, "
+         "parsed = (boolean) true, "
+         "stream-format= (string) {unit, unit-frame}"));
+ 
+@@ -216,7 +216,7 @@ gst_cavs_video_parse_update_src_caps (GstCAVSVideoParse * cavsvideoparse)
+       && !cavsvideoparse->update_caps)
+     return TRUE;
+ 
+-  caps = gst_caps_new_simple ("video/x-gst-av-cavs",
++  caps = gst_caps_new_simple ("video/x-cavs",
+       "parsed", G_TYPE_BOOLEAN, TRUE, NULL);
+ 
+   g_assert (cavsvideoparse->width != 0);
+@@ -225,6 +225,11 @@ gst_cavs_video_parse_update_src_caps (GstCAVSVideoParse * cavsvideoparse)
+       "width", G_TYPE_INT, cavsvideoparse->width,
+       "height", G_TYPE_INT, cavsvideoparse->height, NULL);
+ 
++  if (cavsvideoparse->format == GST_CAVS_STREAM_FORMAT_UNIT_FRAME)
++    gst_caps_set_simple (caps, "stream-format", G_TYPE_STRING, "unit-frame", NULL);
++  else
++    gst_caps_set_simple (caps, "stream-format", G_TYPE_STRING, "unit", NULL);
++
+   if (cavsvideoparse->profile == GST_CAVS_VIDEO_PROFILE_JIZHUN)
+     gst_caps_set_simple (caps, "profile", G_TYPE_STRING, "Jizhun", NULL);
+   else
+@@ -357,6 +362,8 @@ gst_cavs_video_parse_process_unit (GstCAVSVideoParse * cavsvideoparse,
+ 
+   switch (unit->type) {
+     case GST_CAVS_VIDEO_UNIT_SEQUENCE_HEADER:
++      if (G_UNLIKELY (cavsvideoparse->have_seqhdr))
++        return FALSE;
+       ret = gst_cavs_video_parse_process_sequence_header (cavsvideoparse, unit);
+       break;
+ 
+-- 
+2.7.4
+

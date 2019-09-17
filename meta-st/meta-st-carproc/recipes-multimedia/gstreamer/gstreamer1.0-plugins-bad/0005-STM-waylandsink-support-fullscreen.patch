@@ -1,0 +1,281 @@
+From 694b96997514fa8abffbffa5f376c12752c80809 Mon Sep 17 00:00:00 2001
+From: Stephane Danieau <stephane.danieau@st.com>
+Date: Tue, 13 Mar 2018 14:47:22 +0100
+Subject: [PATCH 05/25] STM: waylandsink: support fullscreen
+
+        Add the fullscreen property that makes the sink displayed all across
+        the output.
+        This is implemented in two steps:
+        - the area_surface is displayed in fullscreen wayland mode
+        - the embededded video_surface is scaled to the output size
+
+        Signed-off-by: Fabien Dessenne <fabien.dessenne@st.com>
+
+diff --git a/ext/wayland/gstwaylandsink.c b/ext/wayland/gstwaylandsink.c
+index f0541d3..5c47e22 100644
+--- a/ext/wayland/gstwaylandsink.c
++++ b/ext/wayland/gstwaylandsink.c
+@@ -61,7 +61,8 @@ enum
+ enum
+ {
+   PROP_0,
+-  PROP_DISPLAY
++  PROP_DISPLAY,
++  PROP_FULLSCREEN
+ };
+ 
+ GST_DEBUG_CATEGORY (gstwayland_debug);
+@@ -163,6 +164,11 @@ gst_wayland_sink_class_init (GstWaylandSinkClass * klass)
+       g_param_spec_string ("display", "Wayland Display name", "Wayland "
+           "display name to connect to, if not supplied via the GstContext",
+           NULL, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
++
++  g_object_class_install_property (gobject_class, PROP_FULLSCREEN,
++      g_param_spec_boolean ("fullscreen",
++          "Fullscreen", "Display on fullscreen", FALSE,
++          G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE));
+ }
+ 
+ static void
+@@ -171,7 +177,7 @@ gst_wayland_sink_init (GstWaylandSink * sink)
+   GstBaseSink *basesink = GST_BASE_SINK_CAST (GST_VIDEO_SINK_CAST (sink));
+ 
+   gst_base_sink_set_last_sample_enabled (basesink, FALSE);
+-
++  sink->fullscreen = FALSE;
+   g_mutex_init (&sink->display_lock);
+   g_mutex_init (&sink->render_lock);
+ }
+@@ -188,6 +194,9 @@ gst_wayland_sink_get_property (GObject * object,
+       g_value_set_string (value, sink->display_name);
+       GST_OBJECT_UNLOCK (sink);
+       break;
++    case PROP_FULLSCREEN:
++      g_value_set_boolean (value, sink->fullscreen);
++      break;
+     default:
+       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+       break;
+@@ -206,6 +215,9 @@ gst_wayland_sink_set_property (GObject * object,
+       sink->display_name = g_value_dup_string (value);
+       GST_OBJECT_UNLOCK (sink);
+       break;
++    case PROP_FULLSCREEN:
++      sink->fullscreen = g_value_get_boolean (value);
++      break;
+     default:
+       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+       break;
+@@ -335,7 +347,7 @@ gst_wayland_sink_change_state (GstElement * element, GstStateChange transition)
+           g_clear_object (&sink->window);
+         } else {
+           /* remove buffer from surface, show nothing */
+-          gst_wl_window_render (sink->window, NULL, NULL);
++          gst_wl_window_render (sink->window, NULL, NULL, 0, 0);
+         }
+       }
+       break;
+@@ -595,6 +607,7 @@ render_last_buffer (GstWaylandSink * sink)
+   const GstVideoInfo *info = NULL;
+   struct wl_surface *surface;
+   struct wl_callback *callback;
++  guint width = 0, height = 0;
+ 
+   wlbuffer = gst_buffer_get_wl_buffer (sink->last_buffer);
+   surface = gst_wl_window_get_wl_surface (sink->window);
+@@ -607,7 +620,18 @@ render_last_buffer (GstWaylandSink * sink)
+     info = &sink->video_info;
+     sink->video_info_changed = FALSE;
+   }
+-  gst_wl_window_render (sink->window, wlbuffer, info);
++
++  if (G_UNLIKELY (sink->fullscreen) &&
++      G_UNLIKELY (!sink->window->set_size_done)) {
++    /* "_set_fullscreen" this only makes the area_surface in fullscreen, the
++     * video_surface needs then to be scaled */
++    wl_shell_surface_set_fullscreen (sink->window->shell_surface,
++        WL_SHELL_SURFACE_FULLSCREEN_METHOD_DEFAULT, 0, NULL);
++    width = sink->display->output_width;
++    height = sink->display->output_height;
++  }
++
++  gst_wl_window_render (sink->window, wlbuffer, info, width, height);
+ }
+ 
+ static GstFlowReturn
+diff --git a/ext/wayland/gstwaylandsink.h b/ext/wayland/gstwaylandsink.h
+index 2704d00..4decedf 100644
+--- a/ext/wayland/gstwaylandsink.h
++++ b/ext/wayland/gstwaylandsink.h
+@@ -66,6 +66,7 @@ struct _GstWaylandSink
+   gboolean redraw_pending;
+   GMutex render_lock;
+   GstBuffer *last_buffer;
++  gboolean fullscreen;
+ };
+ 
+ struct _GstWaylandSinkClass
+diff --git a/ext/wayland/wldisplay.c b/ext/wayland/wldisplay.c
+index 39782bc..a8410ea 100644
+--- a/ext/wayland/wldisplay.c
++++ b/ext/wayland/wldisplay.c
+@@ -212,6 +212,31 @@ gst_wl_display_check_format_for_dmabuf (GstWlDisplay * display,
+ }
+ 
+ static void
++wl_display_handle_geometry (void *data, struct wl_output *wl_output,
++    int x, int y, int phy_w, int phy_h, int subpixel,
++    const char *make, const char *model, int transform)
++{
++  /* ignored */
++}
++
++static void
++wl_display_handle_mode (void *data, struct wl_output *wl_output, uint32_t flags,
++    int width, int height, int refresh)
++{
++  GstWlDisplay *self = data;
++
++  if (flags & WL_OUTPUT_MODE_CURRENT) {
++    self->output_width = width;
++    self->output_height = height;
++  }
++}
++
++static const struct wl_output_listener output_listener = {
++  wl_display_handle_geometry,
++  wl_display_handle_mode
++};
++
++static void
+ registry_handle_global (void *data, struct wl_registry *registry,
+     uint32_t id, const char *interface, uint32_t version)
+ {
+@@ -235,7 +260,11 @@ registry_handle_global (void *data, struct wl_registry *registry,
+     self->dmabuf =
+         wl_registry_bind (registry, id, &zwp_linux_dmabuf_v1_interface, 1);
+     zwp_linux_dmabuf_v1_add_listener (self->dmabuf, &dmabuf_listener, self);
++  } else if ((g_strcmp0 (interface, "wl_output") == 0) && !self->output) {
++    self->output = wl_registry_bind (registry, id, &wl_output_interface, 1);
++    wl_output_add_listener (self->output, &output_listener, self);
+   }
++
+ }
+ 
+ static const struct wl_registry_listener registry_listener = {
+@@ -308,6 +337,7 @@ gst_wl_display_new_existing (struct wl_display * display,
+   self = g_object_new (GST_TYPE_WL_DISPLAY, NULL);
+   self->display = display;
+   self->own_display = take_ownership;
++  self->output = NULL;
+ 
+   self->queue = wl_display_create_queue (self->display);
+   self->registry = wl_display_get_registry (self->display);
+@@ -338,6 +368,7 @@ gst_wl_display_new_existing (struct wl_display * display,
+   VERIFY_INTERFACE_EXISTS (subcompositor, "wl_subcompositor");
+   VERIFY_INTERFACE_EXISTS (shell, "wl_shell");
+   VERIFY_INTERFACE_EXISTS (shm, "wl_shm");
++  VERIFY_INTERFACE_EXISTS (output, "wl_output");
+ 
+ #undef VERIFY_INTERFACE_EXISTS
+ 
+diff --git a/ext/wayland/wldisplay.h b/ext/wayland/wldisplay.h
+index 7c89212..c24a098 100644
+--- a/ext/wayland/wldisplay.h
++++ b/ext/wayland/wldisplay.h
+@@ -55,6 +55,7 @@ struct _GstWlDisplay
+   struct wl_shm *shm;
+   struct wp_viewporter *viewporter;
+   struct zwp_linux_dmabuf_v1 *dmabuf;
++  struct wl_output *output;
+   GArray *shm_formats;
+   GArray *dmabuf_formats;
+ 
+@@ -66,6 +67,9 @@ struct _GstWlDisplay
+   GMutex buffers_mutex;
+   GHashTable *buffers;
+   gboolean shutting_down;
++
++  gint output_width;
++  gint output_height;
+ };
+ 
+ struct _GstWlDisplayClass
+diff --git a/ext/wayland/wlwindow.c b/ext/wayland/wlwindow.c
+index d08ed87..db0301a 100644
+--- a/ext/wayland/wlwindow.c
++++ b/ext/wayland/wlwindow.c
+@@ -116,7 +116,8 @@ gst_wl_window_new_internal (GstWlDisplay * display, GMutex * render_lock)
+ 
+   window = g_object_new (GST_TYPE_WL_WINDOW, NULL);
+   window->display = g_object_ref (display);
+-  window->render_lock = render_lock;
++  window->render_lock = render_lock;  
++
+ 
+   window->area_surface = wl_compositor_create_surface (display->compositor);
+   window->video_surface = wl_compositor_create_surface (display->compositor);
+@@ -137,6 +138,7 @@ gst_wl_window_new_internal (GstWlDisplay * display, GMutex * render_lock)
+     window->video_viewport = wp_viewporter_get_viewport (display->viewporter,
+         window->video_surface);
+   }
++  window->set_size_done = FALSE;
+ 
+   /* do not accept input */
+   region = wl_compositor_create_region (display->compositor);
+@@ -287,9 +289,12 @@ gst_wl_window_set_opaque (GstWlWindow * window, const GstVideoInfo * info)
+ 
+ void
+ gst_wl_window_render (GstWlWindow * window, GstWlBuffer * buffer,
+-    const GstVideoInfo * info)
++    const GstVideoInfo * info, guint width, guint height)
+ {
+-  if (G_UNLIKELY (info)) {
++  if (G_UNLIKELY (width)) {
++    window->video_width = width;
++    window->video_height = height;
++  } else if (G_UNLIKELY (info)) {
+     window->video_width =
+         gst_util_uint64_scale_int_round (info->width, info->par_n, info->par_d);
+     window->video_height = info->height;
+@@ -308,13 +313,14 @@ gst_wl_window_render (GstWlWindow * window, GstWlBuffer * buffer,
+       window->video_rectangle.h);
+   wl_surface_commit (window->video_surface);
+ 
+-  if (G_UNLIKELY (info)) {
++  if (G_UNLIKELY (info) || G_UNLIKELY (width)) {
+     /* commit also the parent (area_surface) in order to change
+      * the position of the video_subsurface */
+     wl_surface_damage (window->area_surface, 0, 0, window->render_rectangle.w,
+         window->render_rectangle.h);
+     wl_surface_commit (window->area_surface);
+     wl_subsurface_set_desync (window->video_subsurface);
++    window->set_size_done = TRUE;
+   }
+ 
+   wl_display_flush (window->display->display);
+diff --git a/ext/wayland/wlwindow.h b/ext/wayland/wlwindow.h
+index e247b4e..5e46f9d 100644
+--- a/ext/wayland/wlwindow.h
++++ b/ext/wayland/wlwindow.h
+@@ -64,7 +64,7 @@ struct _GstWlWindow
+   /* this will be set when viewporter is available and black background has
+    * already been set on the area_subsurface */
+   gboolean no_border_update;
+-
++  gboolean set_size_done;
+ };
+ 
+ struct _GstWlWindowClass
+@@ -84,7 +84,7 @@ struct wl_surface *gst_wl_window_get_wl_surface (GstWlWindow * window);
+ gboolean gst_wl_window_is_toplevel (GstWlWindow *window);
+ 
+ void gst_wl_window_render (GstWlWindow * window, GstWlBuffer * buffer,
+-        const GstVideoInfo * info);
++        const GstVideoInfo * info, guint width, guint height);
+ void gst_wl_window_set_render_rectangle (GstWlWindow * window, gint x, gint y,
+         gint w, gint h);
+ 
+-- 
+2.7.4
+

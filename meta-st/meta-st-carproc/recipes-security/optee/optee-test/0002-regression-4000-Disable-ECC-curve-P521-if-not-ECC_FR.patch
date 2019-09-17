@@ -1,0 +1,54 @@
+From 97d8dd7194bf335db364a87ee5e80e9c5f8c21be Mon Sep 17 00:00:00 2001
+From: Olivier Claude LEBRETON <olivier.lebreton@st.com>
+Date: Wed, 21 Nov 2018 09:07:36 +0100
+Subject: [PATCH 2/3] regression: 4000: Disable ECC curve P521 if not
+ ECC_FROM_CRYPTOLIB
+
+Nist curve P521 are not supported by HSM cut2bf with ECDSA on digest
+
+Signed-off-by: Olivier Claude LEBRETON <olivier.lebreton@st.com>
+---
+ host/xtest/regression_4000.c | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/host/xtest/regression_4000.c b/host/xtest/regression_4000.c
+index f68b153..8be656f 100644
+--- a/host/xtest/regression_4000.c
++++ b/host/xtest/regression_4000.c
+@@ -3825,6 +3825,8 @@ static const struct xtest_ac_case xtest_ac_cases[] = {
+ 			    nist_186_3_ecdsa_testvector_165),
+ 	XTEST_AC_ECDSA_CASE(15, TEE_ALG_ECDSA_P384, TEE_MODE_SIGN,
+ 			    nist_186_3_ecdsa_testvector_165),
++/* ECDSA on digest P521 supported from cut2_BH */
++#if 0
+ 	/* [P-521,SHA-512] */
+ 	XTEST_AC_ECDSA_CASE(0, TEE_ALG_ECDSA_P521, TEE_MODE_VERIFY,
+ 			    nist_186_3_ecdsa_testvector_226),
+@@ -3886,6 +3888,7 @@ static const struct xtest_ac_case xtest_ac_cases[] = {
+ 			    nist_186_3_ecdsa_testvector_240),
+ 	XTEST_AC_ECDSA_CASE(15, TEE_ALG_ECDSA_P521, TEE_MODE_SIGN,
+ 			    nist_186_3_ecdsa_testvector_240),
++#endif
+ #endif /* !CFG_CRYPTO_ECC_FROM_CRYPTOLIB */
+ 	/* [K-163] - GP NOT SUPPORTED */
+ 	/* [K-233] - GP NOT SUPPORTED */
+@@ -5397,6 +5400,8 @@ static const struct xtest_ac_case xtest_genkey_ac_cases[] = {
+ 	XTEST_AC_ECDSA_CASE(15, TEE_ALG_ECDSA_P384, TEE_MODE_SIGN,
+ 			    nist_186_3_ecdsa_testvector_155),
+ 
++/* ECDSA on digest P521 supported from cut2_BH */
++#if 0
+ 	/* [P-521,SHA-512] */
+ 	XTEST_AC_ECDSA_CASE(0, TEE_ALG_ECDSA_P521, TEE_MODE_SIGN,
+ 			    nist_186_2_ecdsa_testvector_61),
+@@ -5418,6 +5423,7 @@ static const struct xtest_ac_case xtest_genkey_ac_cases[] = {
+ 			    nist_186_3_ecdsa_testvector_229),
+ 	XTEST_AC_ECDSA_CASE(15, TEE_ALG_ECDSA_P521, TEE_MODE_SIGN,
+ 			    nist_186_3_ecdsa_testvector_230),
++#endif
+ };
+ 
+ static void xtest_tee_test_4012(ADBG_Case_t *c)
+-- 
+2.7.4
+

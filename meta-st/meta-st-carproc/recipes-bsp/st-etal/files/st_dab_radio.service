@@ -1,0 +1,9 @@
+[Unit] 
+Description=ST A5 STrade start 
+[Service] 
+Type=idle
+Environment=XDG_RUNTIME_DIR=/run/user/root
+Environment=QT_QPA_PLATFORM=wayland
+ExecStart=/usr/bin/st_dab_radio_start.sh
+[Install] 
+WantedBy=multi-user.target

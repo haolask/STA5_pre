@@ -1,0 +1,97 @@
+From eae20c82ee6eb2f50482f7c90baaf001240ed084 Mon Sep 17 00:00:00 2001
+From: Peter Kjellerstedt <pkj@axis.com>
+Date: Thu, 26 Apr 2018 02:15:43 +0200
+Subject: [PATCH] Make it build with compile time hardening enabled
+
+This avoids the following errors:
+
+  patch.c: In function 'apply_hunk':
+  patch.c:1179:7: error: format not a string literal and no format
+  arguments [-Werror=format-security]
+         fprintf (fp, outstate->after_newline + else_defined);
+         ^~~~~~~
+  patch.c:1198:7: error: format not a string literal and no format
+  arguments [-Werror=format-security]
+         fprintf (fp, outstate->after_newline + else_defined);
+         ^~~~~~~
+  patch.c:1246:3: error: format not a string literal and no format
+  arguments [-Werror=format-security]
+     fprintf (fp, outstate->after_newline + else_defined);
+     ^~~~~~~
+  patch.c:1265:3: error: format not a string literal and no format
+  arguments [-Werror=format-security]
+     fprintf (fp, outstate->after_newline + end_defined);
+     ^~~~~~~
+  patch.c:1283:3: error: format not a string literal and no format
+  arguments [-Werror=format-security]
+     fprintf (fp, outstate->after_newline + else_defined);
+     ^~~~~~~
+  patch.c:1302:2: error: format not a string literal and no format
+  arguments [-Werror=format-security]
+    fprintf (fp, outstate->after_newline + end_defined);
+    ^~~~~~~
+
+Upstream-Status: Inappropriate [legacy version]
+Signed-off-by: Peter Kjellerstedt <peter.kjellerstedt@axis.com>
+---
+ patch.c | 12 ++++++------
+ 1 file changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/patch.c b/patch.c
+index 0d9a196..5e663a6 100644
+--- a/patch.c
++++ b/patch.c
+@@ -1176,7 +1176,7 @@ apply_hunk (struct outstate *outstate, LINENUM where)
+ 		    def_state = IN_IFNDEF;
+ 		}
+ 		else if (def_state == IN_IFDEF) {
+-		    fprintf (fp, outstate->after_newline + else_defined);
++		    fprintf (fp, "%s", outstate->after_newline + else_defined);
+ 		    def_state = IN_ELSE;
+ 		}
+ 		if (ferror (fp))
+@@ -1195,7 +1195,7 @@ apply_hunk (struct outstate *outstate, LINENUM where)
+ 		return false;
+ 	    if (R_do_defines) {
+ 		if (def_state == IN_IFNDEF) {
+-		    fprintf (fp, outstate->after_newline + else_defined);
++		    fprintf (fp, "%s", outstate->after_newline + else_defined);
+ 		    def_state = IN_ELSE;
+ 		}
+ 		else if (def_state == OUTSIDE) {
+@@ -1243,7 +1243,7 @@ apply_hunk (struct outstate *outstate, LINENUM where)
+ 	    while (pch_char (old) == '!');
+ 
+ 	    if (R_do_defines) {
+-		fprintf (fp, outstate->after_newline + else_defined);
++		fprintf (fp, "%s", outstate->after_newline + else_defined);
+ 		if (ferror (fp))
+ 		  write_fatal ();
+ 		def_state = IN_ELSE;
+@@ -1262,7 +1262,7 @@ apply_hunk (struct outstate *outstate, LINENUM where)
+ 	    old++;
+ 	    new++;
+ 	    if (R_do_defines && def_state != OUTSIDE) {
+-		fprintf (fp, outstate->after_newline + end_defined);
++		fprintf (fp, "%s", outstate->after_newline + end_defined);
+ 		if (ferror (fp))
+ 		  write_fatal ();
+ 		outstate->after_newline = true;
+@@ -1280,7 +1280,7 @@ apply_hunk (struct outstate *outstate, LINENUM where)
+ 		def_state = IN_IFDEF;
+ 	    }
+ 	    else if (def_state == IN_IFNDEF) {
+-		fprintf (fp, outstate->after_newline + else_defined);
++		fprintf (fp, "%s", outstate->after_newline + else_defined);
+ 		def_state = IN_ELSE;
+ 	    }
+ 	    if (ferror (fp))
+@@ -1299,7 +1299,7 @@ apply_hunk (struct outstate *outstate, LINENUM where)
+ 	while (new <= pat_end && pch_char (new) == '+');
+     }
+     if (R_do_defines && def_state != OUTSIDE) {
+-	fprintf (fp, outstate->after_newline + end_defined);
++	fprintf (fp, "%s", outstate->after_newline + end_defined);
+ 	if (ferror (fp))
+ 	  write_fatal ();
+ 	outstate->after_newline = true;

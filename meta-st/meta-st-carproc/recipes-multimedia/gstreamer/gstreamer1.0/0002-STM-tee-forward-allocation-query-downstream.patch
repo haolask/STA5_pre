@@ -1,0 +1,26 @@
+From a1db45b38f8cf6f96e8737a8c9b9a2a1c46306c6 Mon Sep 17 00:00:00 2001
+From: Christophe Priouzeau <christophe.priouzeau@linaro.org>
+Date: Wed, 6 Apr 2016 14:56:19 +0200
+Subject: [PATCH 2/3] STM: tee : forward allocation query downstream
+
+set proxy allocation flag on tee sinkpad so that it
+forwards the allocation queries instead of discarding them.
+
+Change-Id: I9337b2a4f2ddfdcc3d9c2c0edfbbbf30007082c0
+Signed-off-by: Rajesh Sharma <rajesh-dcg.sharma@st.com>
+
+diff --git a/plugins/elements/gsttee.c b/plugins/elements/gsttee.c
+index 2369814..03ffc01 100644
+--- a/plugins/elements/gsttee.c
++++ b/plugins/elements/gsttee.c
+@@ -312,6 +312,7 @@ gst_tee_init (GstTee * tee)
+   gst_pad_set_chain_function (tee->sinkpad, GST_DEBUG_FUNCPTR (gst_tee_chain));
+   gst_pad_set_chain_list_function (tee->sinkpad,
+       GST_DEBUG_FUNCPTR (gst_tee_chain_list));
++  GST_PAD_SET_PROXY_ALLOCATION (tee->sinkpad);
+   GST_OBJECT_FLAG_SET (tee->sinkpad, GST_PAD_FLAG_PROXY_CAPS);
+   gst_element_add_pad (GST_ELEMENT (tee), tee->sinkpad);
+ 
+-- 
+2.7.4
+

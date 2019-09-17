@@ -1,0 +1,27 @@
+From 7100f65294ae03c9a3318c53ce68781a0ecf9e09 Mon Sep 17 00:00:00 2001
+From: Christophe Priouzeau <christophe.priouzeau@st.com>
+Date: Thu, 27 Oct 2016 17:43:35 +0200
+Subject: [PATCH] dbus: authorize to communicate with bluez
+
+---
+ src/daemon/pulseaudio-system.conf | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/src/daemon/pulseaudio-system.conf b/src/daemon/pulseaudio-system.conf
+index 2eb342e..91ee9d4 100644
+--- a/src/daemon/pulseaudio-system.conf
++++ b/src/daemon/pulseaudio-system.conf
+@@ -25,7 +25,9 @@ License along with PulseAudio; if not, see <http://www.gnu.org/licenses/>.
+        not necessary for user PulseAudio instances. -->
+ 
+   <policy user="pulse">
+-    <allow own="org.pulseaudio.Server"/>
++     <allow own="org.pulseaudio.Server"/>
++     <allow send_destination="org.bluez"/>
++     <allow send_interface="org.bluez.Manager"/>
+   </policy>
+ 
+ </busconfig>
+-- 
+1.9.1
+

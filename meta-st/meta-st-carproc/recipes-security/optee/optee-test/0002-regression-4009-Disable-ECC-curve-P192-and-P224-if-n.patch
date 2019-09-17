@@ -1,0 +1,36 @@
+From 56298170538eee4e8414082f8948efede261594f Mon Sep 17 00:00:00 2001
+From: Olivier Claude LEBRETON <olivier.lebreton@st.com>
+Date: Tue, 14 Aug 2018 17:49:59 +0200
+Subject: [PATCH 2/2] regression: 4009: Disable ECC curve P192 and P224 if not
+ ECC_FROM_CRYPTOLIB
+
+Nist curve P192 and P224 are not supported by HSM
+
+Signed-off-by: Olivier Claude LEBRETON <olivier.lebreton@st.com>
+---
+ host/xtest/regression_4000_data.h | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/host/xtest/regression_4000_data.h b/host/xtest/regression_4000_data.h
+index 288aab6..bce2b46 100644
+--- a/host/xtest/regression_4000_data.h
++++ b/host/xtest/regression_4000_data.h
+@@ -5979,6 +5979,7 @@ static struct derive_key_ecdh_t {
+ 	const uint8_t *private;	/* private key == dIUT */
+ 	const uint8_t *out;		/* expected result - ZIUT */
+ } derive_key_ecdh[] = {
++#if defined(CFG_CRYPTO_ECC_FROM_CRYPTOLIB)
+ 	/* [P-192] */
+ 	{
+ 		.level    = 0,
+@@ -6481,6 +6482,7 @@ static struct derive_key_ecdh_t {
+ 		.private  = nist_kas_ecc_cdh_testvector_50_private,
+ 		.out      = nist_kas_ecc_cdh_testvector_50_out,
+ 	},
++#endif /* CFG_CRYPTO_ECC_FROM_CRYPTOLIB */
+ 	/* [P-256] */
+ 	{
+ 		.level    = 0,
+-- 
+2.7.4
+

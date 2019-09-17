@@ -1,0 +1,43 @@
+From 64eb99a814f478dbba3a4e7837feef1d749b2c43 Mon Sep 17 00:00:00 2001
+From: Christophe Priouzeau <christophe.priouzeau@st.com>
+Date: Wed, 16 Aug 2017 11:29:44 +0200
+Subject: [PATCH 1/6] modetest: consider supported formats before selecting a
+ DRM plane
+
+This fixes an issue where the DRM planes do not support the same pixel
+formats.
+The current implementation selects a DRM plane without checking whether
+the pixel format is supported or not. As a consequence modetest may try
+to set up a plane not supporting the user request-format, which fails.
+Modetest has to check the supported formats accross the plane list before
+selecting a candidate.
+
+Signed-off-by: Fabien Dessenne <fabien.dessenne@st.com>
+
+diff --git a/tests/modetest/modetest.c b/tests/modetest/modetest.c
+index b8891ff..dd0067a 100644
+--- a/tests/modetest/modetest.c
++++ b/tests/modetest/modetest.c
+@@ -974,7 +974,7 @@ static int set_plane(struct device *dev, struct plane_arg *p)
+ 	int crtc_x, crtc_y, crtc_w, crtc_h;
+ 	struct crtc *crtc = NULL;
+ 	unsigned int pipe;
+-	unsigned int i;
++	unsigned int i,j;
+ 
+ 	/* Find an unused plane which can be connected to our CRTC. Find the
+ 	 * CRTC index first, then iterate over available planes.
+@@ -1006,7 +1006,9 @@ static int set_plane(struct device *dev, struct plane_arg *p)
+ 			continue;
+ 
+ 		if ((ovr->possible_crtcs & (1 << pipe)) && !ovr->crtc_id) {
+-			plane_id = ovr->plane_id;
++			for (j = 0; j < ovr->count_formats; j++)
++				if (!strncmp(p->format_str, (char *) &ovr->formats[j], 4))
++					plane_id = ovr->plane_id;
+ 			break;
+ 		}
+ 	}
+-- 
+2.7.4
+

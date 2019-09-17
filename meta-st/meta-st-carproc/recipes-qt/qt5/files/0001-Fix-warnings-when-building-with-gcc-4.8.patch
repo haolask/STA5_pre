@@ -1,0 +1,100 @@
+From 38f5d4df0783169a02fce171e7947f18f3815b32 Mon Sep 17 00:00:00 2001
+From: Allan Sandfeld Jensen <allan.jensen@digia.com>
+Date: Tue, 17 Jun 2014 13:17:20 +0200
+Subject: [PATCH] Fix warnings when building with gcc 4.8
+
+This patch adds some warning flags and feature detection from upstream
+javascriptcore which gets rid of warnings on COMPILE_ASSERT.
+
+My upstream patch: http://trac.webkit.org/changeset/146993
+
+Change-Id: Idd38ef39b6f171a1c90763b2d9d000a4d00374ba
+Reviewed-by: Thiago Macieira <thiago.macieira@intel.com>
+---
+ .../javascriptcore/JavaScriptCore/wtf/Assertions.h |  7 +++++
+ .../javascriptcore/JavaScriptCore/wtf/Platform.h   | 33 ++++++++++++++++++++++
+ 2 files changed, 40 insertions(+)
+
+diff --git a/src/3rdparty/javascriptcore/JavaScriptCore/wtf/Assertions.h b/src/3rdparty/javascriptcore/JavaScriptCore/wtf/Assertions.h
+index 352a74b..74b0172 100644
+--- a/src/3rdparty/javascriptcore/JavaScriptCore/wtf/Assertions.h
++++ b/src/3rdparty/javascriptcore/JavaScriptCore/wtf/Assertions.h
+@@ -240,8 +240,15 @@ while (0)
+ 
+ /* COMPILE_ASSERT */
+ #ifndef COMPILE_ASSERT
++#if COMPILER_SUPPORTS(C_STATIC_ASSERT)
++/* Unlike static_assert below, this also works in plain C code. */
++#define COMPILE_ASSERT(exp, name) _Static_assert((exp), #name)
++#elif COMPILER_SUPPORTS(CXX_STATIC_ASSERT)
++#define COMPILE_ASSERT(exp, name) static_assert((exp), #name)
++#else
+ #define COMPILE_ASSERT(exp, name) typedef int dummy##name [(exp) ? 1 : -1]
+ #endif
++#endif
+ 
+ /* FATAL */
+ 
+diff --git a/src/3rdparty/javascriptcore/JavaScriptCore/wtf/Platform.h b/src/3rdparty/javascriptcore/JavaScriptCore/wtf/Platform.h
+index 85ed8a7..66a986a 100644
+--- a/src/3rdparty/javascriptcore/JavaScriptCore/wtf/Platform.h
++++ b/src/3rdparty/javascriptcore/JavaScriptCore/wtf/Platform.h
+@@ -37,6 +37,9 @@
+ 
+ /* COMPILER() - the compiler being used to build the project */
+ #define COMPILER(WTF_FEATURE) (defined WTF_COMPILER_##WTF_FEATURE  && WTF_COMPILER_##WTF_FEATURE)
++/* COMPILER_SUPPORTS() - whether the compiler being used to build the project supports the given feature. */
++#define COMPILER_SUPPORTS(WTF_COMPILER_FEATURE) (defined WTF_COMPILER_SUPPORTS_##WTF_COMPILER_FEATURE  && WTF_COMPILER_SUPPORTS_##WTF_COMPILER_FEATURE)
++
+ /* CPU() - the target CPU architecture */
+ #define CPU(WTF_FEATURE) (defined WTF_CPU_##WTF_FEATURE  && WTF_CPU_##WTF_FEATURE)
+ /* HAVE() - specific system features (headers, functions or similar) that are present or not */
+@@ -57,6 +60,14 @@
+ 
+ /* ==== COMPILER() - the compiler being used to build the project ==== */
+ 
++/* COMPILER(CLANG) - Clang  */
++#if defined(__clang__)
++#define WTF_COMPILER_CLANG 1
++
++#define WTF_COMPILER_SUPPORTS_C_STATIC_ASSERT __has_feature(c_static_assert)
++#define WTF_COMPILER_SUPPORTS_CXX_STATIC_ASSERT __has_feature(cxx_static_assert)
++#endif
++
+ /* COMPILER(MSVC) Microsoft Visual C++ */
+ /* COMPILER(MSVC7) Microsoft Visual C++ v7 or lower*/
+ #if defined(_MSC_VER)
+@@ -76,8 +87,30 @@
+ #if defined(__GNUC__) && !COMPILER(RVCT)
+ #define WTF_COMPILER_GCC 1
+ #define GCC_VERSION (__GNUC__ * 10000 + __GNUC_MINOR__ * 100 + __GNUC_PATCHLEVEL__)
++#define GCC_VERSION_AT_LEAST(major, minor, patch) (GCC_VERSION >= (major * 10000 + minor * 100 + patch))
++#else
++/* Define this for !GCC compilers, just so we can write things like GCC_VERSION_AT_LEAST(4, 1, 0). */
++#define GCC_VERSION_AT_LEAST(major, minor, patch) 0
+ #endif
+ 
++/* Specific compiler features */
++#if COMPILER(GCC) && !COMPILER(CLANG)
++#if GCC_VERSION_AT_LEAST(4, 8, 0)
++#pragma GCC diagnostic ignored "-Wunused-local-typedefs"
++#endif
++#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
++/* C11 support */
++#define WTF_COMPILER_SUPPORTS_C_STATIC_ASSERT 1
++#endif
++#if defined(__GXX_EXPERIMENTAL_CXX0X__) || (defined(__cplusplus) && __cplusplus >= 201103L)
++/* C++11 support */
++#if GCC_VERSION_AT_LEAST(4, 3, 0)
++#define WTF_COMPILER_SUPPORTS_CXX_STATIC_ASSERT 1
++#endif
++#endif /* defined(__GXX_EXPERIMENTAL_CXX0X__) || (defined(__cplusplus) && __cplusplus >= 201103L) */
++#endif /* COMPILER(GCC) */
++
++
+ /* COMPILER(MINGW) - MinGW GCC */
+ /* COMPILER(MINGW64) - mingw-w64 GCC - only used as additional check to exclude mingw.org specific functions */
+ #if defined(__MINGW32__)
+-- 
+2.7.4
+

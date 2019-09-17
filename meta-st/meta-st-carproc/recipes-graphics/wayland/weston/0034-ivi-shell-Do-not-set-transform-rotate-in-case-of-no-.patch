@@ -1,0 +1,44 @@
+From e4b5df1647ccbb6874485f7f9bafc76f2e304748 Mon Sep 17 00:00:00 2001
+From: Stephane Danieau <stephane.danieau@st.com>
+Date: Wed, 7 Mar 2018 17:19:19 +0100
+Subject: [PATCH 34/37] ivi-shell: Do not set transform rotate in case of no
+ rotation
+
+Rotation is not supported for overlay.
+In order to be able to map a ivi surface on an overlay, we should not have
+transform rotate. Do not set transform rotate in case of no rotation.
+
+Please note that layer/surface orientation support are removed later
+in master branch.
+
+Change-Id: I3066660915b3b1bf0d99a672de64b3d121de2178
+Buglink: https://stintbugzilla.st.com/show_bug.cgi?id=113677
+Signed-off-by: Mickael Reulier <mickael.reulier@st.com>
+Reviewed-on: https://gerrit.st.com/87380
+Reviewed-by: CITOOLS <smet-aci-reviews@lists.codex.cro.st.com>
+Reviewed-by: Vincent ABRIOU <vincent.abriou@st.com>
+---
+ ivi-shell/ivi-layout.c | 7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/ivi-shell/ivi-layout.c b/ivi-shell/ivi-layout.c
+index 64e4ead..fdc9ddc 100644
+--- a/ivi-shell/ivi-layout.c
++++ b/ivi-shell/ivi-layout.c
+@@ -395,8 +395,11 @@ calc_transformation_matrix(struct ivi_rectangle *source_rect,
+ 	source_center_y = source_rect->y + source_rect->height * 0.5f;
+ 	weston_matrix_translate(m, -source_center_x, -source_center_y, 0.0f);
+ 
+-	get_rotate_values(orientation, &vsin, &vcos);
+-	weston_matrix_rotate_xy(m, vcos, vsin);
++	/* Do not set transform rotate in case of no rotation */
++	if (orientation != 0) {
++		get_rotate_values(orientation, &vsin, &vcos);
++		weston_matrix_rotate_xy(m, vcos, vsin);
++	}
+ 
+ 	get_scale(orientation,
+ 		  dest_rect->width,
+-- 
+1.9.1
+

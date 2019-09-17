@@ -1,0 +1,87 @@
+From 562492f28e9c45e666b63aaa01a6b0a60c9626f1 Mon Sep 17 00:00:00 2001
+From: Stephane Danieau <stephane.danieau@st.com>
+Date: Mon, 18 Jun 2018 14:41:42 +0200
+Subject: [PATCH] weston-simple-egl : add options to provide the output
+ resolution
+
+By default it remains initialized @ 250x250.
+Two options are added :
+-w and -h are used to specify  respectively the width and the height.
+
+Signed-off-by: Stephane Danieau <stephane.danieau@st.com>
+---
+ Makefile.am          |  2 +-
+ clients/simple-egl.c | 20 +++++++++++++++-----
+ 2 files changed, 16 insertions(+), 6 deletions(-)
+
+diff --git a/Makefile.am b/Makefile.am
+index 636c69f..b868206 100644
+--- a/Makefile.am
++++ b/Makefile.am
+@@ -659,7 +659,7 @@ nodist_weston_simple_egl_SOURCES =		\
+ 	protocol/ivi-application-protocol.c		\
+ 	protocol/ivi-application-client-protocol.h
+ weston_simple_egl_CFLAGS = $(AM_CFLAGS) $(SIMPLE_EGL_CLIENT_CFLAGS)
+-weston_simple_egl_LDADD = $(SIMPLE_EGL_CLIENT_LIBS) -lm
++weston_simple_egl_LDADD = $(SIMPLE_EGL_CLIENT_LIBS) -lm libtoytoolkit.la
+ endif
+ 
+ if BUILD_SIMPLE_DMABUF_INTEL_CLIENT
+diff --git a/clients/simple-egl.c b/clients/simple-egl.c
+index 9b6fa1f..17da318 100644
+--- a/clients/simple-egl.c
++++ b/clients/simple-egl.c
+@@ -50,6 +50,8 @@
+ 
+ #include "shared/helpers.h"
+ #include "shared/platform.h"
++#include "shared/config-parser.h"
++#include "shared/helpers.h"
+ #include "weston-egl-ext.h"
+ 
+ struct window;
+@@ -850,7 +852,9 @@ usage(int error_code)
+ 		"  -o\tCreate an opaque surface\n"
+ 		"  -s\tUse a 16 bpp EGL config\n"
+ 		"  -b\tDon't sync to compositor redraw (eglSwapInterval 0)\n"
+-		"  -h\tThis help text\n\n");
++		"  -h\tThis help text\n\n"
++		"  --width\twidth\n"
++		"  --height\theight\n");
+ 
+ 	exit(error_code);
+ }
+@@ -862,11 +866,19 @@ main(int argc, char **argv)
+ 	struct display display = { 0 };
+ 	struct window  window  = { 0 };
+ 	int i, ret = 0;
++ 
++	const struct weston_option core_options[] = {
++		{ WESTON_OPTION_INTEGER, "width", 'w', &window.geometry.width },
++		{ WESTON_OPTION_INTEGER, "height", 'h', &window.geometry.height },
++	};
+ 
++	parse_options(core_options, ARRAY_LENGTH(core_options), &argc, argv);
+ 	window.display = &display;
+ 	display.window = &window;
+-	window.geometry.width  = 250;
+-	window.geometry.height = 250;
++	if (!window.geometry.width)
++		window.geometry.width  = 250;
++	if (!window.geometry.height)
++		window.geometry.height = 250;
+ 	window.window_size = window.geometry;
+ 	window.buffer_size = 32;
+ 	window.frame_sync = 1;
+@@ -882,8 +894,6 @@ main(int argc, char **argv)
+ 			window.frame_sync = 0;
+ 		else if (strcmp("-h", argv[i]) == 0)
+ 			usage(EXIT_SUCCESS);
+-		else
+-			usage(EXIT_FAILURE);
+ 	}
+ 
+ 	display.display = wl_display_connect(NULL);
+-- 
+1.9.1
+

@@ -1,0 +1,33 @@
+From e24a24f2c44b233575bdcc9c9e701165d4299a4e Mon Sep 17 00:00:00 2001
+From: Mickael Reulier <mickael.reulier@st.com>
+Date: Tue, 21 Mar 2017 11:30:06 +0100
+Subject: [PATCH 19/25] waylandsink: Add YUV Full Range support
+
+YUV Full range support is added.
+
+Change-Id: I95f4ed8185e1ca1575b42eb51ef9f9fa15c4de9d
+Signed-off-by: Mickael Reulier <mickael.reulier@st.com>
+Reviewed-on: https://gerrit.st.com/67272
+Reviewed-by: Stephane DANIEAU <stephane.danieau@st.com>
+
+%% original patch: 0023-waylandsink-Add-YUV-Full-Range-support.patch
+
+%% original patch: 0023-waylandsink-Add-YUV-Full-Range-support.patch
+
+diff --git a/ext/wayland/wllinuxdmabuf.c b/ext/wayland/wllinuxdmabuf.c
+index 96487d1..40c0c2a 100644
+--- a/ext/wayland/wllinuxdmabuf.c
++++ b/ext/wayland/wllinuxdmabuf.c
+@@ -131,6 +131,9 @@ gst_wl_linux_dmabuf_construct_wl_buffer (GstBuffer * buf,
+     }
+   }
+ 
++  if (info->colorimetry.range == GST_VIDEO_COLOR_RANGE_0_255)
++    flags |= ZWP_LINUX_BUFFER_PARAMS_V1_FLAGS_YUV_FULL_COLOR_RANGE;
++
+   /* Request buffer creation */
+   zwp_linux_buffer_params_v1_add_listener (params, &params_listener, &data);
+   zwp_linux_buffer_params_v1_create (params, width, height, format, flags);
+-- 
+2.7.4
+

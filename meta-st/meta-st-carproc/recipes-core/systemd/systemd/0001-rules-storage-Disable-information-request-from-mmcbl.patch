@@ -1,0 +1,30 @@
+From b7433be9578ee34fc9edc4091ecf9467ef1513cc Mon Sep 17 00:00:00 2001
+From: Baptiste Chauloux <baptiste.chauloux@st.com>
+Date: Mon, 13 Jun 2016 17:24:10 +0200
+Subject: [PATCH] rules: storage: Disable information request from mmcblk*boot*
+ devices
+
+These partitions use raw data, freezing udev parsing
+
+Signed-off-by: Baptiste Chauloux <baptiste.chauloux@st.com>
+---
+ rules/60-persistent-storage.rules | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/rules/60-persistent-storage.rules b/rules/60-persistent-storage.rules
+index 1c4d97a..719f3db 100644
+--- a/rules/60-persistent-storage.rules
++++ b/rules/60-persistent-storage.rules
+@@ -8,6 +8,9 @@ ACTION=="remove", GOTO="persistent_storage_end"
+ SUBSYSTEM!="block", GOTO="persistent_storage_end"
+ KERNEL!="loop*|mmcblk*[0-9]|msblk*[0-9]|mspblk*[0-9]|nvme*|hd*|sd*|sr*|vd*|xvd*|bcache*|cciss*|dasd*|ubd*", GOTO="persistent_storage_end"
+ 
++#Do not get information on boot raw data partitions
++KERNEL=="mmcblk[0-9]boot[0-9]", GOTO="persistent_storage_end"
++
+ # ignore partitions that span the entire disk
+ TEST=="whole_disk", GOTO="persistent_storage_end"
+ 
+-- 
+1.9.1
+

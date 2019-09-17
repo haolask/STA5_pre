@@ -1,0 +1,121 @@
+From 063607e6623b644b193f3c714d3f788ee23ab59f Mon Sep 17 00:00:00 2001
+From: Stephane Danieau <stephane.danieau@st.com>
+Date: Wed, 7 Mar 2018 16:22:13 +0100
+Subject: [PATCH 26/37] compositor-st: use backend_user_data to store dmabuf
+ handles
+
+This patch improve weston performances and avoid unneeded dmabuf buffer
+clean and invalidate cache cycles.
+
+Indeed, current weston implementation of the dmabuf buffer management
+is destroying at each vblank the dmabuf handle previously recovered
+causing the DRM driver to clean and invalidate the cache whereas same
+dmabuf buffer will be presented for composition few frames latter.
+
+By using the backend_user_data field of the linux_dmabuf_buffer
+structure to store the compositor imported dmabuf handles, we can
+suppress the recurrent DRM_IOCTL_MODE_DESTROY_DUMB done while the vblank
+handler. The handles will be unreferenced only when the dmabuf buffer
+will be destroyed by the linux-dmabuf protocol.
+
+Change-Id: Id0e458b5f4b3bb1a8e95f18133341d0bc4b1296d
+Signed-off-by: Vincent Abriou <vincent.abriou@st.com>
+Reviewed-on: https://gerrit.st.com/60647
+Reviewed-by: Fabien DESSENNE <fabien.dessenne@st.com>
+---
+ libweston/compositor-st.c | 53 ++++++++++++++++++++++++++++++++++++++---------
+ 1 file changed, 43 insertions(+), 10 deletions(-)
+
+diff --git a/libweston/compositor-st.c b/libweston/compositor-st.c
+index 71f0c8f..b70d7ea 100644
+--- a/libweston/compositor-st.c
++++ b/libweston/compositor-st.c
+@@ -324,16 +324,11 @@ drm_fb_destroy_callback(struct gbm_bo *bo, void *data)
+ static void
+ drm_fb_destroy_from_buff(struct drm_fb *fb)
+ {
+-	struct drm_mode_destroy_dumb destroy_arg;
+ 	if (fb->fb_id)
+ 		drmModeRmFB(fb->fd, fb->fb_id);
+ 
+ 	weston_buffer_reference(&fb->buffer_ref, NULL);
+ 
+-	memset(&destroy_arg, 0, sizeof(destroy_arg));
+-	destroy_arg.handle = fb->handle;
+-	drmIoctl(fb->fd, DRM_IOCTL_MODE_DESTROY_DUMB, &destroy_arg);
+-
+ 	free(fb);
+ }
+ 
+@@ -520,11 +515,31 @@ err_free:
+ 	return NULL;
+ }
+ 
++struct backend_priv_data {
++	int drm_fd;
++	uint32_t handle;
++};
++
++static void
++drm_destroy_backend_priv_data(struct linux_dmabuf_buffer *dmabuf_buffer)
++{
++	struct backend_priv_data *data;
++	struct drm_gem_close gem_close;
++
++	data = linux_dmabuf_buffer_get_backend_priv_data(dmabuf_buffer);
++
++	memset(&gem_close, 0, sizeof(gem_close));
++	gem_close.handle = data->handle;
++	drmIoctl(data->drm_fd, DRM_IOCTL_GEM_CLOSE, &gem_close);
++	free(data);
++}
++
+ static struct drm_fb *
+ drm_fb_get_from_dmabuf(struct linux_dmabuf_buffer *dmabuf_buffer,
+ 		struct drm_backend *backend, uint32_t format)
+ {
+ 	struct drm_fb *fb;
++	struct backend_priv_data *data;
+ 	int32_t width, height;
+ 	uint32_t handles[4], pitches[4], offsets[4];
+ 	int ret, i;
+@@ -533,13 +548,31 @@ drm_fb_get_from_dmabuf(struct linux_dmabuf_buffer *dmabuf_buffer,
+ 	if (fb == NULL)
+ 		return NULL;
+ 
+-	ret = drmPrimeFDToHandle(backend->drm.fd,
+-			dmabuf_buffer->attributes.fd[0], &fb->handle);
+-	if (ret) {
+-		weston_log("drmPrimeFDToHandle failed\n");
+-		goto err_free;
++	/* allocate data and fill data structure only the first time */
++	data = linux_dmabuf_buffer_get_backend_priv_data(dmabuf_buffer);
++	if (!data) {
++		data = zalloc(sizeof *data);
++		if (data == NULL)
++			goto err_free;
++
++		ret = drmPrimeFDToHandle(backend->drm.fd,
++					 dmabuf_buffer->attributes.fd[0],
++					 &data->handle);
++
++		if (ret) {
++			weston_log("drmPrimeFDToHandle failed\n");
++			goto err_free;
++		}
++
++		data->drm_fd = backend->drm.fd;
++		/* set the handle in backend_priv_data structure */
++		linux_dmabuf_buffer_set_backend_priv_data(dmabuf_buffer, data,
++							  drm_destroy_backend_priv_data);
+ 	}
+ 
++	/* get the handle from the backend private data */
++	fb->handle = data->handle;
++
+ 	width = dmabuf_buffer->attributes.width;
+ 	height = dmabuf_buffer->attributes.height;
+ 
+-- 
+1.9.1
+

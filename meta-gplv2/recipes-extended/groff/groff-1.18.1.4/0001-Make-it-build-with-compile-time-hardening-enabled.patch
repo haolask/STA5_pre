@@ -1,0 +1,35 @@
+From a1cd31daf05023a14d8e904a409cecbfc0fae93e Mon Sep 17 00:00:00 2001
+From: Peter Kjellerstedt <pkj@axis.com>
+Date: Mon, 2 Oct 2017 14:34:14 +0200
+Subject: [PATCH 1/2] Make it build with compile time hardening enabled
+
+This avoids the following error:
+
+  src/devices/grohtml/post-html.cc: In member function 'void
+  header_desc::write_headings(FILE*, int)':
+  src/devices/grohtml/post-html.cc:1402:32: error: format not a string
+  literal and no format arguments [-Werror=format-security]
+      fprintf(f, buffer.contents());
+
+Upstream-Status: Inappropriate [legacy version]
+Signed-off-by: Peter Kjellerstedt <peter.kjellerstedt@axis.com>
+---
+ src/devices/grohtml/post-html.cc | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/devices/grohtml/post-html.cc b/src/devices/grohtml/post-html.cc
+index 3c09d7c..1ad5580 100644
+--- a/src/devices/grohtml/post-html.cc
++++ b/src/devices/grohtml/post-html.cc
+@@ -1399,7 +1399,7 @@ void header_desc::write_headings (FILE *f, int force)
+ 
+ 	  buffer += as_string(h);
+ 	  buffer += '\0';
+-	  fprintf(f, buffer.contents());
++	  fprintf(f, "%s", buffer.contents());
+ 	} else
+ 	  fputs(g->text_string, f);
+ 	h++;
+-- 
+2.12.0
+

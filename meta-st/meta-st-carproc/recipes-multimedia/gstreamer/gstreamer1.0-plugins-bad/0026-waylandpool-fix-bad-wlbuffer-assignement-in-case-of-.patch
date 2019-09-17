@@ -1,0 +1,56 @@
+From 1a440fabadb4242de4a3e99888e2802c2bc0de08 Mon Sep 17 00:00:00 2001
+From: Stephane Danieau <stephane.danieau@st.com>
+Date: Tue, 3 Jul 2018 13:50:47 +0200
+Subject: [PATCH] waylandpool: fix bad wlbuffer assignement in case of memory
+ allocation failure
+
+Signed-off-by: Stephane Danieau <stephane.danieau@st.com>
+---
+ ext/wayland/waylandpool.c | 8 +++-----
+ 1 file changed, 3 insertions(+), 5 deletions(-)
+
+diff --git a/ext/wayland/waylandpool.c b/ext/wayland/waylandpool.c
+index 663a627..73b6594 100644
+--- a/ext/wayland/waylandpool.c
++++ b/ext/wayland/waylandpool.c
+@@ -681,12 +681,12 @@ gst_buffer_add_wayland_meta (GstBuffer * buffer, GstWaylandBufferPool * self)
+         " (%d x %d, stride %d), format : %s", size, width, height, stride,
+         gst_wl_shm_format_to_string (format));
+   }
+-
+   meta = (GstWlMeta *) gst_buffer_add_meta (buffer, GST_WL_META_INFO, NULL);
+   meta->pool = self;
+   meta->size = size;
+   meta->drm_fd = -1;
+   meta->used_by_compositor = FALSE;
++  meta->wbuffer = NULL;
+ 
+   gst_buffer_add_video_meta_full (buffer, GST_VIDEO_FRAME_FLAG_NONE,
+       GST_VIDEO_INFO_FORMAT (&self->info),
+@@ -707,14 +707,10 @@ gst_buffer_add_wayland_meta (GstBuffer * buffer, GstWaylandBufferPool * self)
+         create_dumb (self->fd, width, buf_height, format, &prime_fd,
+         &dumb_stride);
+     if (ret || prime_fd == -1) {
+-
+       return NULL;
+     }
+     GST_LOG_OBJECT (self, "drm buffer prime fd %d", prime_fd);
+-
+     /* The wl_buffer will be created at the first render */
+-    meta->wbuffer = NULL;
+-
+     gst_buffer_append_memory (buffer,
+         gst_dmabuf_allocator_alloc (self->allocator, prime_fd, meta->size));
+ 
+@@ -764,6 +760,8 @@ gst_wayland_buffer_pool_alloc (GstBufferPool * pool, GstBuffer ** buffer,
+   meta = gst_buffer_add_wayland_meta (*buffer, self);
+ 
+   if (meta == NULL) {
++    if (params)
++      params->flags |= GST_BUFFER_POOL_ACQUIRE_FLAG_DONTWAIT;
+     gst_buffer_unref (*buffer);
+     goto no_buffer;
+   }
+-- 
+1.9.1
+

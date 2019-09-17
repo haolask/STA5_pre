@@ -1,0 +1,87 @@
+From 0c589bcafae9d2c2bc2e3d82b35a5382e2a2d69d Mon Sep 17 00:00:00 2001
+From: Stephane Danieau <stephane.danieau@st.com>
+Date: Wed, 7 Mar 2018 11:34:34 +0100
+Subject: [PATCH 01/37] linux-dmabuf: align DMABUF exposed formats with EGL
+ supported formats
+
+Even if EGL_EXT_image_dma_buf_import does not provide a way to query
+the supported pixel formats, we can at least expose to the DMABUF
+protocol the pixel formats already explicitly supported as fallback
+by gl-renderer in import_yuv_dmabuf function plus the standard RGB formats
+that all GPU supports:
+ARGB8888, XRGB8888, RGB565, YUYV, NV12, YUV420 and YUV444.
+
+Change-Id: I1784facedcb34d47bb9b07a8e21bb87b0d8dacd2
+Signed-off-by: Vincent Abriou <vincent.abriou@st.com>
+---
+ Makefile.am              |  3 +++
+ libweston/linux-dmabuf.c | 18 +++++++++++++++---
+ 2 files changed, 18 insertions(+), 3 deletions(-)
+
+diff --git a/Makefile.am b/Makefile.am
+index cdf82ab..9832a52 100644
+--- a/Makefile.am
++++ b/Makefile.am
+@@ -72,6 +72,9 @@ install-libweston_moduleLTLIBRARIES install-moduleLTLIBRARIES: install-libLTLIBR
+ lib_LTLIBRARIES = libweston-@LIBWESTON_MAJOR@.la
+ libweston_@LIBWESTON_MAJOR@_la_CPPFLAGS = $(AM_CPPFLAGS) -DIN_WESTON
+ libweston_@LIBWESTON_MAJOR@_la_CFLAGS = $(AM_CFLAGS) $(COMPOSITOR_CFLAGS) $(LIBUNWIND_CFLAGS)
++if ENABLE_DRM_COMPOSITOR
++libweston_@LIBWESTON_MAJOR@_la_CFLAGS += $(DRM_COMPOSITOR_CFLAGS)
++endif
+ libweston_@LIBWESTON_MAJOR@_la_LIBADD = $(COMPOSITOR_LIBS) $(LIBUNWIND_LIBS) \
+ 	$(DLOPEN_LIBS) -lm $(CLOCK_GETTIME_LIBS) \
+ 	$(LIBINPUT_BACKEND_LIBS) libshared.la
+diff --git a/libweston/linux-dmabuf.c b/libweston/linux-dmabuf.c
+index c1627d6..ef1382b 100644
+--- a/libweston/linux-dmabuf.c
++++ b/libweston/linux-dmabuf.c
+@@ -26,6 +26,7 @@
+ #include "config.h"
+ 
+ #include <assert.h>
++#include <drm_fourcc.h>
+ #include <stdint.h>
+ #include <unistd.h>
+ #include <sys/types.h>
+@@ -33,6 +34,17 @@
+ #include "compositor.h"
+ #include "linux-dmabuf.h"
+ #include "linux-dmabuf-unstable-v1-server-protocol.h"
++#include "shared/helpers.h"
++
++uint32_t dmabuf_formats[] = {
++	DRM_FORMAT_ARGB8888,
++	DRM_FORMAT_XRGB8888,
++	DRM_FORMAT_RGB565,
++	DRM_FORMAT_YUYV,
++	DRM_FORMAT_NV12,
++	DRM_FORMAT_YUV420,
++	DRM_FORMAT_YUV444,
++};
+ 
+ static void
+ linux_dmabuf_buffer_destroy(struct linux_dmabuf_buffer *buffer)
+@@ -426,6 +438,7 @@ bind_linux_dmabuf(struct wl_client *client,
+ {
+ 	struct weston_compositor *compositor = data;
+ 	struct wl_resource *resource;
++	unsigned int i;
+ 
+ 	resource = wl_resource_create(client, &zwp_linux_dmabuf_v1_interface,
+ 				      version, id);
+@@ -437,9 +450,8 @@ bind_linux_dmabuf(struct wl_client *client,
+ 	wl_resource_set_implementation(resource, &linux_dmabuf_implementation,
+ 				       compositor, NULL);
+ 
+-	/* EGL_EXT_image_dma_buf_import does not provide a way to query the
+-	 * supported pixel formats. */
+-	/* XXX: send formats */
++	for (i = 0; i < ARRAY_LENGTH(dmabuf_formats); i++)
++		zwp_linux_dmabuf_v1_send_format(resource, dmabuf_formats[i]);
+ }
+ 
+ /** Advertise linux_dmabuf support
+-- 
+1.9.1
+

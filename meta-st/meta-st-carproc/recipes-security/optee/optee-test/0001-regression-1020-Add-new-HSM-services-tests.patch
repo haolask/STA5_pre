@@ -1,0 +1,192 @@
+From d0718df6701dc5de0c4fbe364a41cd298e91f294 Mon Sep 17 00:00:00 2001
+From: Olivier Claude LEBRETON <olivier.lebreton@st.com>
+Date: Fri, 14 Sep 2018 15:38:37 +0200
+Subject: [PATCH] regression: 1020: Add new HSM services tests
+
+Add regression tests for the following eHSM services:
+- Key Storage initialisation
+- Export of ECC public key
+- Load of ECC RAM key pair
+
+Signed-off-by: Olivier Claude LEBRETON <olivier.lebreton@st.com>
+---
+ host/xtest/regression_1000.c | 134 +++++++++++++++++++++++++++++++++++++++++--
+ 1 file changed, 130 insertions(+), 4 deletions(-)
+
+diff --git a/host/xtest/regression_1000.c b/host/xtest/regression_1000.c
+index f17829b..251bdce 100644
+--- a/host/xtest/regression_1000.c
++++ b/host/xtest/regression_1000.c
+@@ -1360,7 +1360,35 @@ static const struct xtest_hsm_case hsm_cases[] = {
+ 				   seed29, SEED29_SIZE, prfout29, PRFOUT29_SIZE, SHA_ID29)
+ };
+ 
++static const uint8_t nist_private[] = {
++/* d */
++ 0xad, 0xca, 0x36, 0x4e, 0xf1, 0x44, 0xa2, 0x1d, 0xf6, 0x4b, 0x16, 0x36,
++ 0x15, 0xe8, 0x34, 0x9c, 0xf7, 0x4e, 0xe9, 0xdb, 0xf7, 0x28, 0x10, 0x42,
++ 0x15, 0xc5, 0x32, 0x07, 0x3a, 0x7f, 0x74, 0xe2, 0xf6, 0x73, 0x85, 0x77,
++ 0x9f, 0x7f, 0x74, 0xab, 0x34, 0x4c, 0xc3, 0xc7, 0xda, 0x06, 0x1c, 0xf6,
++
++};
++static const uint8_t nist_public_x[] = {
++/* Qx */
++ 0xef, 0x94, 0x8d, 0xaa, 0xe6, 0x82, 0x42, 0x33, 0x0a, 0x73, 0x58, 0xef,
++ 0x73, 0xf2, 0x3b, 0x56, 0xc0, 0x7e, 0x37, 0x12, 0x62, 0x66, 0xdb, 0x3f,
++ 0xa6, 0xee, 0xa2, 0x33, 0xa0, 0x4a, 0x9b, 0x3e, 0x49, 0x15, 0x23, 0x3d,
++ 0xd6, 0x75, 0x44, 0x27, 0xcd, 0x4b, 0x71, 0xb7, 0x58, 0x54, 0x07, 0x7d,
++
++};
++static const uint8_t nist_public_y[] = {
++/* Qy */
++ 0x00, 0x94, 0x53, 0xef, 0x18, 0x28, 0xea, 0xff, 0x9e, 0x17, 0xc8, 0x56,
++ 0xd4, 0xfc, 0x18, 0x95, 0xab, 0x60, 0x05, 0x13, 0x12, 0xc3, 0xe1, 0xdb,
++ 0x1e, 0x37, 0x66, 0x56, 0x64, 0x38, 0xb2, 0x99, 0x0c, 0xbf, 0x99, 0x45,
++ 0xc2, 0x54, 0x56, 0x19, 0xe3, 0xe0, 0x14, 0x5b, 0xc6, 0xa7, 0x90, 0x04,
++
++};
++
+ #define MAX_BUF_LEN		256
++#define MAX_KEY_LEN		68
++#define ECC_KEY_INDEX	0
++#define KS_MBX_BUFFER	0x7005FF80
+ 
+ static void xtest_tee_test_1020(ADBG_Case_t *c)
+ {
+@@ -1368,6 +1396,8 @@ static void xtest_tee_test_1020(ADBG_Case_t *c)
+ 	uint32_t ret_orig;
+ 	size_t n;
+ 	uint8_t prfres[MAX_BUF_LEN] = { 0 };
++	uint8_t pubkey_x[MAX_KEY_LEN] = { 0 };
++	uint8_t pubkey_y[MAX_KEY_LEN] = { 0 };
+ 
+ 	if (!ADBG_EXPECT_TEEC_SUCCESS(c,
+ 		xtest_teec_open_session(&session, &hsm_pta_uuid, NULL,
+@@ -1382,7 +1412,7 @@ static void xtest_tee_test_1020(ADBG_Case_t *c)
+ 		TEEC_Operation op = TEEC_OPERATION_INITIALIZER;
+ 
+ 		op.paramTypes = TEEC_PARAM_TYPES(TEEC_VALUE_OUTPUT, TEEC_NONE,
+-				TEEC_NONE, TEEC_NONE);
++							TEEC_NONE, TEEC_NONE);
+ 		op.params[0].value.a = 0;
+ 		op.params[0].value.b = 0;
+ 
+@@ -1401,9 +1431,9 @@ static void xtest_tee_test_1020(ADBG_Case_t *c)
+ 	{
+ 		TEEC_Operation op = TEEC_OPERATION_INITIALIZER;
+ 		op.paramTypes = TEEC_PARAM_TYPES(TEEC_MEMREF_TEMP_INPUT,
+-				TEEC_MEMREF_TEMP_INPUT,
+-				TEEC_MEMREF_TEMP_INPUT,
+-				TEEC_MEMREF_TEMP_INOUT);
++							TEEC_MEMREF_TEMP_INPUT,
++							TEEC_MEMREF_TEMP_INPUT,
++							TEEC_MEMREF_TEMP_INOUT);
+ 
+ 		for (n = 0; n < ARRAY_SIZE(hsm_cases); n++) {
+ 			const struct xtest_hsm_case *tv = hsm_cases + n;
+@@ -1450,6 +1480,102 @@ static void xtest_tee_test_1020(ADBG_Case_t *c)
+ 	 */
+ 	/* TODO */
+ 
++	/*
++	 * PTA Cmd: Key storage initialization
++	 */
++#if 0	/* Require Key Storage in A7 is supported */
++	Do_ADBG_BeginSubCase(c, "Key storage initialization");
++	{
++		TEEC_Operation op = TEEC_OPERATION_INITIALIZER;
++
++		op.paramTypes = TEEC_PARAM_TYPES(TEEC_VALUE_INPUT, TEEC_NONE,
++							TEEC_NONE, TEEC_NONE);
++
++		/* Initialize Inputs parameters */
++		op.params[0].value.a = KS_MBX_BUFFER;
++		op.params[0].value.b = 0;
++
++		if (!ADBG_EXPECT_TEEC_SUCCESS(c, TEEC_InvokeCommand(
++						&session, PTA_HSM_CMD_KS_INIT, &op, &ret_orig)))
++			goto out;
++	}
++	Do_ADBG_EndSubCase(c, NULL);
++#endif
++
++	/*
++	 * PTA Cmd: Export of ECC Public key
++	 *
++	 * For test purpose, export and compare a know ECC key pair previously
++	 * loaded in RAM ECC slot in eHSM
++	 */
++	Do_ADBG_BeginSubCase(c, "Export of ECC Public key");
++	{
++		TEEC_Operation op = TEEC_OPERATION_INITIALIZER;
++
++		/*
++		 * Load ECC RAM key
++		 */
++		op.paramTypes = TEEC_PARAM_TYPES(TEEC_MEMREF_TEMP_INPUT,
++							TEEC_MEMREF_TEMP_INPUT,
++							TEEC_MEMREF_TEMP_INPUT,
++							TEEC_VALUE_INPUT);
++
++		/* Initialize Inputs parameters */
++		op.params[0].tmpref.buffer = (void *)nist_public_x;
++		op.params[0].tmpref.size = sizeof(nist_public_x);
++		op.params[1].tmpref.buffer = (void *)nist_public_y;
++		op.params[1].tmpref.size = sizeof(nist_public_y);
++		op.params[2].tmpref.buffer = (void *)nist_private;
++		op.params[2].tmpref.size = sizeof(nist_private);
++		op.params[3].value.a = TEE_ECC_CURVE_NIST_P384;
++
++		if (!ADBG_EXPECT_TEEC_SUCCESS(c, TEEC_InvokeCommand(
++						&session, PTA_HSM_CMD_LOAD_ECC_RAM_KEY, &op, &ret_orig)))
++			goto out;
++
++		/*
++		 * Export ECC public key previouly loaded
++		 */
++		memset((void *)&op, 0, sizeof(TEEC_Operation));
++		op.paramTypes = TEEC_PARAM_TYPES(TEEC_VALUE_INPUT, TEEC_VALUE_OUTPUT,
++							TEEC_MEMREF_TEMP_OUTPUT, TEEC_MEMREF_TEMP_OUTPUT);
++
++		/* Set Inputs parameters */
++		op.params[0].value.a = ECC_KEY_INDEX;
++
++		/* Set Output parameters */
++		/* op.params[1].value.a & b already initialize */
++
++		memset(pubkey_x, 0, sizeof(pubkey_x));
++		op.params[2].tmpref.buffer = (void *)pubkey_x;
++		op.params[2].tmpref.size = MAX_KEY_LEN;
++
++		memset(pubkey_y, 0, sizeof(pubkey_y));
++		op.params[3].tmpref.buffer = (void *)pubkey_y;
++		op.params[3].tmpref.size = MAX_KEY_LEN;
++
++		if (!ADBG_EXPECT_TEEC_SUCCESS(c, TEEC_InvokeCommand(
++						&session, PTA_HSM_CMD_PUB_KEY_EXP, &op, &ret_orig)))
++			goto out;
++
++		/* Check if expected key pair */
++		if (!ADBG_EXPECT(c, TEE_ECC_CURVE_NIST_P384, op.params[1].value.a))
++			goto out;
++		if (!ADBG_EXPECT_BUFFER(c, nist_public_x,
++			sizeof(nist_public_x), pubkey_x, op.params[2].tmpref.size))
++			goto out;
++		if (!ADBG_EXPECT_BUFFER(c, nist_public_y,
++			sizeof(nist_public_y), pubkey_y, op.params[3].tmpref.size))
++			goto out;
++
++		//Do_ADBG_Log("Elliptic curve identifier: %x", op.params[1].value.a);
++		//Do_ADBG_Log("Public key X coordinate:");
++		//Do_ADBG_HexLog(pubkey_x, op.params[2].tmpref.size, 16);
++		//Do_ADBG_Log("Public key Y coordinate:");
++		//Do_ADBG_HexLog(pubkey_y, op.params[3].tmpref.size, 16);
++	}
++	Do_ADBG_EndSubCase(c, NULL);
++
+ out:
+ 	TEEC_CloseSession(&session);
+ }
+-- 
+2.7.4
+

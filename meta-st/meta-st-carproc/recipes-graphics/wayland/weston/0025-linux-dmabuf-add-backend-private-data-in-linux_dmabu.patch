@@ -1,0 +1,131 @@
+From 5a382100aa714a2cabd7ffee8ad1dc53feddeab4 Mon Sep 17 00:00:00 2001
+From: Stephane Danieau <stephane.danieau@st.com>
+Date: Wed, 7 Mar 2018 16:18:17 +0100
+Subject: [PATCH 25/37] linux-dmabuf: add backend private data in
+ linux_dmabuf_buffer structure
+
+The backend_priv_data allows the backend compositor (like st or drm
+compositor) to store private data that will be destroyed (thanks to the
+backend_priv_data_destroy_func) when the linux dmabuf buffer is
+destroyed.
+
+Change-Id: Iae43f6f789160a7fb2d15dc8954b8d304872a7e2
+Signed-off-by: Vincent Abriou <vincent.abriou@st.com>
+Reviewed-on: https://gerrit.st.com/60646
+---
+ libweston/linux-dmabuf.c | 41 +++++++++++++++++++++++++++++++++++++++++
+ libweston/linux-dmabuf.h | 25 +++++++++++--------------
+ 2 files changed, 52 insertions(+), 14 deletions(-)
+
+diff --git a/libweston/linux-dmabuf.c b/libweston/linux-dmabuf.c
+index ef1382b..5157273 100644
+--- a/libweston/linux-dmabuf.c
++++ b/libweston/linux-dmabuf.c
+@@ -151,6 +151,9 @@ destroy_linux_dmabuf_wl_buffer(struct wl_resource *resource)
+ 	if (buffer->user_data_destroy_func)
+ 		buffer->user_data_destroy_func(buffer);
+ 
++	if (buffer->backend_priv_data_destroy_func)
++		buffer->backend_priv_data_destroy_func(buffer);
++
+ 	linux_dmabuf_buffer_destroy(buffer);
+ }
+ 
+@@ -427,6 +430,44 @@ linux_dmabuf_buffer_get_user_data(struct linux_dmabuf_buffer *buffer)
+ 	return buffer->user_data;
+ }
+ 
++/** Set backend-private data
++ *
++ * Set the backend private data for the linux_dmabuf_buffer.
++ *
++ * The backend-private data is usually set from the compositor backend while
++ * dmabuf is imported into a sprite.
++ *
++ * \param buffer The linux_dmabuf_buffer object to set for.
++ * \param data The new backend-private data pointer.
++ * \param func Destructor function to be called for the backend-private
++ *             data when the linux_dmabuf_buffer gets destroyed.
++ *
++ * \sa drm_fb_create_dmabuf
++ */
++WL_EXPORT void
++linux_dmabuf_buffer_set_backend_priv_data(struct linux_dmabuf_buffer *buffer,
++				  void *data,
++				  dmabuf_priv_data_destroy_func func)
++{
++	buffer->backend_priv_data = data;
++	buffer->backend_priv_data_destroy_func = func;
++}
++
++/** Get backend-private data
++ *
++ * Get the backend private data from the linux_dmabuf_buffer.
++ *
++ * \param buffer The linux_dmabuf_buffer to query.
++ * \return Backend-private data pointer.
++ *
++ * \sa linux_dmabuf_buffer_set_backend_priv_data
++ */
++WL_EXPORT void *
++linux_dmabuf_buffer_get_backend_priv_data(struct linux_dmabuf_buffer *buffer)
++{
++	return buffer->backend_priv_data;
++}
++
+ static const struct zwp_linux_dmabuf_v1_interface linux_dmabuf_implementation = {
+ 	linux_dmabuf_destroy,
+ 	linux_dmabuf_create_params
+diff --git a/libweston/linux-dmabuf.h b/libweston/linux-dmabuf.h
+index 64f43e5..0bb18fc 100644
+--- a/libweston/linux-dmabuf.h
++++ b/libweston/linux-dmabuf.h
+@@ -33,6 +33,8 @@
+ struct linux_dmabuf_buffer;
+ typedef void (*dmabuf_user_data_destroy_func)(
+ 			struct linux_dmabuf_buffer *buffer);
++typedef void (*dmabuf_priv_data_destroy_func)(
++			struct linux_dmabuf_buffer *buffer);
+ 
+ struct dmabuf_attributes {
+ 	int32_t width;
+@@ -55,20 +57,8 @@ struct linux_dmabuf_buffer {
+ 	void *user_data;
+ 	dmabuf_user_data_destroy_func user_data_destroy_func;
+ 
+-	/* XXX:
+-	 *
+-	 * Add backend private data. This would be for the backend
+-	 * to do all additional imports it might ever use in advance.
+-	 * The basic principle, even if not implemented in drivers today,
+-	 * is that dmabufs are first attached, but the actual allocation
+-	 * is deferred to first use. This would allow the exporter and all
+-	 * attachers to agree on how to allocate.
+-	 *
+-	 * The DRM backend would use this to create drmFBs for each
+-	 * dmabuf_buffer, just in case at some point it would become
+-	 * feasible to scan it out directly. This would improve the
+-	 * possibilities to successfully scan out, avoiding compositing.
+-	 */
++	void *backend_priv_data;
++	dmabuf_priv_data_destroy_func backend_priv_data_destroy_func;
+ };
+ 
+ int
+@@ -85,6 +75,13 @@ void *
+ linux_dmabuf_buffer_get_user_data(struct linux_dmabuf_buffer *buffer);
+ 
+ void
++linux_dmabuf_buffer_set_backend_priv_data(struct linux_dmabuf_buffer *buffer,
++					  void *data,
++					  dmabuf_user_data_destroy_func func);
++void *
++linux_dmabuf_buffer_get_backend_priv_data(struct linux_dmabuf_buffer *buffer);
++
++void
+ linux_dmabuf_buffer_send_server_error(struct linux_dmabuf_buffer *buffer,
+ 				      const char *msg);
+ 
+-- 
+1.9.1
+

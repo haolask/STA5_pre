@@ -1,0 +1,85 @@
+@startuml
+
+title ATF_UBoot_standard_STD_BootFlow
+
+participant ROM order 10  #FF9999
+participant M3XL order 20  #FF9999
+participant M3OS_part2 order 30  #FF9999
+participant M3OS_part1 order 40  #FF9999
+participant Secure_Monitor order 50  #FF9999
+participant ATF_BL2 order 60  #FF9999
+participant STD_BIOS order 70 #888888
+participant LINUX order 80 #888888
+
+box "M3 Core" #LightBlue
+
+	participant ROM
+	participant M3XL
+	participant M3OS_part2
+	participant M3OS_part1
+
+end box
+
+box "A7 Core" #LightGreen
+
+	participant ATF_BL2
+	participant STD_BIOS
+	participant Secure_Monitor
+	participant LINUX
+
+end box
+
+activate ROM
+ROM -> M3XL : Load [M3 eSRAM]\nfrom NVM
+activate M3XL
+deactivate ROM
+M3XL -> ATF_BL2 : Load [A7 eSRAM] from NVM
+M3XL -> ATF_BL2 : Unreset A7 World
+activate ATF_BL2
+
+ATF_BL2 -> M3OS_part2 : Load  [A7 eSRAM] from NVM (ATF Snaphot)
+ATF_BL2 -> M3OS_part1 : Load [M3 eSRAM] from (ATF Snaphot)
+ATF_BL2 -> Secure_Monitor : Load [DDR] from (ATF Snaphot)
+ATF_BL2 -> STD_BIOS : Load [DDR] from NVM
+ATF_BL2 -> M3XL : Pen Release
+note over M3XL : A7 Secure World is in STR resume state
+M3XL -> ATF_BL2 : reset A7 World
+destroy ATF_BL2
+
+M3XL -> Secure_Monitor : Load Set-Up SecureMonitor Warm Entry Point [A7 eSRAM]
+M3XL -> Secure_Monitor : Unreset A7 World
+activate Secure_Monitor
+
+Secure_Monitor -> M3OS_part2 : Load  [A7 eSRAM] from DDR Backup
+Secure_Monitor -> M3OS_part1 : Load [M3 eSRAM] from DDR Backup
+Secure_Monitor -> M3XL : Pen Release
+M3XL -> M3OS_part1 : Jump
+activate M3OS_part1
+activate M3OS_part2
+deactivate M3XL
+
+Secure_Monitor -> STD_BIOS : NoSecure switch to\nSTD Bios Warm Entry Point
+activate STD_BIOS
+STD_BIOS -> LINUX : Load Linux/UserLand\nfrom NVM (NonSecure Snaphot)
+STD_BIOS -> LINUX : Jump to Linux Warm Entry Point
+activate LINUX
+destroy STD_BIOS
+
+
+note over M3OS_part1,M3OS_part2 : Wait for rpmsg syncro signal
+LINUX -> M3OS_part1 : Linux rpmsg resume  - rpmsg syncro signal
+
+legend
+
+|= Internal Name |= ATF acronym |
+| M3OS_part2 | SCP_FILE2_BL2 |
+| M3OS_part1 | SCP_BL2 |
+| Secure Monitor (SP-MIN or OPTEE) | ATF_BL32 |
+
+|= |= Secure/NonSecure |
+|<back:#FF9999>   </back>| Secure World |
+|<back:#999999>   </back>| NonSecure World |
+
+endlegend
+
+@enduml

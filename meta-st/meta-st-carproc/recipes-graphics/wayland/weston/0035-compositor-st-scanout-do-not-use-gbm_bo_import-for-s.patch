@@ -1,0 +1,40 @@
+From 726343e58c78c60319e794a2101059be7e63feae Mon Sep 17 00:00:00 2001
+From: Stephane Danieau <stephane.danieau@st.com>
+Date: Wed, 7 Mar 2018 17:20:54 +0100
+Subject: [PATCH 35/37] compositor-st: scanout, do not use gbm_bo_import() for
+ shm or dmabuf buffers
+
+In case the buffer is shm or dmabuf, we should not do gbm_bo_import(),
+it could generate memory corruption.
+
+Change-Id: I40f663f22832fdf29531a16752dd1821904403de
+Signed-off-by: Mickael Reulier <mickael.reulier@st.com>
+Reviewed-on: https://gerrit.st.com/87381
+Reviewed-by: CITOOLS <smet-aci-reviews@lists.codex.cro.st.com>
+Reviewed-by: Vincent ABRIOU <vincent.abriou@st.com>
+---
+ libweston/compositor-st.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/libweston/compositor-st.c b/libweston/compositor-st.c
+index 01da112..bd94f65 100644
+--- a/libweston/compositor-st.c
++++ b/libweston/compositor-st.c
+@@ -707,6 +707,14 @@ drm_output_prepare_scanout_view(struct drm_output *output,
+ 	if (viewport->buffer.transform != output->base.transform)
+ 		return NULL;
+ 
++	if (wl_shm_buffer_get(buffer->resource)) {
++		return NULL;
++	}
++
++	if (linux_dmabuf_buffer_get(buffer->resource)) {
++		return NULL;
++	}
++
+ 	bo = gbm_bo_import(b->gbm, GBM_BO_IMPORT_WL_BUFFER,
+ 			   buffer->resource, GBM_BO_USE_SCANOUT);
+ 
+-- 
+1.9.1
+

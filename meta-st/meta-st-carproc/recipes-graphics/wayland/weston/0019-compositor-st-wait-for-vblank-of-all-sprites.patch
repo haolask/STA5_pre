@@ -1,0 +1,53 @@
+From 632a0768b0bd23cf3271ced4b5ed2ae4720c69d1 Mon Sep 17 00:00:00 2001
+From: Stephane Danieau <stephane.danieau@st.com>
+Date: Wed, 7 Mar 2018 14:42:22 +0100
+Subject: [PATCH 19/37] compositor-st: wait for vblank of all sprites
+
+Wait for the reception of *all* sprite vblank before starting to assign
+new planes.
+Otherwise, we start with some sprites still in use, which causes some
+plane glitches on screen.
+
+Change-Id: Ic5901bab39830001ad8df5cc1c76d3fc9e583988
+Signed-off-by: Fabien Dessenne <fabien.dessenne@st.com>
+Reviewed-on: https://gerrit.st.com/58018
+Reviewed-by: Vincent ABRIOU <vincent.abriou@st.com>
+Tested-by: Vincent ABRIOU <vincent.abriou@st.com>
+---
+ libweston/compositor-st.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/libweston/compositor-st.c b/libweston/compositor-st.c
+index 8058301..9ba0a28 100644
+--- a/libweston/compositor-st.c
++++ b/libweston/compositor-st.c
+@@ -899,7 +899,7 @@ drm_output_repaint(struct weston_output *output_base,
+ 			s->output = NULL;
+ 		}
+ 
+-		output->vblank_pending = 1;
++		output->vblank_pending++;
+ 	}
+ 
+ 	return 0;
+@@ -1007,7 +1007,7 @@ vblank_handler(int fd, unsigned int frame, unsigned int sec, unsigned int usec,
+ 			 WP_PRESENTATION_FEEDBACK_KIND_HW_CLOCK;
+ 
+ 	drm_output_update_msc(output, frame);
+-	output->vblank_pending = 0;
++	output->vblank_pending--;
+ 
+ 	drm_output_release_fb(output, s->current);
+ 
+@@ -1020,7 +1020,7 @@ vblank_handler(int fd, unsigned int frame, unsigned int sec, unsigned int usec,
+ 	s->next = NULL;
+ 	s->vblank_pending = false;
+ 
+-	if (!output->page_flip_pending) {
++	if (!output->vblank_pending && !output->page_flip_pending) {
+ 		ts.tv_sec = sec;
+ 		ts.tv_nsec = usec * 1000;
+ 		weston_output_finish_frame(&output->base, &ts, flags);
+-- 
+1.9.1
+

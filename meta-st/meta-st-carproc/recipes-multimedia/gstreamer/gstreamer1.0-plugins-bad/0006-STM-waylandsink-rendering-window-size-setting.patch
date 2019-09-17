@@ -1,0 +1,161 @@
+From 67d03260f50e1c8ee82fd6b1effb52ce37bc3ca4 Mon Sep 17 00:00:00 2001
+From: Stephane Danieau <stephane.danieau@st.com>
+Date: Mon, 5 Mar 2018 15:48:33 +0100
+Subject: [PATCH 06/25] STM: waylandsink: rendering window size setting
+
+Add properties to manage the default size of the rendering window.
+Example:
+      gst-play-1.0 video.mp4 --videosink="waylandsink window-width=500 window-height=100"
+
+If these properties are not set, the rendering window size is set to the
+video size.
+
+Signed-off-by: Fabien Dessenne <fabien.dessenne@st.com>
+
+%% original patch: 0006-STM-waylandsink-rendering-window-size-setting.patch
+
+%% original patch: 0006-STM-waylandsink-rendering-window-size-setting.patch
+
+%% original patch: 0006-STM-waylandsink-rendering-window-size-setting.patch
+
+%% original patch: 0006-STM-waylandsink-rendering-window-size-setting.patch
+
+%% original patch: 0006-STM-waylandsink-rendering-window-size-setting.patch
+
+%% original patch: 0006-STM-waylandsink-rendering-window-size-setting.patch
+
+%% original patch: 0006-STM-waylandsink-rendering-window-size-setting.patch
+
+%% original patch: 0006-STM-waylandsink-rendering-window-size-setting.patch
+
+diff --git a/ext/wayland/gstwaylandsink.c b/ext/wayland/gstwaylandsink.c
+index 5c47e22..cea45b4 100644
+--- a/ext/wayland/gstwaylandsink.c
++++ b/ext/wayland/gstwaylandsink.c
+@@ -62,7 +62,9 @@ enum
+ {
+   PROP_0,
+   PROP_DISPLAY,
+-  PROP_FULLSCREEN
++  PROP_FULLSCREEN,
++  PROP_WINDOW_WIDTH,
++  PROP_WINDOW_HEIGHT
+ };
+ 
+ GST_DEBUG_CATEGORY (gstwayland_debug);
+@@ -169,6 +171,16 @@ gst_wayland_sink_class_init (GstWaylandSinkClass * klass)
+       g_param_spec_boolean ("fullscreen",
+           "Fullscreen", "Display on fullscreen", FALSE,
+           G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE));
++
++  g_object_class_install_property (gobject_class, PROP_WINDOW_WIDTH,
++      g_param_spec_uint64 ("window-width", "window-width",
++          "Default width of the rendered window", 0, G_MAXUINT64, 0,
++          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
++
++  g_object_class_install_property (gobject_class, PROP_WINDOW_HEIGHT,
++      g_param_spec_uint64 ("window-height", "window-height",
++          "Default height of the rendered window", 0, G_MAXUINT64, 0,
++          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+ }
+ 
+ static void
+@@ -197,6 +209,12 @@ gst_wayland_sink_get_property (GObject * object,
+     case PROP_FULLSCREEN:
+       g_value_set_boolean (value, sink->fullscreen);
+       break;
++    case PROP_WINDOW_WIDTH:
++      g_value_set_uint64 (value, sink->window_width);
++      break;
++    case PROP_WINDOW_HEIGHT:
++      g_value_set_uint64 (value, sink->window_height);
++      break;
+     default:
+       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+       break;
+@@ -218,6 +236,12 @@ gst_wayland_sink_set_property (GObject * object,
+     case PROP_FULLSCREEN:
+       sink->fullscreen = g_value_get_boolean (value);
+       break;
++    case PROP_WINDOW_WIDTH:
++      sink->window_width = g_value_get_uint64 (value);
++      break;
++    case PROP_WINDOW_HEIGHT:
++      sink->window_height = g_value_get_uint64 (value);
++      break;
+     default:
+       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+       break;
+@@ -631,6 +655,12 @@ render_last_buffer (GstWaylandSink * sink)
+     height = sink->display->output_height;
+   }
+ 
++  if (G_UNLIKELY (sink->window_width) &&
++      G_UNLIKELY (!sink->window->set_size_done)) {
++    width = sink->window_width;
++    height = sink->window_height;
++  }
++
+   gst_wl_window_render (sink->window, wlbuffer, info, width, height);
+ }
+ 
+diff --git a/ext/wayland/gstwaylandsink.h b/ext/wayland/gstwaylandsink.h
+index 4decedf..eb2ac33 100644
+--- a/ext/wayland/gstwaylandsink.h
++++ b/ext/wayland/gstwaylandsink.h
+@@ -66,7 +66,9 @@ struct _GstWaylandSink
+   gboolean redraw_pending;
+   GMutex render_lock;
+   GstBuffer *last_buffer;
++
+   gboolean fullscreen;
++  gint window_width, window_height;
+ };
+ 
+ struct _GstWaylandSinkClass
+diff --git a/ext/wayland/wlwindow.c b/ext/wayland/wlwindow.c
+index db0301a..5f994ba 100644
+--- a/ext/wayland/wlwindow.c
++++ b/ext/wayland/wlwindow.c
+@@ -157,6 +157,7 @@ gst_wl_window_new_toplevel (GstWlDisplay * display, const GstVideoInfo * info,
+     GMutex * render_lock)
+ {
+   GstWlWindow *window;
++  struct wl_region *region;
+   gint width;
+ 
+   window = gst_wl_window_new_internal (display, render_lock);
+@@ -181,6 +182,13 @@ gst_wl_window_new_toplevel (GstWlDisplay * display, const GstVideoInfo * info,
+       gst_util_uint64_scale_int_round (info->width, info->par_n, info->par_d);
+   gst_wl_window_set_render_rectangle (window, 0, 0, width, info->height);
+ 
++  /* set input region */
++  region = wl_compositor_create_region (window->display->compositor);
++  wl_region_add (region, 0, 0, window->render_rectangle.w,
++      window->render_rectangle.h);
++  wl_surface_set_input_region (window->area_surface, region);
++  wl_region_destroy (region);
++
+   return window;
+ }
+ 
+@@ -251,16 +259,6 @@ gst_wl_window_resize_video_surface (GstWlWindow * window, gboolean commit)
+     wl_surface_commit (window->video_surface);
+   }
+ 
+-  if (gst_wl_window_is_toplevel (window)) {
+-    struct wl_region *region;
+-
+-    region = wl_compositor_create_region (window->display->compositor);
+-    wl_region_add (region, 0, 0, window->render_rectangle.w,
+-        window->render_rectangle.h);
+-    wl_surface_set_input_region (window->area_surface, region);
+-    wl_region_destroy (region);
+-  }
+-
+   /* this is saved for use in wl_surface_damage */
+   window->video_rectangle = res;
+ }
+-- 
+2.7.4
+

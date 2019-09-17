@@ -1,0 +1,105 @@
+From b447d5677b5aaaa45d24d7e9ac6bc08714e6a22d Mon Sep 17 00:00:00 2001
+From: Stephane Danieau <stephane.danieau@st.com>
+Date: Wed, 7 Mar 2018 14:40:47 +0100
+Subject: [PATCH 18/37] compositor-st: forbid sprite on several crtc
+
+When a sprite is used it is assigned to a crtc until this sprite is
+no more used.
+A same sprite cannot be assigned on several crtc.
+During repaint procedure, do not refresh sprite from other outputs
+
+Change-Id: I79c9f9f50bfe8f408d1a01d0f787cebb7288d723
+Signed-off-by: Vincent Abriou <vincent.abriou@st.com>
+Reviewed-on: https://gerrit.st.com/58017
+Reviewed-by: Fabien DESSENNE <fabien.dessenne@st.com>
+---
+ libweston/compositor-st.c | 28 +++++++++++++++++++++++-----
+ 1 file changed, 23 insertions(+), 5 deletions(-)
+
+diff --git a/libweston/compositor-st.c b/libweston/compositor-st.c
+index 2415bf5..8058301 100644
+--- a/libweston/compositor-st.c
++++ b/libweston/compositor-st.c
+@@ -843,13 +843,16 @@ drm_output_repaint(struct weston_output *output_base,
+ 			.request.sequence = 1,
+ 		};
+ 
++		/* Don't flip planes from other outputs */
++		if (s->output != output)
++			continue;
++
+ 		if (s->vblank_pending) {
+ 			weston_xlog(" do not refresh the sprite=%p (currently in processing)\n", s);
+ 			continue;
+ 		}
+ 
+-		if ((!s->current && !s->next) ||
+-		    !drm_sprite_crtc_supported(output, s))
++		if (!s->current && !s->next)
+ 			continue;
+ 
+ 		if (s->next && !backend->sprites_hidden)
+@@ -865,11 +868,14 @@ drm_output_repaint(struct weston_output *output_base,
+ 				      s->dest_w, s->dest_h,
+ 				      s->src_x, s->src_y,
+ 				      s->src_w, s->src_h);
+-		if (ret)
++		if (ret) {
+ 			weston_log("setplane failed: %d: %s\n",
+ 				ret, strerror(errno));
+-		else
++			s->output = NULL;
++		}
++		else {
+ 			s->vblank_pending = true;
++		}
+ 
+ 		vbl.request.type |= drm_waitvblank_pipe(output);
+ 
+@@ -890,9 +896,9 @@ drm_output_repaint(struct weston_output *output_base,
+ 		if (ret) {
+ 			weston_log("vblank event request failed: %d: %s\n",
+ 				ret, strerror(errno));
++			s->output = NULL;
+ 		}
+ 
+-		s->output = output;
+ 		output->vblank_pending = 1;
+ 	}
+ 
+@@ -1004,6 +1010,12 @@ vblank_handler(int fd, unsigned int frame, unsigned int sec, unsigned int usec,
+ 	output->vblank_pending = 0;
+ 
+ 	drm_output_release_fb(output, s->current);
++
++	if (!s->next) {
++		/* Sprite is no more used by the output */
++		s->output = NULL;
++	}
++
+ 	s->current = s->next;
+ 	s->next = NULL;
+ 	s->vblank_pending = false;
+@@ -1183,6 +1195,9 @@ drm_output_prepare_overlay_view(struct drm_output *output,
+ 		if (!drm_sprite_crtc_supported(output, s))
+ 			continue;
+ 
++		if ((s->output != output) && (s->output != NULL))
++			continue;
++
+ 		/* Compare format with the formats of THIS sprite */
+ 		uint32_t i;
+ 		format_ok = 0;
+@@ -1238,6 +1253,9 @@ drm_output_prepare_overlay_view(struct drm_output *output,
+ 
+ 	drm_fb_set_buffer(s->next, ev->surface->buffer_ref.buffer);
+ 
++	/* Sprite is associated to an output */
++	s->output = output;
++
+ 	box = pixman_region32_extents(&ev->transform.boundingbox);
+ 	s->plane.x = box->x1;
+ 	s->plane.y = box->y1;
+-- 
+1.9.1
+

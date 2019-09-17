@@ -1,0 +1,17 @@
+#
+# U-boot environment variables for Accordo Nand EVB boards
+#
+console=console=tty0 consoleblank=0 console=ttyAMA2,115200n8
+loadaddr=A0000000
+loadzaddr=A1000000
+fdt_high=FFFFFFFF
+mtdids=nand0=nand
+nand_page_sz=4096
+nandload=ubifsload ${loadzaddr} fitImage
+nandboot=echo Booting from NAND...; run nandargs; bootm ${loadzaddr}
+nandbootfs=ubi part UBI 4096; ubifsmount ubi:bootfs
+
+# Boot command and args
+commonargs=rw rootwait earlyprintk quiet systemd.gpt_auto=0
+nandargs=setenv bootargs ${console} ${mtdparts} ubi.mtd=UBI,${nand_page_sz} root=ubi0:rootfs rootfstype=ubifs ${commonargs} coherent_pool=4M
+bootcmd=run nandbootfs nandload ; run nandboot

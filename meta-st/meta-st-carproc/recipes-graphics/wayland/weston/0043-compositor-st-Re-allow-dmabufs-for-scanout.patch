@@ -1,0 +1,101 @@
+From e0cd618ca076bc2cf9e00db7dc6981d7f5e67564 Mon Sep 17 00:00:00 2001
+From: Mickael Reulier <mickael.reulier@st.com>
+Date: Thu, 7 Feb 2019 14:08:08 +0100
+Subject: [PATCH 1/4] compositor-st: Re-allow dmabufs for scanout
+
+Change-Id: If89936ea241dc96c17adbd8d0a238576253aa224
+Signed-off-by: Mickael Reulier <mickael.reulier@st.com>
+Buglink:https://stintbugzilla.st.com/show_bug.cgi?id=118617
+---
+ libweston/compositor-st.c | 38 +++++++++++++++++++++++++++++---------
+ 1 file changed, 29 insertions(+), 9 deletions(-)
+
+diff --git a/libweston/compositor-st.c b/libweston/compositor-st.c
+index 51c0c6f..fdf2938 100644
+--- a/libweston/compositor-st.c
++++ b/libweston/compositor-st.c
+@@ -652,13 +652,10 @@ drm_output_release_fb(struct drm_output *output, struct drm_fb *fb)
+ 
+ static uint32_t
+ drm_output_check_scanout_format(struct drm_output *output,
+-				struct weston_surface *es, struct gbm_bo *bo)
++				struct weston_surface *es, uint32_t format)
+ {
+-	uint32_t format;
+ 	pixman_region32_t r;
+ 
+-	format = gbm_bo_get_format(bo);
+-
+ 	if (format == GBM_FORMAT_ARGB8888) {
+ 		/* We can scanout an ARGB buffer if the surface's
+ 		 * opaque region covers the whole output, but we have
+@@ -687,8 +684,10 @@ drm_output_prepare_scanout_view(struct drm_output *output,
+ 	struct drm_backend *b = to_drm_backend(output->base.compositor);
+ 	struct weston_buffer *buffer = ev->surface->buffer_ref.buffer;
+ 	struct weston_buffer_viewport *viewport = &ev->surface->buffer_viewport;
++	struct linux_dmabuf_buffer *dmabuf;
+ 	struct gbm_bo *bo;
+ 	uint32_t format;
++	pixman_box32_t *extents;
+ 
+ 	/* We use GBM to import buffers. */
+ 	if (b->gbm == NULL)
+@@ -701,8 +700,7 @@ drm_output_prepare_scanout_view(struct drm_output *output,
+ 	if (ev->geometry.x != output->base.x ||
+ 	    ev->geometry.y != output->base.y)
+ 		return NULL;
+-	if (ev->transform.enabled)
+-		return NULL;
++
+ 	if (ev->geometry.scissor_enabled)
+ 		return NULL;
+ 
+@@ -712,12 +710,34 @@ drm_output_prepare_scanout_view(struct drm_output *output,
+ 	if (viewport->buffer.transform != output->base.transform)
+ 		return NULL;
+ 
++	if (ev->transform.enabled &&
++	    (ev->transform.matrix.type >= WESTON_MATRIX_TRANSFORM_ROTATE))
++		return NULL;
++
++	/* Check the view spans exactly the output size, calculated in the
++	 * logical co-ordinate space. */
++	extents = pixman_region32_extents(&ev->transform.boundingbox);
++	if (extents->x1 != output->base.x ||
++	    extents->y1 != output->base.y ||
++	    extents->x2 != output->base.x + output->base.width ||
++	    extents->y2 != output->base.y + output->base.height)
++		return NULL;
++
+ 	if (wl_shm_buffer_get(buffer->resource)) {
+ 		return NULL;
+ 	}
+ 
+-	if (linux_dmabuf_buffer_get(buffer->resource)) {
+-		return NULL;
++	if ((dmabuf = linux_dmabuf_buffer_get(buffer->resource))) {
++		format = drm_output_check_scanout_format(output, ev->surface, dmabuf->attributes.format);
++		if (format == 0) {
++			return NULL;
++		}
++		output->next = drm_fb_get_from_dmabuf(dmabuf, b, format);
++		if (!output->next) {
++			return NULL;
++		}
++		drm_fb_set_buffer(output->next, buffer);
++		return &output->fb_plane;
+ 	}
+ 
+ 	bo = gbm_bo_import(b->gbm, GBM_BO_IMPORT_WL_BUFFER,
+@@ -727,7 +747,7 @@ drm_output_prepare_scanout_view(struct drm_output *output,
+ 	if (!bo)
+ 		return NULL;
+ 
+-	format = drm_output_check_scanout_format(output, ev->surface, bo);
++	format = drm_output_check_scanout_format(output, ev->surface, gbm_bo_get_format(bo));
+ 	if (format == 0) {
+ 		gbm_bo_destroy(bo);
+ 		return NULL;
+-- 
+1.9.1
+

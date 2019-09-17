@@ -1,0 +1,51 @@
+From 6692228c3e03ba36ee274ba57531d0b6f421d5c2 Mon Sep 17 00:00:00 2001
+From: Christophe Priouzeau <christophe.priouzeau@linaro.org>
+Date: Thu, 7 Apr 2016 10:21:39 +0200
+Subject: [PATCH 02/25] STM: waylandsink: disable last-sample sink feature
+
+The "last-sample" basesink feature stores a reference to the last buffer
+sent for rendering. A consequence is that one buffer is always locked,
+decreasing the number of buffers of the pool actually available.
+Disabling this feature improves the buffer pool capacity and prevents
+some deadlock race conditions.
+
+Change-Id: I4249bfb38990f7fbc3a70ebf5005caedd831fd6d
+Signed-off-by: Fabien Dessenne <fabien.dessenne@st.com>
+Reviewed-on: https://gerrit.st.com/44589
+Reviewed-by: Vincent ABRIOU <vincent.abriou@st.com>
+Reviewed-by: Benjamin GAIGNARD <benjamin.gaignard@st.com>
+
+%% original patch: 0002-STM-waylandsink-disable-last-sample-sink-feature.patch
+
+%% original patch: 0002-STM-waylandsink-disable-last-sample-sink-feature.patch
+
+%% original patch: 0002-STM-waylandsink-disable-last-sample-sink-feature.patch
+
+%% original patch: 0002-STM-waylandsink-disable-last-sample-sink-feature.patch
+
+%% original patch: 0002-STM-waylandsink-disable-last-sample-sink-feature.patch
+
+%% original patch: 0002-STM-waylandsink-disable-last-sample-sink-feature.patch
+
+%% original patch: 0002-STM-waylandsink-disable-last-sample-sink-feature.patch
+
+%% original patch: 0002-STM-waylandsink-disable-last-sample-sink-feature.patch
+
+diff --git a/ext/wayland/gstwaylandsink.c b/ext/wayland/gstwaylandsink.c
+index 46a710f..1ba8820 100644
+--- a/ext/wayland/gstwaylandsink.c
++++ b/ext/wayland/gstwaylandsink.c
+@@ -168,6 +168,10 @@ gst_wayland_sink_class_init (GstWaylandSinkClass * klass)
+ static void
+ gst_wayland_sink_init (GstWaylandSink * sink)
+ {
++  GstBaseSink *basesink = GST_BASE_SINK_CAST (GST_VIDEO_SINK_CAST (sink));
++
++  gst_base_sink_set_last_sample_enabled (basesink, FALSE);
++
+   g_mutex_init (&sink->display_lock);
+   g_mutex_init (&sink->render_lock);
+ }
+-- 
+2.7.4
+

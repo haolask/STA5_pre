@@ -1,0 +1,66 @@
+From e668a89f4bf294a3080a5563c174a216dc3dd6d8 Mon Sep 17 00:00:00 2001
+From: Stephane Danieau <stephane.danieau@st.com>
+Date: Tue, 6 Mar 2018 19:07:30 +0100
+Subject: [PATCH 23/25] waylandsink: remove quark usage to identify couple
+ (wlbuffer/gstbuffer)
+
+in case of graph :
+dec->tee--->waylandsink0
+    	\-->waylandsink1
+
+One gstbuffer is used as reference for two wlbuffer
+
+in gst_buffer_add_wl_buffer: thanks to gst_mini_object_set_qdata, a quark is used to do
+the link between this wlbuffer and gstbuffer
+Purpose of that is that if gstbuffer is disposed or if wlbuffer is updated the gstbuffer_disposed
+function is called. (refer to gst_mini_object_set_qdata description)
+
+in the above use-case, gst_mini_object_set_qdata will be called two times to get two wlbuffer but
+with the same gstbuffer.
+It means that when the second call is done, as we update the data and we keep the same quark :
+it systematically calls the gst_buffer disposed.
+This is the issue. We shouldn't use the same quark for both calls.
+Instead we use the thread_id.
+
+Change-Id: I460d53ed914477368d9a47840965daf33da4e432
+Signed-off-by: Stephane Danieau <stephane.danieau@st.com>
+
+%% original patch: 0027-waylandsink-remove-quark-usage-to-identify-couple-wl.patch
+
+%% original patch: 0027-waylandsink-remove-quark-usage-to-identify-couple-wl.patch
+
+diff --git a/ext/wayland/wlbuffer.c b/ext/wayland/wlbuffer.c
+index 4ac99ef..9ec4b86 100644
+--- a/ext/wayland/wlbuffer.c
++++ b/ext/wayland/wlbuffer.c
+@@ -83,7 +83,7 @@ GST_DEBUG_CATEGORY_EXTERN (gstwayland_debug);
+ 
+ G_DEFINE_TYPE (GstWlBuffer, gst_wl_buffer, G_TYPE_OBJECT);
+ 
+-static G_DEFINE_QUARK (GstWlBufferQDataQuark, gst_wl_buffer_qdata);
++//static G_DEFINE_QUARK (GstWlBufferQDataQuark, gst_wl_buffer_qdata);
+ 
+ static void
+ gst_wl_buffer_dispose (GObject * gobject)
+@@ -175,7 +175,8 @@ gst_buffer_add_wl_buffer (GstBuffer * gstbuffer, struct wl_buffer *wlbuffer,
+   wl_buffer_add_listener (self->wlbuffer, &buffer_listener, self);
+ 
+   gst_mini_object_set_qdata ((GstMiniObject *) gstbuffer,
+-      gst_wl_buffer_qdata_quark (), self, (GDestroyNotify) gstbuffer_disposed);
++      GPOINTER_TO_UINT (g_thread_self ()), self,
++      (GDestroyNotify) gstbuffer_disposed);
+ 
+   return self;
+ }
+@@ -184,7 +185,7 @@ GstWlBuffer *
+ gst_buffer_get_wl_buffer (GstBuffer * gstbuffer)
+ {
+   return gst_mini_object_get_qdata ((GstMiniObject *) gstbuffer,
+-      gst_wl_buffer_qdata_quark ());
++      GPOINTER_TO_UINT (g_thread_self ()));
+ }
+ 
+ void
+-- 
+2.7.4
+

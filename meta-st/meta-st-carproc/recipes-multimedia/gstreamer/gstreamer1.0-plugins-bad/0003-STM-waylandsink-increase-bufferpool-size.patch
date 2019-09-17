@@ -1,0 +1,42 @@
+From c14951afbfd2ed9e5567fed6fe12b3a1b3e62741 Mon Sep 17 00:00:00 2001
+From: Stephane Danieau <stephane.danieau@st.com>
+Date: Mon, 5 Mar 2018 15:00:31 +0100
+Subject: [PATCH 03/25] STM: waylandsink: increase bufferpool size
+
+Use at least 3 buffers in the pool : this fixes some deadlock conditions
+when using a drm backend weston compositor.
+
+Signed-off-by: Fabien Dessenne <fabien.dessenne@st.com>
+
+%% original patch: 0003-STM-waylandsink-increase-bufferpool-size.patch
+
+%% original patch: 0003-STM-waylandsink-increase-bufferpool-size.patch
+
+%% original patch: 0003-STM-waylandsink-increase-bufferpool-size.patch
+
+%% original patch: 0003-STM-waylandsink-increase-bufferpool-size.patch
+
+%% original patch: 0003-STM-waylandsink-increase-bufferpool-size.patch
+
+%% original patch: 0003-STM-waylandsink-increase-bufferpool-size.patch
+
+%% original patch: 0003-STM-waylandsink-increase-bufferpool-size.patch
+
+%% original patch: 0003-STM-waylandsink-increase-bufferpool-size.patch
+
+diff --git a/ext/wayland/gstwaylandsink.c b/ext/wayland/gstwaylandsink.c
+index 1ba8820..0b56447 100644
+--- a/ext/wayland/gstwaylandsink.c
++++ b/ext/wayland/gstwaylandsink.c
+@@ -463,7 +463,7 @@ gst_wayland_create_pool (GstWaylandSink * sink, GstCaps * caps)
+   pool = gst_video_buffer_pool_new ();
+ 
+   structure = gst_buffer_pool_get_config (pool);
+-  gst_buffer_pool_config_set_params (structure, caps, size, 2, 0);
++  gst_buffer_pool_config_set_params (structure, caps, size, 3, 0);
+   gst_buffer_pool_config_set_allocator (structure, gst_wl_shm_allocator_get (),
+       NULL);
+ 
+-- 
+2.7.4
+

@@ -1,0 +1,295 @@
+From 1f73a1de8b7540129212c1b8e7f26814c05e4ec9 Mon Sep 17 00:00:00 2001
+From: Stephane Danieau <stephane.danieau@st.com>
+Date: Wed, 7 Mar 2018 11:45:01 +0100
+Subject: [PATCH 04/37] pixman-renderer: support of linux-dmabuf
+
+Importing linux-dmabuf buffers with mmap makes pixman-renderer able to
+support such buffers.
+
+Consider as a backup to be able to display video dmabuf buffer using
+pixman.
+
+Change-Id: I98f29e3c67fea698deb8fae329b34c941ca50c7b
+Signed-off-by: Fabien Dessenne <fabien.dessenne@st.com>
+Signed-off-by: Vincent Abriou <vincent.abriou@st.com>
+---
+ Makefile.am                 |   3 +
+ libweston/compositor.h      |   2 +
+ libweston/pixman-renderer.c | 177 +++++++++++++++++++++++++++++++++++++-------
+ 3 files changed, 154 insertions(+), 28 deletions(-)
+
+diff --git a/Makefile.am b/Makefile.am
+index 9832a52..e9e8c1d 100644
+--- a/Makefile.am
++++ b/Makefile.am
+@@ -80,6 +80,9 @@ libweston_@LIBWESTON_MAJOR@_la_LIBADD = $(COMPOSITOR_LIBS) $(LIBUNWIND_LIBS) \
+ 	$(LIBINPUT_BACKEND_LIBS) libshared.la
+ libweston_@LIBWESTON_MAJOR@_la_LDFLAGS = -version-info $(LT_VERSION_INFO)
+ 
++# Add this to allow pixman-renderer to be aware of DRM_FORMAT.
++libweston_@LIBWESTON_MAJOR@_la_CFLAGS += $(LIBDRM_CFLAGS)
++
+ libweston_@LIBWESTON_MAJOR@_la_SOURCES =			\
+ 	libweston/git-version.h				\
+ 	libweston/log.c					\
+diff --git a/libweston/compositor.h b/libweston/compositor.h
+index e8acd2c..ef52ab1 100644
+--- a/libweston/compositor.h
++++ b/libweston/compositor.h
+@@ -45,6 +45,8 @@ extern "C" {
+ #include "zalloc.h"
+ #include "timeline-object.h"
+ 
++#include "linux-dmabuf.h"
++
+ //#define DEBUG_VERBOSE
+ #ifdef DEBUG_VERBOSE
+ #define weston_xlog(...) weston_log(__VA_ARGS__)
+diff --git a/libweston/pixman-renderer.c b/libweston/pixman-renderer.c
+index 4ba1377..7dc3b58 100644
+--- a/libweston/pixman-renderer.c
++++ b/libweston/pixman-renderer.c
+@@ -31,6 +31,8 @@
+ #include <stdint.h>
+ #include <stdlib.h>
+ #include <assert.h>
++#include <drm_fourcc.h>
++#include <sys/mman.h>
+ 
+ #include "pixman-renderer.h"
+ #include "shared/helpers.h"
+@@ -340,6 +342,7 @@ repaint_region(struct weston_view *ev, struct weston_output *output,
+ 	pixman_filter_t filter;
+ 	pixman_image_t *mask_image;
+ 	pixman_color_t mask = { 0, };
++	struct weston_buffer *buffer = ps->buffer_ref.buffer;
+ 
+ 	/* Clip rendering to the damaged output region */
+ 	pixman_image_set_clip_region32(po->shadow_image, repaint_output);
+@@ -351,8 +354,8 @@ repaint_region(struct weston_view *ev, struct weston_output *output,
+ 	else
+ 		filter = PIXMAN_FILTER_NEAREST;
+ 
+-	if (ps->buffer_ref.buffer)
+-		wl_shm_buffer_begin_access(ps->buffer_ref.buffer->shm_buffer);
++	if (buffer && wl_shm_buffer_get(buffer->resource))
++		wl_shm_buffer_begin_access(buffer->shm_buffer);
+ 
+ 	if (ev->alpha < 1.0) {
+ 		mask.alpha = 0xffff * ev->alpha;
+@@ -371,8 +374,8 @@ repaint_region(struct weston_view *ev, struct weston_output *output,
+ 	if (mask_image)
+ 		pixman_image_unref(mask_image);
+ 
+-	if (ps->buffer_ref.buffer)
+-		wl_shm_buffer_end_access(ps->buffer_ref.buffer->shm_buffer);
++	if (buffer && wl_shm_buffer_get(buffer->resource))
++		wl_shm_buffer_end_access(buffer->shm_buffer);
+ 
+ 	if (pr->repaint_debug)
+ 		pixman_image_composite32(PIXMAN_OP_OVER,
+@@ -598,6 +601,7 @@ pixman_renderer_attach(struct weston_surface *es, struct weston_buffer *buffer)
+ {
+ 	struct pixman_surface_state *ps = get_surface_state(es);
+ 	struct wl_shm_buffer *shm_buffer;
++	struct linux_dmabuf_buffer *dmabuf_buffer;
+ 	pixman_format_code_t pixman_format;
+ 
+ 	weston_buffer_reference(&ps->buffer_ref, buffer);
+@@ -616,38 +620,74 @@ pixman_renderer_attach(struct weston_surface *es, struct weston_buffer *buffer)
+ 		return;
+ 
+ 	shm_buffer = wl_shm_buffer_get(buffer->resource);
++	dmabuf_buffer = linux_dmabuf_buffer_get(buffer->resource);
+ 
+-	if (! shm_buffer) {
+-		weston_log("Pixman renderer supports only SHM buffers\n");
++	if (!shm_buffer && !dmabuf_buffer) {
++		weston_log("Pixman renderer supports only SHM and DMABUF buffers\n");
+ 		weston_buffer_reference(&ps->buffer_ref, NULL);
+ 		return;
+ 	}
+ 
+-	switch (wl_shm_buffer_get_format(shm_buffer)) {
+-	case WL_SHM_FORMAT_XRGB8888:
+-		pixman_format = PIXMAN_x8r8g8b8;
+-		break;
+-	case WL_SHM_FORMAT_ARGB8888:
+-		pixman_format = PIXMAN_a8r8g8b8;
+-		break;
+-	case WL_SHM_FORMAT_RGB565:
+-		pixman_format = PIXMAN_r5g6b5;
+-		break;
+-	default:
+-		weston_log("Unsupported SHM buffer format\n");
+-		weston_buffer_reference(&ps->buffer_ref, NULL);
+-		return;
+-	break;
++	if (shm_buffer) {
++		switch (wl_shm_buffer_get_format(shm_buffer)) {
++		case WL_SHM_FORMAT_XRGB8888:
++			pixman_format = PIXMAN_x8r8g8b8;
++			break;
++		case WL_SHM_FORMAT_ARGB8888:
++			pixman_format = PIXMAN_a8r8g8b8;
++			break;
++		case WL_SHM_FORMAT_RGB565:
++			pixman_format = PIXMAN_r5g6b5;
++			break;
++		default:
++			weston_log("Unsupported SHM buffer format\n");
++			weston_buffer_reference(&ps->buffer_ref, NULL);
++			return;
++			break;
++		}
++
++		buffer->shm_buffer = shm_buffer;
++		buffer->width = wl_shm_buffer_get_width(shm_buffer);
++		buffer->height = wl_shm_buffer_get_height(shm_buffer);
++
++		ps->image = pixman_image_create_bits(pixman_format,
++				buffer->width, buffer->height,
++				wl_shm_buffer_get_data(shm_buffer),
++				wl_shm_buffer_get_stride(shm_buffer));
+ 	}
+ 
+-	buffer->shm_buffer = shm_buffer;
+-	buffer->width = wl_shm_buffer_get_width(shm_buffer);
+-	buffer->height = wl_shm_buffer_get_height(shm_buffer);
++	if (dmabuf_buffer) {
++		void *data = NULL;
++		switch (dmabuf_buffer->attributes.format) {
++		case DRM_FORMAT_XRGB8888:
++			pixman_format = PIXMAN_x8r8g8b8;
++			break;
++		case DRM_FORMAT_ARGB8888:
++			pixman_format = PIXMAN_a8r8g8b8;
++			break;
++		case DRM_FORMAT_RGB565:
++			pixman_format = PIXMAN_r5g6b5;
++			break;
++		default:
++			weston_log("Unsupported DMABUF buffer format\n");
++			weston_buffer_reference(&ps->buffer_ref, NULL);
++			return;
++			break;
++		}
+ 
+-	ps->image = pixman_image_create_bits(pixman_format,
+-		buffer->width, buffer->height,
+-		wl_shm_buffer_get_data(shm_buffer),
+-		wl_shm_buffer_get_stride(shm_buffer));
++		buffer->width = dmabuf_buffer->attributes.width;
++		buffer->height = dmabuf_buffer->attributes.height;
++
++		data = linux_dmabuf_buffer_get_user_data(dmabuf_buffer);
++		if (data) {
++			ps->image = pixman_image_create_bits(pixman_format,
++												 buffer->width,
++												 buffer->height,
++												 data,
++												 dmabuf_buffer->attributes.stride[0]);
++		} else
++			weston_log("failed to get data from dmabuf buffer\n");
++	}
+ 
+ 	ps->buffer_destroy_listener.notify =
+ 		buffer_state_handle_buffer_destroy;
+@@ -756,6 +796,86 @@ pixman_renderer_destroy(struct weston_compositor *ec)
+ 	ec->renderer = NULL;
+ }
+ 
++static uint32_t
++get_dmabuf_size(int32_t width, int32_t height, uint32_t format)
++{
++	uint32_t size = width * height;
++
++	switch (format) {
++	case DRM_FORMAT_NV12:
++		size = (size * 3) / 2;
++		break;
++	case DRM_FORMAT_RGB565:
++		size *= 2;
++		break;
++	case DRM_FORMAT_XRGB8888:
++	case DRM_FORMAT_ARGB8888:
++		size *= 4;
++		break;
++	default:
++		/* TODO: extend with other formats */
++		size *= 4;
++		break;
++	}
++
++	return size;
++}
++
++static void
++pixman_destroy_dmabuf(struct linux_dmabuf_buffer *buffer)
++{
++	uint32_t size;
++	void *data;
++
++	weston_log("pixman : destroying linux_dmabuf_buffer %p\n", buffer);
++
++	data = linux_dmabuf_buffer_get_user_data(buffer);
++	if (!data) {
++		weston_log("Warning: buffer data NULL\n");
++		return;
++	}
++
++	size = get_dmabuf_size(buffer->attributes.width,
++						   buffer->attributes.height,
++						   buffer->attributes.format);
++	if (munmap(data, size)) {
++		weston_log("ERROR: could not unmmap \n");
++		return;
++	}
++
++	linux_dmabuf_buffer_set_user_data(buffer, NULL, NULL);
++}
++
++static bool
++pixman_import_dmabuf(struct weston_compositor *ec, struct linux_dmabuf_buffer *buffer)
++{
++	uint32_t size;
++	void *data;
++
++	weston_log("pixman : importing linux_dmabuf_buffer %p\n", buffer);
++
++	data = linux_dmabuf_buffer_get_user_data(buffer);
++	if (data) {
++		weston_log("warning: buffer already imported\n");
++		return true;
++	}
++
++	size = get_dmabuf_size(buffer->attributes.width,
++						   buffer->attributes.height,
++						   buffer->attributes.format);
++	data = mmap(0, size, PROT_READ | PROT_WRITE, MAP_SHARED,
++				buffer->attributes.fd[0], 0);
++
++	if (!data) {
++		weston_log("ERROR: could not import buffer\n");
++		return false;
++	}
++
++	linux_dmabuf_buffer_set_user_data(buffer, data, pixman_destroy_dmabuf);
++
++	return true;
++}
++
+ static void
+ pixman_renderer_surface_get_content_size(struct weston_surface *surface,
+ 					 int *width, int *height)
+@@ -845,6 +965,7 @@ pixman_renderer_init(struct weston_compositor *ec)
+ 		pixman_renderer_surface_get_content_size;
+ 	renderer->base.surface_copy_content =
+ 		pixman_renderer_surface_copy_content;
++	renderer->base.import_dmabuf = pixman_import_dmabuf;
+ 	ec->renderer = &renderer->base;
+ 	ec->capabilities |= WESTON_CAP_ROTATION_ANY;
+ 	ec->capabilities |= WESTON_CAP_CAPTURE_YFLIP;
+-- 
+1.9.1
+

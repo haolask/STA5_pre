@@ -1,0 +1,39 @@
+From ae103b072aefca5c84e25e6c73b708d1bc65d128 Mon Sep 17 00:00:00 2001
+From: Baptiste Chauloux <baptiste.chauloux@st.com>
+Date: Thu, 19 Oct 2017 16:47:48 +0200
+Subject: [PATCH] Fix issue building qtbase 5.3
+
+---
+ mkspecs/features/qt_common.prf | 2 +-
+ mkspecs/features/qt_module.prf | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/mkspecs/features/qt_common.prf b/mkspecs/features/qt_common.prf
+index d04bc3e..1b7f214 100644
+--- a/mkspecs/features/qt_common.prf
++++ b/mkspecs/features/qt_common.prf
+@@ -30,7 +30,7 @@ contains(TEMPLATE, .*lib) {
+         qt_libdir = $$[QT_INSTALL_LIBS/raw]
+     contains(QMAKE_DEFAULT_LIBDIRS, $$qt_libdir) {
+         lib_replace.match = "[^ ']*$$rplbase/lib"
+-        lib_replace.replace =
++        lib_replace.replace = "\$$\\{libdir}"
+     } else {
+         lib_replace.match = $$rplbase/lib
+         lib_replace.replace = "\$$\\{libdir}"
+diff --git a/mkspecs/features/qt_module.prf b/mkspecs/features/qt_module.prf
+index 2e229fc..ae20bc3 100644
+--- a/mkspecs/features/qt_module.prf
++++ b/mkspecs/features/qt_module.prf
+@@ -177,7 +177,7 @@ load(qt_common)
+ unix|mingw {
+     CONFIG += create_pc
+     QMAKE_PKGCONFIG_DESTDIR = pkgconfig
+-    QMAKE_PKGCONFIG_LIBDIR = $$qt_libdir
++    QMAKE_PKGCONFIG_LIBDIR = "\$$\\{qt_libdir}"
+     QMAKE_PKGCONFIG_INCDIR = $$[QT_INSTALL_HEADERS/raw]
+     QMAKE_PKGCONFIG_CFLAGS = -I${includedir}/$$MODULE_INCNAME
+     QMAKE_PKGCONFIG_NAME = $$replace(TARGET, ^Qt, "Qt$$section(VERSION, ., 0, 0) ")
+-- 
+2.7.4
+

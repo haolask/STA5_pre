@@ -1,0 +1,152 @@
+From 19bc44778502e4c37cd871eb8b0ab51b52d02ca1 Mon Sep 17 00:00:00 2001
+From: Stephane Danieau <stephane.danieau@st.com>
+Date: Wed, 14 Mar 2018 15:49:35 +0100
+Subject: [PATCH 10/37] compositor-st: enable sprites
+
+- Enable sprites (sprites_are_broken set to 0)
+- Add weston_xlog related to sprite assignment.
+
+Change-Id: I03a2f498d9bc35b3e8ede5b79615fff8b2b187e6
+Signed-off-by: Fabien Dessenne <fabien.dessenne@st.com>
+---
+ libweston/compositor-st.c | 49 +++++++++++++++++++++++++++++++++++++++++------
+ 1 file changed, 43 insertions(+), 6 deletions(-)
+
+diff --git a/libweston/compositor-st.c b/libweston/compositor-st.c
+index ef68a95..911e03b 100644
+--- a/libweston/compositor-st.c
++++ b/libweston/compositor-st.c
+@@ -615,6 +615,8 @@ drm_output_render_pixman(struct drm_output *output, pixman_region32_t *damage)
+ 	struct weston_compositor *ec = output->base.compositor;
+ 	pixman_region32_t total_damage, previous_damage;
+ 
++	weston_xlog("%s\n",__func__);
++
+ 	pixman_region32_init(&total_damage);
+ 	pixman_region32_init(&previous_damage);
+ 
+@@ -708,6 +710,8 @@ drm_output_repaint(struct weston_output *output_base,
+ 	struct drm_mode *mode;
+ 	int ret = 0;
+ 
++	weston_xlog("%s: output_base=%p\n", __func__, output_base);
++
+ 	if (output->disable_pending || output->destroy_pending)
+ 		return -1;
+ 
+@@ -719,6 +723,7 @@ drm_output_repaint(struct weston_output *output_base,
+ 	mode = container_of(output->base.current_mode, struct drm_mode, base);
+ 	if (!output->current ||
+ 	    output->current->stride != output->next->stride) {
++		weston_xlog(" drmModeSetCrtc output->crtc_id = %d\n", output->crtc_id);
+ 		ret = drmModeSetCrtc(backend->drm.fd, output->crtc_id,
+ 				     output->next->fb_id, 0, 0,
+ 				     &output->connector_id, 1,
+@@ -730,6 +735,7 @@ drm_output_repaint(struct weston_output *output_base,
+ 		output_base->set_dpms(output_base, WESTON_DPMS_ON);
+ 	}
+ 
++	weston_xlog(" drmModePageFlip output->crtc_id = %d\n", output->crtc_id);
+ 	if (drmModePageFlip(backend->drm.fd, output->crtc_id,
+ 			    output->next->fb_id,
+ 			    DRM_MODE_PAGE_FLIP_EVENT, output) < 0) {
+@@ -758,6 +764,9 @@ drm_output_repaint(struct weston_output *output_base,
+ 		if (s->next && !backend->sprites_hidden)
+ 			fb_id = s->next->fb_id;
+ 
++		weston_xlog(" refresh the sprite=%p crtc_id=%d plane_id=%d possible_crtcs=%d fb_id=%d\n",
++				s, output->crtc_id, s->plane_id, s->possible_crtcs, fb_id);
++
+ 		ret = drmModeSetPlane(backend->drm.fd, s->plane_id,
+ 				      output->crtc_id, fb_id, flags,
+ 				      s->dest_x, s->dest_y,
+@@ -918,6 +927,9 @@ page_flip_handler(int fd, unsigned int frame,
+ 
+ 	drm_output_update_msc(output, frame);
+ 
++	weston_xlog("%s: crtc_id=%d (sec=%d usec=%d)\n",
++			__func__, output->crtc_id, sec, usec);
++
+ 	/* We don't set page_flip_pending on start_repaint_loop, in that case
+ 	 * we just want to page flip to the current buffer to get an accurate
+ 	 * timestamp */
+@@ -998,6 +1010,8 @@ drm_output_prepare_overlay_view(struct drm_output *output,
+ 	uint32_t format;
+ 	wl_fixed_t sx1, sy1, sx2, sy2;
+ 
++	weston_xlog("   %s: output_base->id = %d\n", __func__, output->base.id);
++
+ 	if (b->sprites_are_broken)
+ 		return NULL;
+ 
+@@ -1313,6 +1327,9 @@ drm_assign_planes(struct weston_output *output_base)
+ 	struct weston_view *ev, *next;
+ 	pixman_region32_t overlap, surface_overlap;
+ 	struct weston_plane *primary, *next_plane;
++	int i = 0;
++
++	weston_xlog("%s: output=%p\n", __func__, output);
+ 
+ 	/*
+ 	 * Find a surface for each sprite in the output using some heuristics:
+@@ -1333,6 +1350,10 @@ drm_assign_planes(struct weston_output *output_base)
+ 	wl_list_for_each_safe(ev, next, &output_base->compositor->view_list, link) {
+ 		struct weston_surface *es = ev->surface;
+ 
++		weston_xlog(" assigning surface %d %p (%dx%d)...\n", i, es,
++				ev->surface->width, ev->surface->height);
++		i++;
++
+ 		/* Test whether this buffer can ever go into a plane:
+ 		 * non-shm, or small enough to be a cursor.
+ 		 *
+@@ -1355,16 +1376,33 @@ drm_assign_planes(struct weston_output *output_base)
+ 					  &ev->transform.boundingbox);
+ 
+ 		next_plane = NULL;
+-		if (pixman_region32_not_empty(&surface_overlap))
++		if (pixman_region32_not_empty(&surface_overlap)) {
+ 			next_plane = primary;
+-		if (next_plane == NULL)
++			if (next_plane)
++				weston_xlog(" ...assigned to primary (cause=overlap)\n");
++		}
++		if (next_plane == NULL) {
+ 			next_plane = drm_output_prepare_cursor_view(output, ev);
+-		if (next_plane == NULL)
++			if (next_plane)
++				weston_xlog(" ...assigned to cursor\n");
++		}
++
++		if (next_plane == NULL) {
+ 			next_plane = drm_output_prepare_scanout_view(output, ev);
+-		if (next_plane == NULL)
++			if (next_plane)
++				weston_xlog(" ...assigned to scanout\n");
++		}
++
++		if (next_plane == NULL) {
+ 			next_plane = drm_output_prepare_overlay_view(output, ev);
+-		if (next_plane == NULL)
++			if (next_plane)
++				weston_xlog(" ...assigned to overlay\n");
++		}
++
++		if (next_plane == NULL) {
+ 			next_plane = primary;
++			weston_xlog(" ...assigned to primary (default)\n");
++		}
+ 
+ 		weston_view_move_to_plane(ev, next_plane);
+ 
+@@ -3215,7 +3253,6 @@ drm_backend_create(struct weston_compositor *compositor,
+ 	 *
+ 	 * These can be enabled again when nuclear/atomic support lands.
+ 	 */
+-	b->sprites_are_broken = 1;
+ 	b->compositor = compositor;
+ 	b->use_pixman = config->use_pixman;
+ 
+-- 
+1.9.1
+

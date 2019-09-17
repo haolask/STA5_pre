@@ -1,0 +1,38 @@
+Remove the code for ustar format detection because it is not applicable
+for cross-complie platform.
+
+Upstream Status: Inappropriate [embedded specific]
+
+Signed-off-by: Wenlin Kang <wenlin.kang@windriver.com>
+Signed-off-by: Yi Zhao <yi.zhao@windriver.com>
+---
+ m4/tar-ustar.m4 | 13 +++++++++----
+ 1 file changed, 9 insertions(+), 4 deletions(-)
+
+diff --git a/m4/tar-ustar.m4 b/m4/tar-ustar.m4
+index 4ae9e63..f6e57c2 100644
+--- a/m4/tar-ustar.m4
++++ b/m4/tar-ustar.m4
+@@ -26,10 +26,15 @@ AC_DEFUN([GNUPG_CHECK_USTAR],
+ 
+      if test x$_mytar != x ; then
+         AC_MSG_CHECKING([whether $_mytar speaks USTAR])
+-        echo hithere > conftest.txt
+-        $_mytar -cf - conftest.txt | (dd skip=257 bs=1 count=5 2>/dev/null || cat) | grep ustar > /dev/null
+-        _tar_bad=$?
+-        rm conftest.txt
++
++        # Here, we ignore the check code, because it isn't indeed applicable for
++        # cross-compile platform.
++        # Now our tar support ustar, so we say directly yes, but once the tar is changed,
++        # you should check whether it suppport ustar, and please reference the follow command:
++        # echo hithere > conftest.txt
++        # tar -cf - conftest.txt | (dd skip=257 bs=1 count=5 2>/dev/null || cat) | grep ustar > /dev/null
++
++        _tar_bad=0
+ 
+ 	if test x$_tar_bad = x0 ; then
+ 	   AC_MSG_RESULT([yes])
+-- 
+1.9.1
+

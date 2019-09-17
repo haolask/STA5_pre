@@ -1,0 +1,46 @@
+From 494b105985d2cf0bc4764d49bb552d9bad12df22 Mon Sep 17 00:00:00 2001
+From: Jerome Forissier <jerome.forissier@linaro.org>
+Date: Thu, 5 Jul 2018 17:13:15 +0200
+Subject: [PATCH] tee-supplicant: rpmb.c: add __attribute__((fallthrough))
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Fix the following error reported by GCC 8.1:
+
+src/rpmb.c: In function ‘rpmb_data_req’:
+src/rpmb.c:683:6: error: this statement may fall through [-Werror=implicit-fallthrough=]
+   if (rsp_nfrm != 1) {
+      ^
+src/rpmb.c:689:2: note: here
+  case RPMB_MSG_TYPE_REQ_AUTH_DATA_READ:
+  ^~~~
+
+I could not silence this warning using any of the special comments
+documented on the GCC Warning Options page [1]. It is weird, because we
+use -Wextra which is supposed to enable -Wimplicit-fallthrough=3, which is
+supposed to recognize the comment we had already (/* Fall through */).
+
+Link: [1] https://gcc.gnu.org/onlinedocs/gcc/Warning-Options.html
+Signed-off-by: Jerome Forissier <jerome.forissier@linaro.org>
+Reviewed-by: Joakim Bech <joakim.bech@linaro.org>
+---
+ tee-supplicant/src/rpmb.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/tee-supplicant/src/rpmb.c b/tee-supplicant/src/rpmb.c
+index cac9932..1388246 100644
+--- a/tee-supplicant/src/rpmb.c
++++ b/tee-supplicant/src/rpmb.c
+@@ -684,8 +684,10 @@ static uint32_t rpmb_data_req(int fd, struct rpmb_data_frame *req_frm,
+ 			EMSG("Expected only one response frame");
+ 			return TEEC_ERROR_BAD_PARAMETERS;
+ 		}
++#if __GNUC__ > 6
++		__attribute__((fallthrough));
++#endif
+ 
+-		/* Fall through */
+ 	case RPMB_MSG_TYPE_REQ_AUTH_DATA_READ:
+ 		if (req_nfrm != 1) {
+ 			EMSG("Expected only one request frame");

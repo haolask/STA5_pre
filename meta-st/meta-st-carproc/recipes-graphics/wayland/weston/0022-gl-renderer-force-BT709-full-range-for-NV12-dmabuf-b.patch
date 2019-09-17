@@ -1,0 +1,40 @@
+From 198479c754c100ad68b7d5bec486f25bec7c24a2 Mon Sep 17 00:00:00 2001
+From: Stephane Danieau <stephane.danieau@st.com>
+Date: Wed, 7 Mar 2018 15:56:02 +0100
+Subject: [PATCH 22/37] gl-renderer: force BT709 full range for NV12 dmabuf
+ buffer
+
+This fix the color issue seen during transition from HW composition
+to egl composition.
+
+Proper implementation should be implemented in the wayland-linux-dmabuf
+protocol.
+
+Change-Id: I7bd0dbddba48892dc3907062d76d3b8fc08f2994
+Signed-off-by: Vincent Abriou <vincent.abriou@st.com>
+---
+ libweston/gl-renderer.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/libweston/gl-renderer.c b/libweston/gl-renderer.c
+index ee432c7..2c2603b 100644
+--- a/libweston/gl-renderer.c
++++ b/libweston/gl-renderer.c
+@@ -1619,6 +1619,14 @@ import_simple_dmabuf(struct gl_renderer *gr,
+ 		attribs[atti++] = attributes->stride[2];
+ 	}
+ 
++	if (attributes->format == DRM_FORMAT_NV12) {
++		/* default color space and range is BT709 full range */
++		attribs[atti++] = EGL_YUV_COLOR_SPACE_HINT_EXT;
++		attribs[atti++] = EGL_ITU_REC709_EXT;
++		attribs[atti++] = EGL_SAMPLE_RANGE_HINT_EXT;
++		attribs[atti++] = EGL_YUV_FULL_RANGE_EXT;
++	}
++
+ 	attribs[atti++] = EGL_NONE;
+ 
+ 	image = egl_image_create(gr, EGL_LINUX_DMA_BUF_EXT, NULL,
+-- 
+1.9.1
+

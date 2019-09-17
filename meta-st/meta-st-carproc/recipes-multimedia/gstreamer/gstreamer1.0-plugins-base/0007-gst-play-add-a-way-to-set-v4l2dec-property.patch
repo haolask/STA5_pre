@@ -1,0 +1,134 @@
+From bd48b44fca3c5dedf3f5aa2254416216537ce528 Mon Sep 17 00:00:00 2001
+From: Stephane Danieau <stephane.danieau@st.com>
+Date: Tue, 6 Mar 2018 11:54:26 +0100
+Subject: [PATCH 7/7] gst-play: add a way to set v4l2dec property
+
+    Signed-off-by: Stephane Danieau <stephane.danieau@st.com>
+
+diff --git a/tools/gst-play.c b/tools/gst-play.c
+index ce60fc1..4f56f65 100644
+--- a/tools/gst-play.c
++++ b/tools/gst-play.c
+@@ -45,6 +45,7 @@
+ 
+ GST_DEBUG_CATEGORY (play_debug);
+ #define GST_CAT_DEFAULT play_debug
++#define DEFAULT_PREFERRED_CAPS "video/x-raw, width=800, height=480"
+ 
+ typedef enum
+ {
+@@ -140,10 +141,12 @@ gst_play_printf (const gchar * format, ...)
+ static GstPlay *
+ play_new (gchar ** uris, const gchar * audio_sink, const gchar * video_sink,
+     gboolean gapless, gdouble initial_volume, gboolean verbose,
+-    const gchar * flags_string, gint latency)
++    const gchar * flags_string, gint latency, const gchar * dec_prop)
+ {
+   GstElement *sink, *playbin;
+   GstPlay *play;
++  GstCaps *caps;
++  gchar *v4l2dec_prop;
+ 
+   playbin = gst_element_factory_make ("playbin", "playbin");
+   if (playbin == NULL)
+@@ -180,6 +183,20 @@ play_new (gchar ** uris, const gchar * audio_sink, const gchar * video_sink,
+       g_warning ("Couldn't create specified video sink '%s'", video_sink);
+   }
+ 
++  if (dec_prop != NULL)
++    v4l2dec_prop = g_strdup (dec_prop);
++  else
++    v4l2dec_prop = g_strdup (DEFAULT_PREFERRED_CAPS);
++
++  caps = gst_caps_from_string (v4l2dec_prop);
++  if (gst_caps_get_size (caps) > 0) {
++    GST_INFO ("Setting v4l2dec preferred caps to \"%s\" for \"%s\"",
++        v4l2dec_prop, GST_ELEMENT_NAME (play->playbin));
++    g_object_set (play->playbin, "v4l2decprop", caps, NULL);
++  }
++  gst_caps_unref (caps);
++  g_free (v4l2dec_prop);
++
+   if (flags_string != NULL) {
+     GParamSpec *pspec;
+     GValue val = { 0, };
+@@ -313,15 +330,19 @@ play_bus_msg (GstBus * bus, GstMessage * msg, gpointer user_data)
+          * but can this be generalized to
+          * more use-cases ?
+          */
+-        rtpjitterbuffer = gst_bin_get_by_name (GST_BIN (play->playbin), "rtpjitterbuffer0");
++        rtpjitterbuffer =
++            gst_bin_get_by_name (GST_BIN (play->playbin), "rtpjitterbuffer0");
+         if (rtpjitterbuffer) {
+           g_print ("force 0-latency on rtpjitterbuffer0 (video)\n");
+-          g_object_set (G_OBJECT (rtpjitterbuffer), "latency", play->latency, NULL);
++          g_object_set (G_OBJECT (rtpjitterbuffer), "latency", play->latency,
++              NULL);
+         }
+-        rtpjitterbuffer = gst_bin_get_by_name (GST_BIN (play->playbin), "rtpjitterbuffer1");
++        rtpjitterbuffer =
++            gst_bin_get_by_name (GST_BIN (play->playbin), "rtpjitterbuffer1");
+         if (rtpjitterbuffer) {
+           g_print ("force 0-latency on rtpjitterbuffer1 (audio)\n");
+-          g_object_set (G_OBJECT (rtpjitterbuffer), "latency", play->latency, NULL);
++          g_object_set (G_OBJECT (rtpjitterbuffer), "latency", play->latency,
++              NULL);
+         }
+       }
+       break;
+@@ -1200,6 +1221,7 @@ main (int argc, char **argv)
+   gchar **filenames = NULL;
+   gchar *audio_sink = NULL;
+   gchar *video_sink = NULL;
++  gchar *dec_prop = NULL;
+   gchar **uris;
+   gchar *flags = NULL;
+   guint num, i;
+@@ -1216,6 +1238,9 @@ main (int argc, char **argv)
+         N_("Print version information and exit"), NULL},
+     {"videosink", 0, 0, G_OPTION_ARG_STRING, &video_sink,
+         N_("Video sink to use (default is autovideosink)"), NULL},
++    {"v4l2decprop", 0, 0, G_OPTION_ARG_STRING, &dec_prop,
++          N_("Decoder properties (default is \"" DEFAULT_PREFERRED_CAPS "\")"),
++        NULL},
+     {"audiosink", 0, 0, G_OPTION_ARG_STRING, &audio_sink,
+         N_("Audio sink to use (default is autoaudiosink)"), NULL},
+     {"gapless", 0, 0, G_OPTION_ARG_NONE, &gapless,
+@@ -1273,6 +1298,7 @@ main (int argc, char **argv)
+ 
+     g_free (audio_sink);
+     g_free (video_sink);
++    g_free (dec_prop);
+     g_free (playlist_file);
+ 
+     return 0;
+@@ -1315,6 +1341,7 @@ main (int argc, char **argv)
+ 
+     g_free (audio_sink);
+     g_free (video_sink);
++    g_free (dec_prop);
+ 
+     return 1;
+   }
+@@ -1339,7 +1366,8 @@ main (int argc, char **argv)
+ 
+   /* prepare */
+   play =
+-      play_new (uris, audio_sink, video_sink, gapless, volume, verbose, flags, latency);
++      play_new (uris, audio_sink, video_sink, gapless, volume, verbose, flags,
++      latency, dec_prop);
+ 
+   if (play == NULL) {
+     g_printerr
+@@ -1364,7 +1392,7 @@ main (int argc, char **argv)
+ 
+   g_free (audio_sink);
+   g_free (video_sink);
+-
++  g_free (dec_prop);
+   g_print ("\n");
+   gst_deinit ();
+   return 0;
+-- 
+2.7.4
+

@@ -1,0 +1,58 @@
+#!/bin/sh -e
+
+trap 'echo "Error encountered, dropping to shell"; exec sh' INT TERM EXIT
+
+PATH=/sbin:/bin:/usr/sbin:/usr/bin
+
+
+mkdir -p /proc
+mkdir -p /sys
+mkdir -p /dev
+mkdir -p /tmp
+mkdir -p /run
+mount -t proc proc /proc
+mount -t sysfs sysfs /sys
+mount -t devtmpfs none /dev
+mount -t tmpfs tmpfs /run
+mkdir -p /upper /lower /merged
+
+#Detect the kind of memory currently used
+if [ -e /dev/ubi0 ]; then
+    export OVERLAY_DEV="ubi0_2"
+    export ROOTFS_DEV="ubi0_1"
+    export ROOTFS_BLOCK_DEV="ubiblock0_1"
+else
+    OVERLAY_DEV="mmcblk1p3"
+    ROOTFS_BLOCK_DEV="mmcblk1p2"
+fi
+
+
+dd if=/dev/$OVERLAY_DEV bs=1 count=8 > /testfs 2>/dev/null
+if [ "$(cat /testfs)" = "overlay" ]; then
+    echo -e "Formatting overlay partition ..."
+    while [ ! -e /dev/$OVERLAY_DEV ]; do sleep 0.1; done
+    if [ -e /dev/ubi0 ]; then
+        mkfs.ubifs /dev/$OVERLAY_DEV -y
+    else
+        mkfs.ext4 -F /dev/$OVERLAY_DEV -q
+    fi
+fi
+
+echo -e "Mounting filesystems ..."
+if [ -e /dev/ubi0 ]; then
+    mount -t ubifs ubi0:overlay /upper
+    mkdir -p /upper/rw /upper/work 
+    ubiblock -c /dev/$ROOTFS_DEV
+else
+    mount -t ext4 /dev/$OVERLAY_DEV /upper
+    mkdir -p /upper/rw /upper/work 
+fi
+
+mount -t squashfs -o ro /dev/$ROOTFS_BLOCK_DEV /lower/
+
+mount -t overlay overlay -o sync,lowerdir=/lower,upperdir=/upper/rw,workdir=/upper/work /merged
+echo -e "\nSwitching root ..."
+exec switch_root /merged /sbin/init ||
+    echo "Couldn't switch_root, dropping to shell"
+
+exec sh

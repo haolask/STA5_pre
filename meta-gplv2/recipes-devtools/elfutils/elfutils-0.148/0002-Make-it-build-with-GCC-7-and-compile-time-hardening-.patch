@@ -1,0 +1,32 @@
+From 5dcd8e331af448e3adcb9ed15a38762a912a8267 Mon Sep 17 00:00:00 2001
+From: Peter Kjellerstedt <pkj@axis.com>
+Date: Sat, 16 Sep 2017 15:12:37 +0200
+Subject: [PATCH 2/2] Make it build with GCC 7 and compile time hardening
+ enabled
+
+This avoids the following error:
+
+cc1: error: -Wformat-security ignored without -Wformat [-Werror=format-security]
+
+Upstream-Status: Inappropriate [legacy version]
+Signed-off-by: Peter Kjellerstedt <peter.kjellerstedt@axis.com>
+---
+ config/eu.am | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/config/eu.am b/config/eu.am
+index 8066d7f..7de66b0 100644
+--- a/config/eu.am
++++ b/config/eu.am
+@@ -33,7 +33,7 @@ INCLUDES = -I. -I$(srcdir) -I$(top_srcdir)/lib -I..
+ AM_CFLAGS = -std=gnu99 -Wall -Wshadow \
+ 	    $(if $($(*F)_no_Werror),,-Werror) \
+ 	    $(if $($(*F)_no_Wunused),,-Wunused $(WEXTRA)) \
+-	    $(if $($(*F)_no_Wformat),-Wno-format,-Wformat=2) \
++	    $(if $($(*F)_no_Wformat),-Wno-format -Wno-format-security,-Wformat=2) \
+ 	    $($(*F)_CFLAGS)
+ 
+ if MUDFLAP
+-- 
+2.12.0
+

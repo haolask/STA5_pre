@@ -1,0 +1,21 @@
+#
+# weston systemd service unit file
+#
+
+[Unit]
+Description=Weston Wayland compositor startup
+RequiresMountsFor=/run
+DefaultDependencies=no
+Before=basic.target
+Requires=dbus.service
+
+[Service]
+User=root
+EnvironmentFile=-/etc/default/weston
+Environment="XDG_RUNTIME_DIR=/run/user/root"
+ExecStartPre=/sbin/modprobe galcore
+ExecStartPre=/bin/mkdir -p /run/user/root
+ExecStartPre=/bin/chmod 0700 /run/user/root
+ExecStart=/usr/bin/openvt -v -e /usr/bin/weston -- $OPTARGS
+Restart=always
+RestartSec=10

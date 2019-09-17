@@ -1,0 +1,88 @@
+From b0e57fc44ee102c668f13a324360fb2f27ee7538 Mon Sep 17 00:00:00 2001
+From: Phong Tran <tranmanphong@gmail.com>
+Date: Fri, 8 Dec 2017 07:56:58 +0700
+Subject: [PATCH] gettext libgrep fix compile error -Werror=format-security
+
+---
+ gettext-tools/libgrep/m-fgrep.c |  4 ++--
+ gettext-tools/libgrep/m-regex.c | 12 ++++++------
+ 2 files changed, 8 insertions(+), 8 deletions(-)
+
+diff --git a/gettext-tools/libgrep/m-fgrep.c b/gettext-tools/libgrep/m-fgrep.c
+index 28f900c..2e49a74 100644
+--- a/gettext-tools/libgrep/m-fgrep.c
++++ b/gettext-tools/libgrep/m-fgrep.c
+@@ -55,7 +55,7 @@ Fcompile (const char *pattern, size_t pattern_size,
+       for (lim = beg; lim < pattern + pattern_size && *lim != '\n'; ++lim)
+ 	;
+       if ((err = kwsincr (ckwset->kwset, beg, lim - beg)) != NULL)
+-	error (exit_failure, 0, err);
++	error (exit_failure, 0, "%s", err);
+       if (lim < pattern + pattern_size)
+ 	++lim;
+       beg = lim;
+@@ -63,7 +63,7 @@ Fcompile (const char *pattern, size_t pattern_size,
+   while (beg < pattern + pattern_size);
+ 
+   if ((err = kwsprep (ckwset->kwset)) != NULL)
+-    error (exit_failure, 0, err);
++    error (exit_failure, 0, "%s", err);
+   return ckwset;
+ }
+ 
+diff --git a/gettext-tools/libgrep/m-regex.c b/gettext-tools/libgrep/m-regex.c
+index 6f7aae3..70f04b3 100644
+--- a/gettext-tools/libgrep/m-regex.c
++++ b/gettext-tools/libgrep/m-regex.c
+@@ -73,7 +73,7 @@ struct compiled_regex {
+ void
+ dfaerror (const char *mesg)
+ {
+-  error (exit_failure, 0, mesg);
++  error (exit_failure, 0, "%s", mesg);
+ }
+ 
+ /* If the DFA turns out to have some set of fixed strings one of
+@@ -99,7 +99,7 @@ kwsmusts (struct compiled_regex *cregex,
+ 	    continue;
+ 	  cregex->kwset_exact_matches++;
+ 	  if ((err = kwsincr (cregex->ckwset.kwset, dm->must, strlen (dm->must))) != NULL)
+-	    error (exit_failure, 0, err);
++	    error (exit_failure, 0, "%s", err);
+ 	}
+       /* Now, we compile the substrings that will require
+ 	 the use of the regexp matcher.  */
+@@ -108,10 +108,10 @@ kwsmusts (struct compiled_regex *cregex,
+ 	  if (dm->exact)
+ 	    continue;
+ 	  if ((err = kwsincr (cregex->ckwset.kwset, dm->must, strlen (dm->must))) != NULL)
+-	    error (exit_failure, 0, err);
++	    error (exit_failure, 0, "%s", err);
+ 	}
+       if ((err = kwsprep (cregex->ckwset.kwset)) != NULL)
+-	error (exit_failure, 0, err);
++	error (exit_failure, 0, "%s", err);
+     }
+ }
+ 
+@@ -161,7 +161,7 @@ Gcompile (const char *pattern, size_t pattern_size,
+ 
+       if ((err = re_compile_pattern (motif, len,
+ 				     &(cregex->patterns[cregex->pcount].regexbuf))) != NULL)
+-	error (exit_failure, 0, err);
++	error (exit_failure, 0, "%s", err);
+       cregex->pcount++;
+ 
+       motif = sep;
+@@ -247,7 +247,7 @@ compile (const char *pattern, size_t pattern_size,
+ 
+       if ((err = re_compile_pattern (motif, len,
+ 				     &(cregex->patterns[cregex->pcount].regexbuf))) != NULL)
+-	error (exit_failure, 0, err);
++	error (exit_failure, 0, "%s", err);
+       cregex->pcount++;
+ 
+       motif = sep;
+-- 
+2.7.4
+

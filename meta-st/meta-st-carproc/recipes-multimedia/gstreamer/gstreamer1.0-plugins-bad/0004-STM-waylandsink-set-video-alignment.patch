@@ -1,0 +1,52 @@
+From 22b241f90281219ddac2804fcb6a838cbeb01a27 Mon Sep 17 00:00:00 2001
+From: Stephane Danieau <stephane.danieau@st.com>
+Date: Tue, 13 Mar 2018 14:40:42 +0100
+Subject: [PATCH 04/25] STM: waylandsink: set video alignment
+
+    Get and apply the video alignment information.
+
+    Change-Id: If631e798f16e933535b89d37a7fef6b00845492d
+    Signed-off-by: Fabien Dessenne <fabien.dessenne@st.com>
+
+diff --git a/ext/wayland/gstwaylandsink.c b/ext/wayland/gstwaylandsink.c
+index 0b56447..f0541d3 100644
+--- a/ext/wayland/gstwaylandsink.c
++++ b/ext/wayland/gstwaylandsink.c
+@@ -552,6 +552,24 @@ gst_wayland_sink_propose_allocation (GstBaseSink * bsink, GstQuery * query)
+ }
+ 
+ static void
++gst_wayland_set_video_alignment (GstBufferPool * pool, GstVideoInfo * info)
++{
++  GstStructure *config = gst_buffer_pool_get_config (pool);
++  GstVideoAlignment al;
++
++  if (config) {
++    if (gst_buffer_pool_config_has_option (config,
++            GST_BUFFER_POOL_OPTION_VIDEO_ALIGNMENT)) {
++      gst_buffer_pool_config_get_video_alignment (config, &al);
++      gst_video_info_align (info, &al);
++      GST_DEBUG_OBJECT (pool, "Padding: %u %u %u %u",
++          al.padding_left, al.padding_top, al.padding_right, al.padding_bottom);
++    }
++    gst_structure_free (config);
++  }
++}
++
++static void
+ frame_redraw_callback (void *data, struct wl_callback *callback, uint32_t time)
+ {
+   GstWaylandSink *sink = data;
+@@ -642,6 +660,9 @@ gst_wayland_sink_show_frame (GstVideoSink * vsink, GstBuffer * buffer)
+     goto render;
+   }
+ 
++  /* Set video alignement */
++  gst_wayland_set_video_alignment (buffer->pool, &sink->video_info);
++
+   /* update video info from video meta */
+   mem = gst_buffer_peek_memory (buffer, 0);
+ 
+-- 
+2.7.4
+

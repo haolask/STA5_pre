@@ -1,0 +1,92 @@
+This layer provides support for Automotive ST | STA1xxx microprocessors
+=======================================================================
+
+For more information about the Automotive ST | STA1xxx product line see:
+http://www.st.com/web/en/catalog/sense_power/FM1934/CL1941/SC1970
+http://www.st.com/web/en/catalog/sense_power/FM1934/SC2090
+
+
+Supported SoCs / MACHINE names
+==============================
+- ...
+
+
+Sources
+=======
+- meta-st-carproc
+URI: ssh://gitolite@codex.cro.st.com/accordo5-linux/meta-st-carproc.git
+Branch: master
+
+
+Dependencies
+============
+
+This layer depends on:
+- meta-openembedded
+  * URI: git://git.openembedded.org/bitbake
+  * URI: git://git.openembedded.org/openembedded-core
+    branch: master
+  * URI: git://git.yoctoproject.org/poky
+    branch: master
+
+
+Patches
+=======
+
+Please submit any patches against this BSP to the Yocto mailing list
+(yocto@yoctoproject.org) and cc: the maintainer:
+
+Maintainer: XXX YYYYYY <xxx.yyyyyy@zzzzz.com>
+
+Please see the meta-xxxx/MAINTAINERS file for more details.
+
+
+Table of Contents
+=================
+
+  I. Building the meta-st-carproc BSP layer
+ II. Bitbake output
+
+
+I. Building the meta-st-carproc BSP layer
+========================================
+
+0/ Create a directory
+mkdir my_dir
+cd my_dir
+
+1/ Clone ST/yocto/poky git repositores with repo tools
+
+repo init -u ssh://gitolite@codex.cro.st.com/accordo5-linux/yocto-bsp -b master
+repo sync
+
+2/ Initialize build directory
+source envsetup.sh
+
+3/ Build
+Build core minimal image:
+bitbake core-image-minimal
+
+Kernel only:
+bitbake virtual/kernel
+
+II. Bitbake output
+==================
+
+Build Configuration:
+BB_VERSION        = "1.28.0"
+BUILD_SYS         = "x86_64-linux"
+NATIVELSBSTRING   = "Ubuntu-12.04"
+TARGET_SYS        = "arm-poky-linux-gnueabi"
+MACHINE           = "sta1095-evb"
+DISTRO            = "poky-st"
+DISTRO_VERSION    = "2.0"
+TUNE_FEATURES     = "armv7r vfp cortexr4 arm thumb"
+TARGET_FPU        = "vfp"
+meta-st-carproc   = "master:6da4b8b453d83305de8101a9357fdb7e99cfa4f9"
+meta              
+meta-yocto        
+meta-yocto-bsp    = "HEAD:8a0d8eee432924433c3e70198aaeab3161476c5f"
+meta-oe           
+meta-python       = "HEAD:c04f105227101977a0f5ed8d41dd6fbe71138eea"
+

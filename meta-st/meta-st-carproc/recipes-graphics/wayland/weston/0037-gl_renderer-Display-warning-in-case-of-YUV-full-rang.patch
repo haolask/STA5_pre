@@ -1,0 +1,35 @@
+From ffe430d662c6d1fc47a639faa6c7cf5858a65b4b Mon Sep 17 00:00:00 2001
+From: Stephane Danieau <stephane.danieau@st.com>
+Date: Wed, 7 Mar 2018 17:23:37 +0100
+Subject: [PATCH 37/37] gl_renderer: Display warning in case of YUV full range
+
+Accordo5 GPU does not support YUV full range natively.
+Do not treat full range information to avoid slow frame rate.
+
+Note: if buffer can be assigned to scanout or overlay, full range is managed
+by DRM/KMS drivers.
+
+Change-Id: I3f626b11217bd2bc06e5645c75b4d5ad58e74524
+Signed-off-by: Mickael Reulier <mickael.reulier@st.com>
+Buglink: https://stintbugzilla.st.com/show_bug.cgi?id=113677
+---
+ libweston/gl-renderer.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/libweston/gl-renderer.c b/libweston/gl-renderer.c
+index 65249b3..0986761 100644
+--- a/libweston/gl-renderer.c
++++ b/libweston/gl-renderer.c
+@@ -1982,6 +1982,9 @@ import_dmabuf(struct gl_renderer *gr,
+ 	image = dmabuf_image_create();
+ 	image->dmabuf = dmabuf;
+ 
++	if (dmabuf->attributes.flags & ZWP_LINUX_BUFFER_PARAMS_V1_FLAGS_YUV_FULL_COLOR_RANGE)
++		weston_log("YUV Full Range will be ignored if assigned to primary\n");
++
+ 	egl_image = import_simple_dmabuf(gr, &dmabuf->attributes);
+ 	if (egl_image) {
+ 		image->num_images = 1;
+-- 
+1.9.1
+

@@ -1,0 +1,26 @@
+From b524fc7e13d42c94bcb3bfdbbcd0122980cb1fe7 Mon Sep 17 00:00:00 2001
+From: Baptiste Chauloux <baptiste.chauloux@st.com>
+Date: Wed, 11 Apr 2018 09:51:19 +0200
+Subject: [PATCH] Change MountFlags to shared to let udev manage the automount
+
+Signed-off-by: Baptiste Chauloux <baptiste.chauloux@st.com>
+---
+ units/systemd-udevd.service.in | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/units/systemd-udevd.service.in b/units/systemd-udevd.service.in
+index fc037b5..f65b77c 100644
+--- a/units/systemd-udevd.service.in
++++ b/units/systemd-udevd.service.in
+@@ -24,7 +24,7 @@ ExecStart=@rootlibexecdir@/systemd-udevd
+ KillMode=mixed
+ WatchdogSec=3min
+ TasksMax=infinity
+-MountFlags=slave
++MountFlags=shared
+ MemoryDenyWriteExecute=yes
+ RestrictRealtime=yes
+ RestrictAddressFamilies=AF_UNIX AF_NETLINK AF_INET AF_INET6
+-- 
+2.7.4
+

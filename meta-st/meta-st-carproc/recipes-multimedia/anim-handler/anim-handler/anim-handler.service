@@ -1,0 +1,11 @@
+
+[Unit]
+Description=ST A5 start animation handler Ignition
+After=weston.service
+
+[Service]
+ExecStart=/usr/bin/anim_handler -s
+
+[Install]
+WantedBy=multi-user.target
+

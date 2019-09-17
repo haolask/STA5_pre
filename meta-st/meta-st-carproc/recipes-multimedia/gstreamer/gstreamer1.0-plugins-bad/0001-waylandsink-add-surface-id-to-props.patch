@@ -1,0 +1,144 @@
+From 0129bb43eca78e6f3827d1df30d6bea568c3a582 Mon Sep 17 00:00:00 2001
+From: Maxime Gaudron <maxime.gaudron@st.com>
+Date: Mon, 30 Apr 2018 10:15:04 +0200
+Subject: [PATCH] waylandsink: add surface-id to props
+
+Signed-off-by: Maxime Gaudron <maxime.gaudron@st.com>
+
+%% original patch: 0001-waylandsink-add-surface-id-to-props.patch
+---
+ ext/wayland/gstwaylandsink.c | 17 +++++++++++++++--
+ ext/wayland/gstwaylandsink.h |  1 +
+ ext/wayland/wlwindow.c       | 12 ++++++++----
+ ext/wayland/wlwindow.h       |  2 +-
+ 4 files changed, 25 insertions(+), 7 deletions(-)
+
+diff --git a/ext/wayland/gstwaylandsink.c b/ext/wayland/gstwaylandsink.c
+index edf7aef..2263d74 100644
+--- a/ext/wayland/gstwaylandsink.c
++++ b/ext/wayland/gstwaylandsink.c
+@@ -65,7 +65,8 @@ enum
+   PROP_DISPLAY,
+   PROP_FULLSCREEN,
+   PROP_WINDOW_WIDTH,
+-  PROP_WINDOW_HEIGHT
++  PROP_WINDOW_HEIGHT,
++  PROP_SURFACE_ID
+ };
+ 
+ #define MIN_DMA_BUFFERS 3
+@@ -185,6 +186,11 @@ gst_wayland_sink_class_init (GstWaylandSinkClass * klass)
+       g_param_spec_uint64 ("window-height", "window-height",
+           "Default height of the rendered window", 0, G_MAXUINT64, 0,
+           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
++
++  g_object_class_install_property (gobject_class, PROP_SURFACE_ID,
++      g_param_spec_int ("surface-id", "surface-id",
++          "Default surface id of the rendered window", -1, G_MAXINT32, -1,
++           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+ }
+ 
+ static void
+@@ -194,6 +200,7 @@ gst_wayland_sink_init (GstWaylandSink * sink)
+ 
+   gst_base_sink_set_last_sample_enabled (basesink, FALSE);
+   sink->fullscreen = FALSE;
++  sink->surface_id = -1;
+   g_mutex_init (&sink->display_lock);
+   g_mutex_init (&sink->render_lock);
+ }
+@@ -219,6 +226,9 @@ gst_wayland_sink_get_property (GObject * object,
+     case PROP_WINDOW_HEIGHT:
+       g_value_set_uint64 (value, sink->window_height);
+       break;
++    case PROP_SURFACE_ID:
++      g_value_set_int (value, sink->surface_id);
++      break;
+     default:
+       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+       break;
+@@ -246,6 +256,9 @@ gst_wayland_sink_set_property (GObject * object,
+     case PROP_WINDOW_HEIGHT:
+       sink->window_height = g_value_get_uint64 (value);
+       break;
++    case PROP_SURFACE_ID:
++      sink->surface_id = g_value_get_int (value);
++      break;
+     default:
+       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+       break;
+@@ -812,7 +825,7 @@ gst_wayland_sink_show_frame (GstVideoSink * vsink, GstBuffer * buffer)
+     if (!sink->window) {
+       /* if we were not provided a window, create one ourselves */
+       sink->window = gst_wl_window_new_toplevel (sink->display,
+-          &sink->video_info, &sink->render_lock);
++          &sink->video_info, &sink->render_lock, sink->surface_id);
+     }
+   }
+ 
+diff --git a/ext/wayland/gstwaylandsink.h b/ext/wayland/gstwaylandsink.h
+index 1cd8d35..2ed2024 100644
+--- a/ext/wayland/gstwaylandsink.h
++++ b/ext/wayland/gstwaylandsink.h
+@@ -67,6 +67,7 @@ struct _GstWaylandSink
+ 
+   gboolean fullscreen;
+   gint window_width, window_height;
++  gint32 surface_id;
+ };
+ 
+ struct _GstWaylandSinkClass
+diff --git a/ext/wayland/wlwindow.c b/ext/wayland/wlwindow.c
+index e74adbf..a893cd8 100644
+--- a/ext/wayland/wlwindow.c
++++ b/ext/wayland/wlwindow.c
+@@ -172,9 +172,13 @@ static const struct ivi_surface_listener ivi_surface_listener = {
+ 
+ #define IVI_SURFACE_ID 19000    // TO BE CUSTOMIZED, Just an example
+ static void
+-create_ivi_surface (GstWlWindow * window, GstWlDisplay * display)
++create_ivi_surface (GstWlWindow * window, GstWlDisplay * display, gint32 sid)
+ {
+-  uint32_t id_ivisurf = IVI_SURFACE_ID + (uint32_t) getpid ();
++  uint32_t id_ivisurf = sid;
++
++  if (sid < 0)
++    id_ivisurf = IVI_SURFACE_ID + (uint32_t) getpid ();
++
+   window->ivi_surface =
+       ivi_application_surface_create (display->ivi_application,
+       id_ivisurf, window->area_surface);
+@@ -202,7 +206,7 @@ create_desktop_surface (GstWlWindow * window, GstWlDisplay * display)
+ 
+ GstWlWindow *
+ gst_wl_window_new_toplevel (GstWlDisplay * display, const GstVideoInfo * info,
+-    GMutex * render_lock)
++    GMutex * render_lock, gint32 sid)
+ {
+   GstWlWindow *window;
+   struct wl_region *region;
+@@ -211,7 +215,7 @@ gst_wl_window_new_toplevel (GstWlDisplay * display, const GstVideoInfo * info,
+   window = gst_wl_window_new_internal (display, render_lock);
+ 
+   if (display->ivi_application)
+-    create_ivi_surface (window, display);
++    create_ivi_surface (window, display, sid);
+   else if (display->shell)
+     create_desktop_surface (window, display);
+   else {
+diff --git a/ext/wayland/wlwindow.h b/ext/wayland/wlwindow.h
+index e375ce8..e41cfa1 100644
+--- a/ext/wayland/wlwindow.h
++++ b/ext/wayland/wlwindow.h
+@@ -74,7 +74,7 @@ struct _GstWlWindowClass
+ GType gst_wl_window_get_type (void);
+ 
+ GstWlWindow *gst_wl_window_new_toplevel (GstWlDisplay * display,
+-        const GstVideoInfo * info, GMutex * render_lock);
++        const GstVideoInfo * info, GMutex * render_lock, gint32 sid);
+ GstWlWindow *gst_wl_window_new_in_surface (GstWlDisplay * display,
+         struct wl_surface * parent, GMutex * render_lock);
+ 
+-- 
+2.7.4
+

@@ -1,0 +1,338 @@
+From 45eb8bc834dc33e2c7a2d7fe0185aaa0415c7f0d Mon Sep 17 00:00:00 2001
+From: Stephane Danieau <stephane.danieau@st.com>
+Date: Wed, 7 Mar 2018 14:19:48 +0100
+Subject: [PATCH 13/37] compositor-st: assign dmabuf buffers in DRM planes
+ (overlay)
+
+Rework drm_output_prepare_overlay_view so we try to assign a dmabuf
+buffer in an overlay (DRM plane).
+
+Add related weston_xlog
+
+Change-Id: I6d7a507f8994a261c2ed1db94cd2499a8a48f438
+Signed-off-by: Vincent Abriou <vincent.abriou@st.com>
+---
+ libweston/compositor-st.c | 228 ++++++++++++++++++++++++++++++++--------------
+ 1 file changed, 161 insertions(+), 67 deletions(-)
+
+diff --git a/libweston/compositor-st.c b/libweston/compositor-st.c
+index 65cfbe1..264dd90 100644
+--- a/libweston/compositor-st.c
++++ b/libweston/compositor-st.c
+@@ -289,6 +289,22 @@ drm_fb_destroy_callback(struct gbm_bo *bo, void *data)
+ 	free(data);
+ }
+ 
++static void
++drm_fb_destroy_from_buff(struct drm_fb *fb)
++{
++	struct drm_mode_destroy_dumb destroy_arg;
++	if (fb->fb_id)
++		drmModeRmFB(fb->fd, fb->fb_id);
++
++	weston_buffer_reference(&fb->buffer_ref, NULL);
++
++	memset(&destroy_arg, 0, sizeof(destroy_arg));
++	destroy_arg.handle = fb->handle;
++	drmIoctl(fb->fd, DRM_IOCTL_MODE_DESTROY_DUMB, &destroy_arg);
++
++	free(fb);
++}
++
+ static struct drm_fb *
+ drm_fb_create_dumb(struct drm_backend *b, int width, int height,
+ 		   uint32_t format)
+@@ -472,6 +488,60 @@ err_free:
+ 	return NULL;
+ }
+ 
++static struct drm_fb *
++drm_fb_get_from_dmabuf(struct linux_dmabuf_buffer *dmabuf_buffer,
++		struct drm_backend *backend, uint32_t format)
++{
++	struct drm_fb *fb;
++	int32_t width, height;
++	uint32_t handles[4], pitches[4], offsets[4];
++	int ret, i;
++
++	fb = zalloc(sizeof *fb);
++	if (fb == NULL)
++		return NULL;
++
++	ret = drmPrimeFDToHandle(backend->drm.fd,
++			dmabuf_buffer->attributes.fd[0], &fb->handle);
++	if (ret) {
++		weston_log("drmPrimeFDToHandle failed\n");
++		goto err_free;
++	}
++
++	width = dmabuf_buffer->attributes.width;
++	height = dmabuf_buffer->attributes.height;
++
++	if (backend->min_width > width ||
++			width > backend->max_width ||
++			backend->min_height > height ||
++			height > backend->max_height) {
++		weston_log("geometry out of bounds\n");
++		goto err_free;
++	}
++	fb->stride = dmabuf_buffer->attributes.stride[0];
++	fb->size = fb->stride * height;
++	fb->fd = backend->drm.fd;
++	for (i = 0; i < 4; i++) {
++		handles[i] = fb->handle;
++		pitches[i] = dmabuf_buffer->attributes.stride[i];
++		offsets[i] = dmabuf_buffer->attributes.offset[i];
++	}
++
++	ret = drmModeAddFB2(backend->drm.fd, width, height,
++			format, handles, pitches, offsets,
++			&fb->fb_id, 0);
++	if (ret) {
++		weston_log("addfb2 failed\n");
++		goto err_free;
++	}
++
++	return fb;
++
++	err_free:
++	free(fb);
++	return NULL;
++}
++
+ static void
+ drm_fb_set_buffer(struct drm_fb *fb, struct weston_buffer *buffer)
+ {
+@@ -492,11 +562,14 @@ drm_output_release_fb(struct drm_output *output, struct drm_fb *fb)
+             (fb != output->dumb[0] && fb != output->dumb[1])) {
+ 		drm_fb_destroy_dumb(fb);
+ 	} else if (fb->bo) {
+-		if (fb->is_client_buffer)
++		if (fb->is_client_buffer) {
+ 			gbm_bo_destroy(fb->bo);
+-		else
++		} else {
+ 			gbm_surface_release_buffer(output->gbm_surface,
+ 						   fb->bo);
++		}
++	} else if (fb->is_client_buffer) {
++		drm_fb_destroy_from_buff(fb);
+ 	}
+ }
+ 
+@@ -1002,22 +1075,26 @@ drm_output_prepare_overlay_view(struct drm_output *output,
+ 	struct weston_buffer_viewport *viewport = &ev->surface->buffer_viewport;
+ 	struct wl_resource *buffer_resource;
+ 	struct drm_sprite *s;
+-	struct linux_dmabuf_buffer *dmabuf;
+-	int found = 0;
+-	struct gbm_bo *bo;
++	struct linux_dmabuf_buffer *dmabuf = NULL;
++	int found = 0, format_ok;
++	struct gbm_bo *bo = NULL;
+ 	pixman_region32_t dest_rect, src_rect;
+ 	pixman_box32_t *box, tbox;
+-	uint32_t format;
++	uint32_t format = 0;
+ 	wl_fixed_t sx1, sy1, sx2, sy2;
+ 
+ 	weston_xlog("   %s: output_base->id = %d\n", __func__, output->base.id);
+ 
+-	if (b->sprites_are_broken)
++	if (b->sprites_are_broken) {
++		weston_xlog("    sprites are broken\n");
+ 		return NULL;
++	}
+ 
+ 	/* Don't import buffers which span multiple outputs. */
+-	if (ev->output_mask != (1u << output->base.id))
++	if (ev->output_mask != (1u << output->base.id)) {
++		weston_xlog("    surface is out of the refresh area\n");
+ 		return NULL;
++	}
+ 
+ 	/* We can only import GBM buffers. */
+ 	if (b->gbm == NULL)
+@@ -1025,87 +1102,103 @@ drm_output_prepare_overlay_view(struct drm_output *output,
+ 
+ 	if (ev->surface->buffer_ref.buffer == NULL)
+ 		return NULL;
++
+ 	buffer_resource = ev->surface->buffer_ref.buffer->resource;
+-	if (wl_shm_buffer_get(buffer_resource))
++
++	if (wl_shm_buffer_get(buffer_resource)) {
++		weston_xlog("    shm buffer => could not be assigned to a plane\n");
+ 		return NULL;
++	}
+ 
+-	if (viewport->buffer.transform != output->base.transform)
++	if ((dmabuf = linux_dmabuf_buffer_get(buffer_resource))) {
++		weston_xlog("    overlay check: surf=%p weston_buff=%p (dmabuf)\n",
++				ev->surface, ev->surface->buffer_ref.buffer);
++	} else if ((bo = gbm_bo_import(b->gbm, GBM_BO_IMPORT_WL_BUFFER, buffer_resource, GBM_BO_USE_SCANOUT))) {
++		weston_xlog("    overlay check: surf=%p weston_buff=%p (gbm_bo)\n",
++				ev->surface, ev->surface->buffer_ref.buffer);
++	} else {
++		weston_xlog("    not a dmabuf nor gbm_bo => could not be assigned to a plane\n");
+ 		return NULL;
+-	if (viewport->buffer.scale != output->base.current_scale)
++	}
++
++	if (viewport->buffer.transform != output->base.transform) {
++		weston_xlog("    transform\n");
++		return NULL;
++	}
++
++	if (viewport->buffer.scale != output->base.current_scale) {
++		weston_xlog("    scale\n");
+ 		return NULL;
+-	if (!drm_view_transform_supported(ev))
++	}
++
++	if (!drm_view_transform_supported(ev)) {
++		weston_xlog("    overlay check: transform not supported\n");
+ 		return NULL;
++	}
+ 
+-	if (ev->alpha != 1.0f)
++	if (ev->alpha < 0.99f) {
++		weston_xlog("    overlay check: alpha not ~1.0: %f\n", ev->alpha);
+ 		return NULL;
++	}
++
++	if (dmabuf) {
++		format = dmabuf->attributes.format;
++		if (format == 0) {
++			weston_xlog("    overlay check: dmabuf format not supported\n");
++			return NULL;
++		}
++	}
+ 
+ 	wl_list_for_each(s, &b->sprite_list, link) {
+ 		if (!drm_sprite_crtc_supported(output, s))
+ 			continue;
+ 
+-		if (!s->next) {
++		/* Compare format with the formats of THIS sprite */
++		uint32_t i;
++		format_ok = 0;
++		if (dmabuf) {
++			for (i = 0; i < s->count_formats; i++)
++				if (s->formats[i] == format)
++					format_ok = 1;
++		} else {
++			format = drm_output_check_sprite_format(s, ev, bo);
++			if (format)
++				format_ok = 1;
++		}
++
++		if ((!s->next) && format_ok) {
+ 			found = 1;
+ 			break;
+ 		}
+ 	}
+ 
+-	/* No sprites available */
+-	if (!found)
+-		return NULL;
+-
+-	if ((dmabuf = linux_dmabuf_buffer_get(buffer_resource))) {
+-#ifdef HAVE_GBM_FD_IMPORT
+-		/* XXX: TODO:
+-		 *
+-		 * Use AddFB2 directly, do not go via GBM.
+-		 * Add support for multiplanar formats.
+-		 * Both require refactoring in the DRM-backend to
+-		 * support a mix of gbm_bos and drmfbs.
+-		 */
+-		struct gbm_import_fd_data gbm_dmabuf = {
+-			.fd     = dmabuf->attributes.fd[0],
+-			.width  = dmabuf->attributes.width,
+-			.height = dmabuf->attributes.height,
+-			.stride = dmabuf->attributes.stride[0],
+-			.format = dmabuf->attributes.format
+-		};
+-
+-                /* XXX: TODO:
+-                 *
+-                 * Currently the buffer is rejected if any dmabuf attribute
+-                 * flag is set.  This keeps us from passing an inverted /
+-                 * interlaced / bottom-first buffer (or any other type that may
+-                 * be added in the future) through to an overlay.  Ultimately,
+-                 * these types of buffers should be handled through buffer
+-                 * transforms and not as spot-checks requiring specific
+-                 * knowledge. */
+-		if (dmabuf->attributes.n_planes != 1 ||
+-                    dmabuf->attributes.offset[0] != 0 ||
+-		    dmabuf->attributes.flags)
+-			return NULL;
+-
+-		bo = gbm_bo_import(b->gbm, GBM_BO_IMPORT_FD, &gbm_dmabuf,
+-				   GBM_BO_USE_SCANOUT);
+-#else
++	if (bo && format == 0) {
++		gbm_bo_destroy(bo);
++		weston_xlog("    overlay check: bo format not supported\n");
+ 		return NULL;
+-#endif
+-	} else {
+-		bo = gbm_bo_import(b->gbm, GBM_BO_IMPORT_WL_BUFFER,
+-				   buffer_resource, GBM_BO_USE_SCANOUT);
+ 	}
+-	if (!bo)
+-		return NULL;
+ 
+-	format = drm_output_check_sprite_format(s, ev, bo);
+-	if (format == 0) {
+-		gbm_bo_destroy(bo);
++	/* No sprites available */
++	if (!found) {
++		weston_xlog("    no sprite available\n");
+ 		return NULL;
+ 	}
+ 
+-	s->next = drm_fb_get_from_bo(bo, b, format);
+-	if (!s->next) {
+-		gbm_bo_destroy(bo);
+-		return NULL;
++	if (dmabuf) {
++		s->next = drm_fb_get_from_dmabuf(dmabuf, b, format);
++		if (!s->next) {
++			weston_xlog("    overlay check: to FB failed\n");
++			return NULL;
++		}
++		weston_xlog("    got dmabuf handle %d (s->plane_id= 0x%x)\n",
++				s->next->handle, s->plane_id);
++	} else if (bo) {
++		s->next = drm_fb_get_from_bo(bo, b, format);
++		if (!s->next) {
++			gbm_bo_destroy(bo);
++			weston_xlog("    overlay check: to FB failed\n");
++			return NULL;
++		}
+ 	}
+ 
+ 	drm_fb_set_buffer(s->next, ev->surface->buffer_ref.buffer);
+@@ -1386,7 +1479,7 @@ drm_assign_planes(struct weston_output *output_base)
+ 		i++;
+ 
+ 		/* Test whether this buffer can ever go into a plane:
+-		 * non-shm, or small enough to be a cursor.
++		 * non-shm, or small enough to be a cursor or dmabuf.
+ 		 *
+ 		 * Also, keep a reference when using the pixman renderer.
+ 		 * That makes it possible to do a seamless switch to the GL
+@@ -1397,7 +1490,8 @@ drm_assign_planes(struct weston_output *output_base)
+ 		    (es->buffer_ref.buffer &&
+ 		    (!wl_shm_buffer_get(es->buffer_ref.buffer->resource) ||
+ 		     (ev->surface->width <= b->cursor_width &&
+-		      ev->surface->height <= b->cursor_height))))
++		      ev->surface->height <= b->cursor_height) ||
++		     linux_dmabuf_buffer_get(es->buffer_ref.buffer->resource))))
+ 			es->keep_buffer = true;
+ 		else
+ 			es->keep_buffer = false;
+-- 
+1.9.1
+

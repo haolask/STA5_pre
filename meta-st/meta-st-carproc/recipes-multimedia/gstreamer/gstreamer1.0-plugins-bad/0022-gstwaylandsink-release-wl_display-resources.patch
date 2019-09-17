@@ -1,0 +1,58 @@
+From 8e9a091ecf5544c4a0898e1a36d8b8a960ce996e Mon Sep 17 00:00:00 2001
+From: Stephane Danieau <stephane.danieau@st.com>
+Date: Tue, 6 Mar 2018 17:15:18 +0100
+Subject: [PATCH 22/25] gstwaylandsink: release wl_display resources
+
+    before this patch, wl_display was never finalized
+    Consequence : wayland connection remains opened even between NULL->PLAYING->NULL consecutive transitions.
+    connections were closed only when user closes the application.
+    Correction consists in modifying reference count management to force disconnection
+    and release of the wl_display as soon as waylandsink returns in NULL state.
+
+    Bugzilla : BZ113346
+
+    Signed-off-by: Stephane Danieau <stephane.danieau@st.com>
+    Reviewed-on: https://gerrit.st.com/86520
+    Reviewed-by: CITOOLS <smet-aci-reviews@lists.codex.cro.st.com>
+
+%% original patch: 0026-gstwaylandsink-release-wl_display-resources.patch
+
+%% original patch: 0026-gstwaylandsink-release-wl_display-resources.patch
+
+diff --git a/ext/wayland/gstwaylandsink.c b/ext/wayland/gstwaylandsink.c
+index aed1827..fc607a6 100644
+--- a/ext/wayland/gstwaylandsink.c
++++ b/ext/wayland/gstwaylandsink.c
+@@ -353,6 +353,7 @@ gst_wayland_sink_change_state (GstElement * element, GstStateChange transition)
+ 
+   switch (transition) {
+     case GST_STATE_CHANGE_NULL_TO_READY:
++      g_clear_object(&sink->display);
+       if (!gst_wayland_sink_find_display (sink))
+         return GST_STATE_CHANGE_FAILURE;
+       break;
+@@ -389,7 +390,7 @@ gst_wayland_sink_change_state (GstElement * element, GstStateChange transition)
+        * restarted (GstVideoOverlay behaves like that in other sinks)
+        */
+       if (sink->display && !sink->window) {     /* -> the window was toplevel */
+-        g_clear_object (&sink->display);
++        gst_object_unref (sink->display);
+         g_mutex_lock (&sink->render_lock);
+         sink->redraw_pending = FALSE;
+         g_mutex_unlock (&sink->render_lock);
+diff --git a/ext/wayland/waylandpool.c b/ext/wayland/waylandpool.c
+index bdf2a30..663a627 100644
+--- a/ext/wayland/waylandpool.c
++++ b/ext/wayland/waylandpool.c
+@@ -168,8 +168,6 @@ gst_wayland_buffer_pool_finalize (GObject * object)
+   g_mutex_clear (&pool->buffers_map_mutex);
+   g_hash_table_unref (pool->buffers_map);
+ 
+-  g_object_unref (pool->display);
+-
+   G_OBJECT_CLASS (gst_wayland_buffer_pool_parent_class)->finalize (object);
+ }
+ 
+-- 
+2.7.4
+

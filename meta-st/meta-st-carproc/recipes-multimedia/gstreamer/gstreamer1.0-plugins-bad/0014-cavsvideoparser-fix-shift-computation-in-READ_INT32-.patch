@@ -1,0 +1,38 @@
+From b3b6a96a76a10c245818492dd95ef3691ae923eb Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Aur=C3=A9lien=20Zanelli?= <aurelien.zanelli@darkosphere.fr>
+Date: Sun, 15 May 2016 01:52:18 +0200
+Subject: [PATCH 14/25] cavsvideoparser: fix shift computation in READ_INT32
+ macro
+
+shift is equal to (32 - nbits), not (16 - nbits).
+
+Thanks to Nicolas Huet <nicolas.huet@parrot.com> for reporting the
+issue.
+
+Change-Id: I85ca29aa23a94372f448e884cfd694cf9d7da42a
+Reviewed-on: https://gerrit.st.com/58039
+Reviewed-by: Stephane DANIEAU <stephane.danieau@st.com>
+Tested-by: Stephane DANIEAU <stephane.danieau@st.com>
+
+%% original patch: 0018-cavsvideoparser-fix-shift-computation-in-READ_INT32-.patch
+
+%% original patch: 0018-cavsvideoparser-fix-shift-computation-in-READ_INT32-.patch
+
+%% original patch: 0018-cavsvideoparser-fix-shift-computation-in-READ_INT32-.patch
+
+diff --git a/gst-libs/gst/codecparsers/gstcavsvideoparser.c b/gst-libs/gst/codecparsers/gstcavsvideoparser.c
+index 743aa8e..b405fa6 100644
+--- a/gst-libs/gst/codecparsers/gstcavsvideoparser.c
++++ b/gst-libs/gst/codecparsers/gstcavsvideoparser.c
+@@ -295,7 +295,7 @@ avs_reader_get_se (CAVSReader * nr, gint32 * val)
+ 
+ #define READ_INT32(r, val, nbits) { \
+   guint32 tmp; \
+-  guint shift = 16 - nbits; \
++  guint shift = 32 - nbits; \
+   if (!avs_reader_get_bits_uint32 (r, &tmp, nbits)) { \
+     GST_WARNING ("failed to read int32, nbits: %d", nbits); \
+     goto error; \
+-- 
+2.7.4
+

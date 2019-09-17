@@ -1,0 +1,27 @@
+From 5edbd5f74955ff390c8309a9f7fa87974c6b4208 Mon Sep 17 00:00:00 2001
+From: Baptiste Chauloux <baptiste.chauloux@st.com>
+Date: Tue, 15 May 2018 09:30:40 +0200
+Subject: [PATCH] units: systemd-hostnamed: Remove Private network option
+
+Avoid issue when booting on our platforms
+
+Signed-off-by: Baptiste Chauloux <baptiste.chauloux@st.com>
+---
+ units/systemd-hostnamed.service.in | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/units/systemd-hostnamed.service.in b/units/systemd-hostnamed.service.in
+index d29e9ff..a454b92 100644
+--- a/units/systemd-hostnamed.service.in
++++ b/units/systemd-hostnamed.service.in
+@@ -17,7 +17,6 @@ WatchdogSec=3min
+ CapabilityBoundingSet=CAP_SYS_ADMIN
+ PrivateTmp=yes
+ PrivateDevices=yes
+-PrivateNetwork=yes
+ ProtectSystem=strict
+ ProtectHome=yes
+ ProtectControlGroups=yes
+-- 
+2.7.4
+

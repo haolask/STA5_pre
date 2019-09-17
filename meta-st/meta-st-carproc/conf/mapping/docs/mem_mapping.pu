@@ -1,0 +1,129 @@
+@startuml
+
+
+database "meta-st/meta-st-carproc/conf/mapping" {
+	[sta1295-evb-mem-mapping.xml] as sta1295_evb
+	[...] as another
+	[sta1385-mtp-mem-mapping.xml] as sta1385_mtp
+}
+
+cloud "yocto recipes"{
+	[regdec.py] as regdec
+	[xsltproc] as xsltproc
+}
+
+package "tmp/sysroots/..." {
+	package ".../usr/include/sta_mem_map" {
+		[sta_mem_map.h] as sta_mem_map_h
+		[memory_map.h] as gen_for_atf_mem_map_h
+	}
+}
+package "sources" {
+	package "m3-loaders" {
+		[foo.h] as m3_foo_h
+	}
+	package	"u-boot" {
+		[bar.h] as uboot_bar_h
+	}
+	package "app os" {
+		[foo.h] as app_os_foo_h
+	}
+	package "atf" {
+		[to_memory_map_include.xml] as atf_xsl
+		[bar.h] as atf_bar_h
+	}
+}
+
+sta1295_evb ..> regdec
+sta1295_evb ..> xsltproc
+
+xsltproc ..> gen_for_atf_mem_map_h : generate
+xsltproc ..> atf_xsl : use
+regdec ..> sta_mem_map_h : sanity check & translate
+
+sta_mem_map_h <-down- m3_foo_h : include
+sta_mem_map_h <-down- uboot_bar_h : include
+sta_mem_map_h <-down- app_os_foo_h : include
+gen_for_atf_mem_map_h <-down- atf_bar_h : include
+
+note right of sta1295_evb
+Memory mapping description in XML:
+
+- "spirit:xxx" elements describing hardware mapping
+- "chunk" elements describing software mapping
+
+As example:
+
+ ...
+ <spirit:addressBlock>
+	<spirit:name>BACKUP_RAM</spirit:name>
+	<spirit:baseAddress>0x20000000</spirit:baseAddress>
+	<spirit:range>0x200</spirit:range>
+	<spirit:width>32</spirit:width>
+	<chunk>
+		<namespace>ROM</namespace>
+		<name>BOOT_API</name>
+		<offset>0xc</offset>
+		<size>0x4</size>
+	</chunk>
+	<chunk>
+		<namespace>ATF</namespace>
+		<name>MAILBOXES</name>
+		<offset>0x1e0</offset>
+		<size>0x10</size>
+	</chunk>
+	<chunk>
+		<namespace>DDR</namespace>
+		<name>ZQ_CAL</name>
+		<offset>0x1f0</offset>
+		<size>0x4</size>
+	</chunk>
+	<chunk>
+		<namespace>STR</namespace>
+		<name>KERNEL_RESUME_ADDR</name>
+		<offset>0x1F4</offset>
+		<size>0x4</size>
+	</chunk>
+	<chunk>
+		<namespace>STR</namespace>
+		<name>TAG</name>
+		<offset>0x1F8</offset>
+		<size>0x4</size>
+	</chunk>
+</spirit:addressBlock>
+ ...
+end note
+
+'note left of sta_mem_map_h
+'/**
+' * STA1295_EVB memory maps definitions
+' *
+' * This file has been automatically generated.
+' * Please, do NOT edit.
+' */
+'  
+' #ifndef STA1295_EVB_MEM_MAP_H
+' #define STA1295_EVB_MEM_MAP_H
+' 
+' /* ESRAM_M3 memory mapping */
+' #define ESRAM_M3_BASE 0x10000000
+' #define ESRAM_M3_SIZE 0x40000
+' 
+' /* BACKUP_RAM memory mapping */
+' #define BACKUP_RAM_BASE 0x20000000
+' #define BACKUP_RAM_SIZE 0x200
+' #define BACKUP_RAM_ROM_BOOT_API_BASE (BACKUP_RAM_BASE + 0xc)
+' #define BACKUP_RAM_ROM_BOOT_API_SIZE 0x4
+' #define BACKUP_RAM_ATF_MAILBOXES_BASE (BACKUP_RAM_BASE + 0x1e0)
+' #define BACKUP_RAM_ATF_MAILBOXES_SIZE 0x10
+' #define BACKUP_RAM_DDR_ZQ_CAL_BASE (BACKUP_RAM_BASE + 0x1f0)
+' #define BACKUP_RAM_DDR_ZQ_CAL_SIZE 0x4
+' #define BACKUP_RAM_STR_KERNEL_RESUME_ADDR_BASE (BACKUP_RAM_BASE + 0x1f4)
+' #define BACKUP_RAM_STR_KERNEL_RESUME_ADDR_SIZE 0x4
+' #define BACKUP_RAM_STR_TAG_BASE (BACKUP_RAM_BASE + 0x1f8)
+' #define BACKUP_RAM_STR_TAG_SIZE 0x4
+'  ...
+' #endif
+'end note
+
+@enduml

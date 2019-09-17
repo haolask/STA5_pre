@@ -1,0 +1,245 @@
+From 4d49bc9a3b0d00a7f7a25e505cda85fc4f1024c1 Mon Sep 17 00:00:00 2001
+From: Gerald Lejeune <gerald.lejeune@st.com>
+Date: Mon, 27 Feb 2017 13:31:26 +0100
+Subject: [PATCH] Expose engines with 128 and 256 bits AES-GCM support
+
+Signed-off-by: Gerald Lejeune <gerald.lejeune@st.com>
+---
+ crypto/engine/eng_cryptodev.c | 172 ++++++++++++++++++++++++++++++++++++++++--
+ 1 file changed, 164 insertions(+), 8 deletions(-)
+
+diff --git a/crypto/engine/eng_cryptodev.c b/crypto/engine/eng_cryptodev.c
+index 2a2b95c..cbcb5fb 100644
+--- a/crypto/engine/eng_cryptodev.c
++++ b/crypto/engine/eng_cryptodev.c
+@@ -78,6 +78,8 @@ struct dev_crypto_state {
+     char *mac_data;
+     int mac_len;
+ # endif
++    int iv_len;
++    int tag_len;
+ };
+ 
+ static u_int32_t cryptodev_asymfeat = 0;
+@@ -96,6 +98,10 @@ static int cryptodev_cipher(EVP_CIPHER_CTX *ctx, unsigned char *out,
+ static int cryptodev_init_key(EVP_CIPHER_CTX *ctx, const unsigned char *key,
+                               const unsigned char *iv, int enc);
+ static int cryptodev_cleanup(EVP_CIPHER_CTX *ctx);
++static int cryptodev_aead_control(EVP_CIPHER_CTX *ctx, int type, int arg,
++				  void *ptr);
++static int cryptodev_aead_cipher(EVP_CIPHER_CTX *ctx, unsigned char *out,
++				 const unsigned char *in, size_t inl);
+ static int cryptodev_engine_ciphers(ENGINE *e, const EVP_CIPHER **cipher,
+                                     const int **nids, int nid);
+ static int cryptodev_engine_digests(ENGINE *e, const EVP_MD **digest,
+@@ -161,6 +167,12 @@ static struct {
+     {
+         CRYPTO_AES_CBC, NID_aes_256_cbc, 16, 32,
+     },
++    {
++        CRYPTO_AES_GCM, NID_aes_128_gcm, 16, 16,
++    },
++    {
++        CRYPTO_AES_GCM, NID_aes_256_gcm, 16, 32,
++    },
+ # ifdef CRYPTO_AES_CTR
+     {
+         CRYPTO_AES_CTR, NID_aes_128_ctr, 14, 16,
+@@ -289,6 +301,7 @@ static int get_cryptodev_ciphers(const int **cnids)
+     static int nids[CRYPTO_ALGORITHM_MAX];
+     struct session_op sess;
+     int fd, i, count = 0;
++    int ret;
+ 
+     if ((fd = get_dev_crypto()) < 0) {
+         *cnids = NULL;
+@@ -298,14 +311,19 @@ static int get_cryptodev_ciphers(const int **cnids)
+     sess.key = (caddr_t) "123456789abcdefghijklmno";
+ 
+     for (i = 0; ciphers[i].id && count < CRYPTO_ALGORITHM_MAX; i++) {
+-        if (ciphers[i].nid == NID_undef)
+-            continue;
+-        sess.cipher = ciphers[i].id;
+-        sess.keylen = ciphers[i].keylen;
+-        sess.mac = 0;
+-        if (ioctl(fd, CIOCGSESSION, &sess) != -1 &&
+-            ioctl(fd, CIOCFSESSION, &sess.ses) != -1)
+-            nids[count++] = ciphers[i].nid;
++	    if (ciphers[i].nid == NID_undef)
++		    continue;
++	    sess.cipher = ciphers[i].id;
++	    sess.keylen = ciphers[i].keylen;
++	    sess.mac = 0;
++	    ret = ioctl(fd, CIOCGSESSION, &sess);
++	    printf("1 ioctl CIOCGSESSION %d\n", ret);
++	    if (ret != -1) {
++		    ret = ioctl(fd, CIOCFSESSION, &sess.ses);
++		    printf("2 ioctl CIOCFSESSION %d\n", ret);
++		    if (ret != -1)
++			    nids[count++] = ciphers[i].nid;
++	    }
+     }
+     put_dev_crypto(fd);
+ 
+@@ -459,6 +477,112 @@ cryptodev_cipher(EVP_CIPHER_CTX *ctx, unsigned char *out,
+ }
+ 
+ static int
++cryptodev_aead_control(EVP_CIPHER_CTX *ctx, int type, int arg, void *ptr)
++{
++    struct dev_crypto_state *state = ctx->cipher_data;
++
++    switch(type) {
++    case EVP_CTRL_INIT:
++        state->iv_len = ctx->cipher->iv_len;
++        state->tag_len = -1;
++        return (1);
++	break;
++    case EVP_CTRL_GCM_SET_IVLEN:
++        if (arg <= 0)
++            return (0);
++        if (arg > EVP_MAX_IV_LENGTH)
++	    return (0);
++        state->iv_len = arg;
++        return (1);
++	break;
++    case EVP_CTRL_GCM_SET_TAG:
++        if (arg <= 0 || arg > 16 || ctx->encrypt)
++            return (0);
++        memcpy(ctx->buf, ptr, arg);
++        state->tag_len = arg;
++        return (1);
++	break;
++    case EVP_CTRL_GCM_GET_TAG:
++        if (arg <= 0 || arg > 16 || !ctx->encrypt || state->tag_len < 0)
++            return (0);
++        memcpy(ptr, ctx->buf, arg);
++        return (1);
++	break;
++    default:
++        return (-1);
++	break;
++    }
++    return (-1);
++}
++
++static int
++cryptodev_aead_cipher(EVP_CIPHER_CTX *ctx, unsigned char *out,
++		      const unsigned char *in, size_t inl)
++{
++    struct crypt_auth_op cryp;
++    struct dev_crypto_state *state = ctx->cipher_data;
++    struct session_op *sess = &state->d_sess;
++    const void *iiv;
++    unsigned char save_iv[EVP_MAX_IV_LENGTH];
++
++    if (state->d_fd < 0)
++        return (0);
++    if (!inl)
++        return (1);
++    if ((inl % ctx->cipher->block_size) != 0)
++        return (0);
++
++    memset(&cryp, 0, sizeof(cryp));
++
++    cryp.ses = sess->ses;
++    cryp.flags = 0;
++    if (out) {
++	    cryp.len = inl;
++	    cryp.auth_len = 0;
++	    cryp.auth_src = (caddr_t) NULL;
++	    cryp.src = (caddr_t) in;
++    } else {
++	    cryp.len = 0;
++	    cryp.auth_len = inl;
++	    cryp.auth_src = (caddr_t) in;
++	    cryp.src = (caddr_t) NULL;
++    }
++    cryp.dst = (caddr_t) out;
++    cryp.tag_len = state->tag_len;
++    cryp.tag = ctx->buf;
++    
++    cryp.op = ctx->encrypt ? COP_ENCRYPT : COP_DECRYPT;
++
++    /* TODO: Rely on state->iv_len rather than on ctx->cipher->iv_len. */
++    if (ctx->cipher->iv_len) {
++        cryp.iv = (caddr_t) ctx->iv;
++        if (!ctx->encrypt) {
++            iiv = in + inl - ctx->cipher->iv_len;
++            memcpy(save_iv, iiv, ctx->cipher->iv_len);
++        }
++    } else
++        cryp.iv = NULL;
++
++    if (ioctl(state->d_fd, CIOCAUTHCRYPT, &cryp) == -1) {
++        /*
++         * XXX need better errror handling this can fail for a number of
++         * different reasons.
++         */
++        return (0);
++    }
++
++    /* TODO: Rely on state->iv_len rather than on ctx->cipher->iv_len. */
++    if (ctx->cipher->iv_len) {
++        if (ctx->encrypt)
++            iiv = out + inl - ctx->cipher->iv_len;
++        else
++            iiv = save_iv;
++        memcpy(ctx->iv, iiv, ctx->cipher->iv_len);
++    }
++    return (1);
++}
++
++static int
+ cryptodev_init_key(EVP_CIPHER_CTX *ctx, const unsigned char *key,
+                    const unsigned char *iv, int enc)
+ {
+@@ -642,6 +766,32 @@ const EVP_CIPHER cryptodev_aes_256_cbc = {
+     NULL
+ };
+ 
++const EVP_CIPHER cryptodev_aes_gcm = {
++    NID_aes_128_gcm,
++    16, 16, 12,
++    EVP_CIPH_GCM_MODE,
++    cryptodev_init_key,
++    cryptodev_aead_cipher,
++    cryptodev_cleanup,
++    sizeof(struct dev_crypto_state),
++    EVP_CIPHER_set_asn1_iv,
++    EVP_CIPHER_get_asn1_iv,
++    cryptodev_aead_control
++};
++
++const EVP_CIPHER cryptodev_aes_256_gcm = {
++    NID_aes_256_gcm,
++    16, 32, 12,
++    EVP_CIPH_GCM_MODE,
++    cryptodev_init_key,
++    cryptodev_aead_cipher,
++    cryptodev_cleanup,
++    sizeof(struct dev_crypto_state),
++    EVP_CIPHER_set_asn1_iv,
++    EVP_CIPHER_get_asn1_iv,
++    cryptodev_aead_control
++};
++
+ # ifdef CRYPTO_AES_CTR
+ const EVP_CIPHER cryptodev_aes_ctr = {
+     NID_aes_128_ctr,
+@@ -719,6 +869,12 @@ cryptodev_engine_ciphers(ENGINE *e, const EVP_CIPHER **cipher,
+     case NID_aes_256_cbc:
+         *cipher = &cryptodev_aes_256_cbc;
+         break;
++    case NID_aes_128_gcm:
++        *cipher = &cryptodev_aes_gcm;
++        break;
++    case NID_aes_256_gcm:
++        *cipher = &cryptodev_aes_256_gcm;
++        break;
+ # ifdef CRYPTO_AES_CTR
+     case NID_aes_128_ctr:
+         *cipher = &cryptodev_aes_ctr;
+-- 
+2.7.4
+

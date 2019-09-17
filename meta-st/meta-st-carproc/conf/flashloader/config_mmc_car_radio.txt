@@ -1,0 +1,69 @@
+; -------------------------------
+; Accordo5/Telemaco3 config file
+; -------------------------------
+VERSION         = 7.0
+SOC		= ###SOC###
+
+; ----------
+; M3 entries
+; ----------
+; Append "st-signed-l2" to enforce Security Level 2
+M3_XL			= m3_xloader.bin, 0x10000000
+; User partition to be added for enabling the M3 eHSM test framework
+;M3_OS_PART2		= m3_###FEATURE###_file2.bin, 0xbfa00000
+
+; ----------
+; AP entries
+; ----------
+AP_XL_ENTRY		= ###AP_XL_BASE###
+AP_XL			= atf/bl2.bin, ###AP_XL_BASE###
+FIP			    = atf/fip.bin
+
+; ---------------
+; Security assets
+; ---------------
+; Customer certificate
+CUSTOMER_CERTIFICATE = ###SOC###-cust-cert.der
+; Only for dev purpose
+CUSTOMER_PRIVATE_KEY = ###SOC###-cust-key.pem
+; Alternate CA certificate
+ALTERNATE_CA_CERTIFICATE = ###SOC###-alt-ca-cert.der
+
+###DSP_FW###
+
+###TUNER_FW###
+
+; ----------------------------
+; U-boot environment variables
+; ----------------------------
+UBOOT_ENV           = ###UBOOT_ENV_CONFIG###
+
+; --------------
+; Other entries
+; --------------
+###IMG_SPLASH###
+###ANIM_SPLASH###
+
+###AUDIOLIB###
+
+; For U-boot base flashloader
+;------------------------
+M3XLOADER			= m3_xl_uflashloader.bin
+FLASHLOADER			= u-boot-flashloader.bin, 0xA0000000
+
+;-------------------------------------------------------------------
+; Flash partitions mapping for M3-loaders, ATF, FIP and Linux Kernel
+;-------------------------------------------------------------------
+; Raw partitions managed by M3-Xloader, total size must be < start=(27m - 17k)
+; -> the raw partition "6m(M3_OS_PART2)" has to be added in the list below for enabling the M3 eHSM test framework
+; -> Ex: rawparts=...,2m@0x48000(FIP),6m(M3_OS_PART2),128k(AP_XL)...
+; -> About raw partition "512m(AP_RAMDUMP)", if only ramoops is processed by sw, the size can be readjusted to 1m
+rawparts=mmc:239k@0x4400(M3_XL),32k@0x40000(UBOOT_ENV),2m@0x48000(FIP),128k(AP_XL),512m(AP_RAMDUMP)###KEY_STORAGE_MMC_PART######IMG_SPLASH_PART######ANIM_SPLASH_PART######AUDIO_EMMC_PART######TUNER_EMMC_PART###
+
+; EFI GPT partitions for U-boot and Linux
+partitions=uuid_disk=${uuid_gpt_disk};name=boot,start=538MiB,size=16MiB,uuid=${uuid_gpt_boot};name=rootfs,size=-,uuid=${uuid_gpt_rootfs}
+
+boot = bootfs.ext4
+rootfs = ###GENERATED_IMAGE_NAME###.ext4
+
+; END OF CONFIG FILE

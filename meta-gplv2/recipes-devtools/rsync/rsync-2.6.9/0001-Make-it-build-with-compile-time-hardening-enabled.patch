@@ -1,0 +1,32 @@
+From 8b032db07981a88141984201736c9c6d4fffeb9a Mon Sep 17 00:00:00 2001
+From: Peter Kjellerstedt <pkj@axis.com>
+Date: Thu, 26 Apr 2018 02:29:22 +0200
+Subject: [PATCH] Make it build with compile time hardening enabled
+
+This avoids the following error:
+
+  clientserver.c: In function 'rsync_module':
+  clientserver.c:681:4: error: format not a string literal and no
+  format arguments [-Werror=format-security]
+      rprintf(FERROR, err_msg);
+      ^~~~~~~
+
+Upstream-Status: Inappropriate [legacy version]
+Signed-off-by: Peter Kjellerstedt <peter.kjellerstedt@axis.com>
+---
+ clientserver.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/clientserver.c b/clientserver.c
+index 1cb6a09..0aafb8b 100644
+--- a/clientserver.c
++++ b/clientserver.c
+@@ -678,7 +678,7 @@ static int rsync_module(int f_in, int f_out, int i, char *addr, char *host)
+ 
+ 	if (!ret || err_msg) {
+ 		if (err_msg)
+-			rprintf(FERROR, err_msg);
++			rprintf(FERROR, "%s", err_msg);
+ 		else
+ 			option_error();
+ 		msleep(400);

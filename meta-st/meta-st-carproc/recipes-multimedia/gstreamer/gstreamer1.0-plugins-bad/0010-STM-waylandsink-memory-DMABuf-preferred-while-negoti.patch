@@ -1,0 +1,89 @@
+From 229ddceac5db22eecca7351bb504a74566970fb8 Mon Sep 17 00:00:00 2001
+From: Stephane Danieau <stephane.danieau@st.com>
+Date: Tue, 6 Mar 2018 09:41:52 +0100
+Subject: [PATCH 10/25] STM: waylandsink: memory:DMABuf preferred while
+ negotiation
+
+    Change the ranking of memory:DMABuf in order to negotiate DMABUF as
+    preferred buffer type.
+
+    Change-Id: Ifc5a9d41228c44345608e34dfea55dd10297ba1a
+    Signed-off-by: Vincent Abriou <vincent.abriou@st.com>
+    Reviewed-on: https://gerrit.st.com/59311
+    Reviewed-by: Jean Christophe TROTIN <jean-christophe.trotin@st.com>
+    Tested-by: Jean Christophe TROTIN <jean-christophe.trotin@st.com>
+
+%% original patch: 0012-STM-waylandsink-memory-DMABuf-preferred-while-negoti.patch
+
+%% original patch: 0011-STM-waylandsink-memory-DMABuf-preferred-while-negoti.patch
+
+%% original patch: 0011-STM-waylandsink-memory-DMABuf-preferred-while-negoti.patch
+
+%% original patch: 0011-STM-waylandsink-memory-DMABuf-preferred-while-negoti.patch
+
+%% original patch: 0011-STM-waylandsink-memory-DMABuf-preferred-while-negoti.patch
+
+%% original patch: 0011-STM-waylandsink-memory-DMABuf-preferred-while-negoti.patch
+
+%% original patch: 0011-STM-waylandsink-memory-DMABuf-preferred-while-negoti.patch
+
+diff --git a/ext/wayland/gstwaylandsink.c b/ext/wayland/gstwaylandsink.c
+index c256726..1d96917 100644
+--- a/ext/wayland/gstwaylandsink.c
++++ b/ext/wayland/gstwaylandsink.c
+@@ -78,9 +78,9 @@ GST_DEBUG_CATEGORY (gstwayland_debug);
+ static GstStaticPadTemplate sink_template = GST_STATIC_PAD_TEMPLATE ("sink",
+     GST_PAD_SINK,
+     GST_PAD_ALWAYS,
+-    GST_STATIC_CAPS (GST_VIDEO_CAPS_MAKE (WL_VIDEO_FORMATS) ";"
+-        GST_VIDEO_CAPS_MAKE_WITH_FEATURES (GST_CAPS_FEATURE_MEMORY_DMABUF,
+-            WL_VIDEO_FORMATS))
++    GST_STATIC_CAPS (GST_VIDEO_CAPS_MAKE_WITH_FEATURES
++        (GST_CAPS_FEATURE_MEMORY_DMABUF,
++            WL_VIDEO_FORMATS) ";" GST_VIDEO_CAPS_MAKE (WL_VIDEO_FORMATS))
+     );
+ 
+ static void gst_wayland_sink_get_property (GObject * object,
+@@ -442,7 +442,7 @@ gst_wayland_sink_get_caps (GstBaseSink * bsink, GstCaps * filter)
+     GValue shm_list = G_VALUE_INIT, dmabuf_list = G_VALUE_INIT;
+     GValue value = G_VALUE_INIT;
+     GArray *formats;
+-    gint i;
++    gint i, num_structures;
+     guint fmt;
+ 
+     g_value_init (&shm_list, GST_TYPE_LIST);
+@@ -457,9 +457,6 @@ gst_wayland_sink_get_caps (GstBaseSink * bsink, GstCaps * filter)
+       gst_value_list_append_and_take_value (&shm_list, &value);
+     }
+ 
+-    gst_structure_take_value (gst_caps_get_structure (caps, 0), "format",
+-        &shm_list);
+-
+     /* Add corresponding dmabuf formats */
+     formats = sink->display->dmabuf_formats;
+     for (i = 0; i < formats->len; i++) {
+@@ -469,8 +466,18 @@ gst_wayland_sink_get_caps (GstBaseSink * bsink, GstCaps * filter)
+       gst_value_list_append_and_take_value (&dmabuf_list, &value);
+     }
+ 
+-    gst_structure_take_value (gst_caps_get_structure (caps, 1), "format",
+-        &dmabuf_list);
++    /* Set supported format in the right structure */
++    num_structures = gst_caps_get_size (caps);
++    for (i = 0; i < num_structures; i++) {
++      if (gst_caps_features_contains (gst_caps_get_features (caps, i),
++              GST_CAPS_FEATURE_MEMORY_SYSTEM_MEMORY))
++        gst_structure_set_value (gst_caps_get_structure (caps, i), "format",
++            &shm_list);
++      else if (gst_caps_features_contains (gst_caps_get_features (caps, i),
++              GST_CAPS_FEATURE_MEMORY_DMABUF))
++        gst_structure_set_value (gst_caps_get_structure (caps, i), "format",
++            &dmabuf_list);
++    }
+ 
+     GST_DEBUG_OBJECT (sink, "display caps: %" GST_PTR_FORMAT, caps);
+   }
+-- 
+2.7.4
+

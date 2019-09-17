@@ -1,0 +1,48 @@
+From a59e7d5fe304d3ce14c55ef04287c5b64fa30a89 Mon Sep 17 00:00:00 2001
+From: Stephane Danieau <stephane.danieau@st.com>
+Date: Wed, 7 Mar 2018 16:14:27 +0100
+Subject: [PATCH 24/37] compositor-st: drmModeSetPlane error management
+
+If drmModeSetPlane() fails, do not wait for vblank, and mark the sprite
+as unused.
+This fixes a SIGSEGV regression introduced by "compositor-st: forbid
+sprite on several crtc".
+
+Change-Id: I5f2c770d24aafd3eb9afafa753be975e3678a117
+Signed-off-by: Fabien Dessenne <fabien.dessenne@st.com>
+Reviewed-on: https://gerrit.st.com/60249
+Reviewed-by: Romuald JEANNE <romuald.jeanne@st.com>
+Tested-by: Romuald JEANNE <romuald.jeanne@st.com>
+---
+ libweston/compositor-st.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/libweston/compositor-st.c b/libweston/compositor-st.c
+index 02262e0..71f0c8f 100644
+--- a/libweston/compositor-st.c
++++ b/libweston/compositor-st.c
+@@ -902,6 +902,10 @@ drm_output_repaint(struct weston_output *output_base,
+ 			weston_log("setplane failed: %d: %s\n",
+ 				ret, strerror(errno));
+ 			s->output = NULL;
++			s->next = NULL;
++			s->vblank_pending = false;
++			continue;
++
+ 		}
+ 		else {
+ 			s->vblank_pending = true;
+@@ -927,6 +931,10 @@ drm_output_repaint(struct weston_output *output_base,
+ 			weston_log("vblank event request failed: %d: %s\n",
+ 				ret, strerror(errno));
+ 			s->output = NULL;
++			s->next = NULL;
++			s->vblank_pending = false;
++			continue;
++
+ 		}
+ 
+ 		output->vblank_pending++;
+-- 
+1.9.1
+

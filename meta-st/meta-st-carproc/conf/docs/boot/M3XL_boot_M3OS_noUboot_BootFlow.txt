@@ -1,0 +1,77 @@
+@startuml
+
+title M3XL_boot_M3OS_noUboot_BootFlow
+
+participant ROM order 10 #FF9999
+participant M3XL order 20 #FF9999
+participant M3OS_part2 order 30 #FF9999
+participant M3OS_part1 order 40 #FF9999
+participant ATF_BL2 order 50 #FF9999
+participant Secure_Monitor order 60 #FF9999
+participant LINUX order 70 #888888
+
+box "M3 Core" #LightBlue
+
+	participant ROM
+	participant M3XL
+	participant M3OS_part2
+	participant M3OS_part1
+
+end box
+
+box "A7 Core" #LightGreen
+
+	participant ATF_BL2
+	participant Secure_Monitor
+	participant LINUX
+
+end box
+
+activate ROM
+ROM -> M3XL : Load [M3 eSRAM]\nfrom NVM
+activate M3XL
+deactivate ROM
+
+M3XL -> ATF_BL2 : Load [A7 eSRAM] from NVM
+M3XL -> ATF_BL2 : Unreset A7 World
+activate ATF_BL2
+
+M3XL -> M3OS_part2 : Load [A7 eSRAM] from NVM
+M3XL -> M3OS_part1 : Load [M3 eSRAM] from NVM
+M3XL -> M3OS_part1 : Jump
+deactivate M3XL
+activate M3OS_part2
+activate M3OS_part1
+ATF_BL2 -> Secure_Monitor : Load [A7 eSRAM] from NVM
+ATF_BL2 -> LINUX : Load DTB
+note over ATF_BL2 : Patch DTB
+note over ATF_BL2 : wait for M3OS early use case completion
+
+
+note over  M3OS_part1,M3OS_part2 : Load DSP FW, Splash screen...
+
+
+M3OS_part1 -> ATF_BL2 : sync point reached - Resume execution
+note over M3OS_part1,M3OS_part2 : Wait for rpmsg syncro signal
+ATF_BL2 -> Secure_Monitor : Jump
+activate Secure_Monitor
+deactivate ATF_BL2
+Secure_Monitor -> LINUX : NoSecure switch
+activate LINUX
+LINUX -> M3OS_part1 : Linux Ready - rpmsg syncro signal
+
+
+legend
+
+|= Internal Name |= ATF acronym |
+| M3OS_part2 | SCP_FILE2_BL2 |
+| M3OS_part1 | SCP_BL2 |
+| Secure Monitor (SP-MIN or OPTEE) | ATF_BL32 |
+
+|= |= Secure/NonSecure |
+|<back:#FF9999>   </back>| Secure World |
+|<back:#999999>   </back>| NonSecure World |
+
+endlegend
+
+@enduml

@@ -1,0 +1,54 @@
+From 12fde10c5fcb243bcd8c74c2a993fc85a4296ca8 Mon Sep 17 00:00:00 2001
+From: Stephane Danieau <stephane.danieau@st.com>
+Date: Wed, 8 Feb 2017 16:46:35 +0100
+Subject: [PATCH 18/25] gstwaylandsink: Enable 16bits RGB565 for DMABUF support
+
+Change-Id: I582226d72a54e7236d3eb38b147bad9f310588b6
+Signed-off-by: Pierre-Yves MORDRET <pierre-yves.mordret@st.com>
+Reviewed-on: https://gerrit.st.com/63304
+
+%% original patch: 0022-gstwaylandsink-Enable-16bits-RGB565-for-DMABUF-suppo.patch
+
+%% original patch: 0022-gstwaylandsink-Enable-16bits-RGB565-for-DMABUF-suppo.patch
+
+diff --git a/ext/wayland/waylandpool.c b/ext/wayland/waylandpool.c
+index 0b48523..bdf2a30 100644
+--- a/ext/wayland/waylandpool.c
++++ b/ext/wayland/waylandpool.c
+@@ -438,6 +438,8 @@ get_format_bpp (int format)
+     case WL_SHM_FORMAT_ARGB8888:
+     case DRM_FORMAT_ARGB8888:
+       return 32;
++    case DRM_FORMAT_RGB565:
++      return 16;
+     default:
+       GST_WARNING ("Unknown format: %d", format);
+       return 32;
+@@ -579,6 +581,9 @@ gst_buffer_set_wl_buffer (GstBuffer * buf, GstBufferPool * bpool)
+     case DRM_FORMAT_ARGB8888:
+       format = DRM_FORMAT_ARGB8888;
+       break;
++    case DRM_FORMAT_RGB565:
++      format = DRM_FORMAT_RGB565;
++      break;
+     default:
+       format = DRM_FORMAT_XRGB8888;
+       break;
+diff --git a/ext/wayland/wlvideoformat.c b/ext/wayland/wlvideoformat.c
+index 05a8580..40683eb 100644
+--- a/ext/wayland/wlvideoformat.c
++++ b/ext/wayland/wlvideoformat.c
+@@ -66,8 +66,8 @@ static const wl_ShmVideoFormat shm_formats[] = {
+   {WL_SHM_FORMAT_RGB888, GST_VIDEO_FORMAT_BGR},
+   {WL_SHM_FORMAT_BGR888, GST_VIDEO_FORMAT_RGB},
+ #endif
+-  {WL_SHM_FORMAT_RGB565, GST_VIDEO_FORMAT_RGB16},
+-  {WL_SHM_FORMAT_BGR565, GST_VIDEO_FORMAT_BGR16},
++  {DRM_FORMAT_RGB565, GST_VIDEO_FORMAT_RGB16},
++  {DRM_FORMAT_BGR565, GST_VIDEO_FORMAT_BGR16},
+ 
+   {WL_SHM_FORMAT_YUYV, GST_VIDEO_FORMAT_YUY2},
+   {WL_SHM_FORMAT_YVYU, GST_VIDEO_FORMAT_YVYU},
+-- 
+2.7.4
+

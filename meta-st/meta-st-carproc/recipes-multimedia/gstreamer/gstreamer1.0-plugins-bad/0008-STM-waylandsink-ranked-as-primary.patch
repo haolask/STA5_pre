@@ -1,0 +1,43 @@
+From dcfd86136af6ef94d54ec7a62f3202126b3cccbc Mon Sep 17 00:00:00 2001
+From: Christophe Priouzeau <christophe.priouzeau@linaro.org>
+Date: Thu, 7 Apr 2016 11:42:32 +0200
+Subject: [PATCH 08/25] STM: waylandsink: ranked as primary
+
+Because we love wayland we need to have its sink ranked as primary.
+In that way playbin decides to use it as the default sink.
+
+Change-Id: Ib1363af8e5e665bdecc4bac2b0bf23df50cdcde3
+Signed-off-by: Fabien Dessenne <fabien.dessenne@st.com>
+
+%% original patch: 0008-STM-waylandsink-ranked-as-primary.patch
+
+%% original patch: 0008-STM-waylandsink-ranked-as-primary.patch
+
+%% original patch: 0008-STM-waylandsink-ranked-as-primary.patch
+
+%% original patch: 0008-STM-waylandsink-ranked-as-primary.patch
+
+%% original patch: 0008-STM-waylandsink-ranked-as-primary.patch
+
+%% original patch: 0008-STM-waylandsink-ranked-as-primary.patch
+
+%% original patch: 0008-STM-waylandsink-ranked-as-primary.patch
+
+%% original patch: 0008-STM-waylandsink-ranked-as-primary.patch
+
+diff --git a/ext/wayland/gstwaylandsink.c b/ext/wayland/gstwaylandsink.c
+index cea45b4..c256726 100644
+--- a/ext/wayland/gstwaylandsink.c
++++ b/ext/wayland/gstwaylandsink.c
+@@ -1028,7 +1028,7 @@ plugin_init (GstPlugin * plugin)
+ 
+   gst_wl_shm_allocator_register ();
+ 
+-  return gst_element_register (plugin, "waylandsink", GST_RANK_MARGINAL,
++  return gst_element_register (plugin, "waylandsink", GST_RANK_PRIMARY,
+       GST_TYPE_WAYLAND_SINK);
+ }
+ 
+-- 
+2.7.4
+

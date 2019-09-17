@@ -1,0 +1,50 @@
+From 7fae29ca28e488d368d09a51968060968ec87228 Mon Sep 17 00:00:00 2001
+From: Stephane Danieau <stephane.danieau@st.com>
+Date: Wed, 7 Mar 2018 16:54:12 +0100
+Subject: [PATCH 30/37] compositor-st: don't create output with "off" mode
+
+With current implementation, we need CTRCs number >= connectors number
+else we get case where a CRTC is attached to a "off" output/connector
+and can't be used for the enabled output/connector.
+
+With this fix, we don't create output if the output is off in weston
+configuration.
+This allows to have several outputs (only one output enabled at a time)
+with only one CRTC.
+
+Change-Id: I7c05d42e986a96a4a080065927b86bfe12e32e40
+Signed-off-by: Mickael Reulier <mickael.reulier@st.com>
+Reviewed-on: https://gerrit.st.com/67276
+Reviewed-by: Fabien DESSENNE <fabien.dessenne@st.com>
+Reviewed-by: Vincent ABRIOU <vincent.abriou@st.com>
+---
+ libweston/compositor-st.c | 13 +++++++++++++
+ 1 file changed, 13 insertions(+)
+
+diff --git a/libweston/compositor-st.c b/libweston/compositor-st.c
+index 29e37ea..0550bae 100644
+--- a/libweston/compositor-st.c
++++ b/libweston/compositor-st.c
+@@ -2903,6 +2903,19 @@ create_output_for_connector(struct drm_backend *b,
+ {
+ 	struct drm_output *output;
+ 	int i;
++	char *s;
++	struct weston_config_section *section;
++	bool off_mode;
++
++	/* Do not create output with "off" mode, this allows to have
++	 * several outputs (only one enabled at a time) with only one CRTC */
++	section = weston_config_get_section(wet_get_config(b->compositor), "output",
++			"name", make_connector_name(connector));
++	weston_config_section_get_string(section, "mode", &s, "preferred");
++	off_mode = (strcmp(s, "off") == 0);
++	free(s);
++	if (off_mode)
++		return -1;
+ 
+ 	i = find_crtc_for_connector(b, resources, connector);
+ 	if (i < 0) {
+-- 
+1.9.1
+

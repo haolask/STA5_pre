@@ -1,0 +1,247 @@
+From c95dd1a7be702b969ed0a65e3b3fba9bdabbe9b0 Mon Sep 17 00:00:00 2001
+From: Mickael Reulier <mickael.reulier@st.com>
+Date: Thu, 20 Sep 2018 17:05:04 +0200
+Subject: [PATCH 1/2] compositor-st: Add Gamma control service
+
+Add new gamma control protocol and implement server
+side in compositor-st
+
+Change-Id: If414e75f20bfc72bd09d7ee3a51fe5c20811ad5c
+Signed-off-by: Mickael Reulier <mickael.reulier@st.com>
+---
+ Makefile.am                |  10 ++++
+ libweston/compositor-st.c  | 117 +++++++++++++++++++++++++++++++++++++++++++++
+ protocol/gamma-control.xml |  58 ++++++++++++++++++++++
+ 3 files changed, 185 insertions(+)
+ create mode 100644 protocol/gamma-control.xml
+
+diff --git a/Makefile.am b/Makefile.am
+index b868206..eaf5e21 100644
+--- a/Makefile.am
++++ b/Makefile.am
+@@ -430,6 +430,16 @@ EXTRA_DIST +=					\
+ 	protocol/capture.xml
+ endif
+ 
++st_backend_la_SOURCES += protocol/gamma-control-protocol.c
++
++BUILT_SOURCES +=				\
++	protocol/gamma-control-protocol.c		\
++	protocol/gamma-control-server-protocol.h
++
++EXTRA_DIST +=					\
++	protocol/gamma-control.xml
++
++
+ if ENABLE_VAAPI_RECORDER
+ st_backend_la_SOURCES += libweston/vaapi-recorder.c libweston/vaapi-recorder.h
+ st_backend_la_LIBADD += $(LIBVA_LIBS)
+diff --git a/libweston/compositor-st.c b/libweston/compositor-st.c
+index 90e781a..51c0c6f 100644
+--- a/libweston/compositor-st.c
++++ b/libweston/compositor-st.c
+@@ -67,6 +67,8 @@
+ #include "capture-server-protocol.h"
+ #endif
+ 
++#include "gamma-control-server-protocol.h"
++
+ #ifndef DRM_CAP_TIMESTAMP_MONOTONIC
+ #define DRM_CAP_TIMESTAMP_MONOTONIC 0x6
+ #endif
+@@ -3706,6 +3708,119 @@ capture_create(struct drm_backend *backend)
+ }
+ #endif
+ 
++struct drm_output_gamma_control {
++	struct drm_backend *backend;
++	struct wl_global *global;
++	struct wl_listener destroy_listener;
++	struct drm_output *output;
++};
++
++static void
++gamma_control_destroy(struct wl_client *client,
++			struct wl_resource *resource)
++{
++	wl_resource_destroy(resource);
++}
++
++static void
++gamma_control_set_gamma(struct wl_client *client,
++			  struct wl_resource *resource,
++			  struct wl_array *red,
++			  struct wl_array *green,
++			  struct wl_array *blue)
++{
++	struct drm_output_gamma_control *gam = wl_resource_get_user_data(resource);
++	struct drm_output *output;
++	uint gamma_size_bytes;
++	int res;
++
++	if (!gam->output || !gam->output->original_crtc)
++		return;
++
++	gamma_size_bytes = gam->output->base.gamma_size * sizeof(uint16_t);
++
++	if ((red->size != gamma_size_bytes) || (green->size != gamma_size_bytes)
++			|| (blue->size != gamma_size_bytes)) {
++		weston_log("Gamma error: Invalid component gamma size\n");
++		wl_resource_post_error(resource, WL_GAMMA_CONTROL_ERROR_INVALID_GAMMA,
++				       "Gamma error: Invalid component gamma size");
++		return;
++	}
++
++	res = drmModeCrtcSetGamma(gam->backend->drm.fd, gam->output->crtc_id, gam->output->base.gamma_size, 
++			(uint16_t *)red->data, (uint16_t *)green->data, (uint16_t *)blue->data);
++
++	if (res != 0) {
++		weston_log("drmModeCrtcSetGamma(%d) failed: %s\n",
++			gam->output->crtc_id, strerror(errno));
++		wl_resource_post_error(resource, WL_GAMMA_CONTROL_ERROR_INVALID_GAMMA,
++				       "Gamma error: drmModeCrtcSetGamma failed");
++	}
++}
++
++struct wl_gamma_control_interface gamma_control_interface_inst = {
++	gamma_control_destroy,
++	gamma_control_set_gamma,
++};
++
++static void
++gamma_control_unbind(struct wl_resource *resource)
++{
++	weston_log("Stopping gamma (client unbind)\n");
++}
++
++static void
++gamma_control_bind(struct wl_client *client, void *data, uint32_t version, uint32_t id)
++{
++	struct wl_resource *resource;
++	struct drm_output_gamma_control *gam = data;
++
++	resource = wl_resource_create(client, &wl_gamma_control_interface, 1, id);
++	if (!resource) {
++		wl_client_post_no_memory(client);
++		return;
++	}
++
++	wl_resource_set_implementation(resource, &gamma_control_interface_inst, data,
++				       gamma_control_unbind);
++
++	gam->output = container_of(gam->backend->compositor->output_list.next,
++			      struct drm_output, base.link);
++
++	wl_gamma_control_send_gamma_size(resource, gam->output->base.gamma_size);
++}
++
++static void
++gamma_control_finalize(struct wl_listener *listener, void *data)
++{
++	struct drm_output_gamma_control *gamma =
++		container_of(listener, struct drm_output_gamma_control, destroy_listener);
++
++	wl_global_destroy(gamma->global);
++	free(gamma);
++}
++
++static int
++gamma_control_create(struct drm_backend *backend)
++{
++	struct drm_output_gamma_control *gamma;
++
++	gamma = zalloc(sizeof *gamma);
++	if (!gamma)
++		return -1;
++
++	gamma->backend = backend;
++	gamma->global = wl_global_create(backend->compositor->wl_display,
++			&wl_gamma_control_interface, 1, gamma, gamma_control_bind);
++	gamma->destroy_listener.notify = gamma_control_finalize;
++	wl_signal_add(&backend->compositor->destroy_signal, &gamma->destroy_listener);
++
++	weston_log("display gamma_control: initialized\n");
++
++	return 0;
++}
++
++
+ static void
+ switch_to_gl_renderer(struct drm_backend *b)
+ {
+@@ -3899,6 +4014,8 @@ drm_backend_create(struct weston_compositor *compositor,
+ 
+ 	capture_create(b);
+ 
++	gamma_control_create(b);
++
+ 	weston_compositor_add_debug_binding(compositor, KEY_O,
+ 					    planes_binding, b);
+ 	weston_compositor_add_debug_binding(compositor, KEY_C,
+diff --git a/protocol/gamma-control.xml b/protocol/gamma-control.xml
+new file mode 100644
+index 0000000..6f25fdd
+--- /dev/null
++++ b/protocol/gamma-control.xml
+@@ -0,0 +1,58 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<protocol name="gamma_control">
++    <copyright>
++        Copyright ? 2015 Giulio camuffo
++
++        Permission to use, copy, modify, distribute, and sell this
++        software and its documentation for any purpose is hereby granted
++        without fee, provided that the above copyright notice appear in
++        all copies and that both that copyright notice and this permission
++        notice appear in supporting documentation, and that the name of
++        the copyright holders not be used in advertising or publicity
++        pertaining to distribution of the software without specific,
++        written prior permission.  The copyright holders make no
++        representations about the suitability of this software for any
++        purpose.  It is provided "as is" without express or implied
++        warranty.
++
++        THE COPYRIGHT HOLDERS DISCLAIM ALL WARRANTIES WITH REGARD TO THIS
++        SOFTWARE, INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND
++        FITNESS, IN NO EVENT SHALL THE COPYRIGHT HOLDERS BE LIABLE FOR ANY
++        SPECIAL, INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
++        WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN
++        AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION,
++        ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
++        THIS SOFTWARE.
++    </copyright>
++
++    <interface name="gamma_control_manager" version="1">
++        <request name="destroy" type="destructor"/>
++
++        <request name="get_gamma_control">
++            <arg name="id" type="new_id" interface="wl_gamma_control"/>
++            <arg name="output" type="object" interface="wl_output"/>
++        </request>
++    </interface>
++
++	<interface name="wl_gamma_control" version="1">
++        <enum name="error">
++            <entry name="invalid_gamma" value="0"/>
++        </enum>
++
++        <request name="destroy" type="destructor"/>
++
++        <request name="set_gamma">
++            <arg name="red" type="array"/>
++            <arg name="green" type="array"/>
++            <arg name="blue" type="array"/>
++        </request>
++
++        <request name="reset_gamma"/>
++
++        <event name="gamma_size">
++            <arg name="size" type="uint"/>
++        </event>
++    </interface>
++</protocol>
++
++
+-- 
+1.9.1
+

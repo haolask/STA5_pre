@@ -1,0 +1,349 @@
+From 8ec6580691da4971195a55ab3c9781cc643fabb2 Mon Sep 17 00:00:00 2001
+From: Stephane Danieau <stephane.danieau@st.com>
+Date: Mon, 12 Mar 2018 17:37:58 +0100
+Subject: [PATCH 6/7] playbin2: add v4l2decprop property
+
+Signed-off-by: Stephane Danieau <stephane.danieau@st.com>
+
+diff --git a/gst/playback/gstdecodebin2.c b/gst/playback/gstdecodebin2.c
+index b17f124..8faafcd 100644
+--- a/gst/playback/gstdecodebin2.c
++++ b/gst/playback/gstdecodebin2.c
+@@ -187,6 +187,7 @@ struct _GstDecodeBin
+   GList *buffering_status;      /* element currently buffering messages */
+   GMutex buffering_lock;
+   GMutex buffering_post_lock;
++  GstCaps *v4l2decprop;         /* V4L2DEC preferred-caps property */
+ };
+ 
+ struct _GstDecodeBinClass
+@@ -253,6 +254,7 @@ enum
+ #define DEFAULT_MAX_SIZE_TIME     0
+ #define DEFAULT_POST_STREAM_TOPOLOGY FALSE
+ #define DEFAULT_EXPOSE_ALL_STREAMS  TRUE
++#define DEFAULT_V4L2DEC_PROPERTIES  "video/x-raw"
+ #define DEFAULT_CONNECTION_SPEED    0
+ 
+ /* Properties */
+@@ -270,13 +272,15 @@ enum
+   PROP_MAX_SIZE_TIME,
+   PROP_POST_STREAM_TOPOLOGY,
+   PROP_EXPOSE_ALL_STREAMS,
+-  PROP_CONNECTION_SPEED
++  PROP_CONNECTION_SPEED,
++  PROP_V4L2DECPROP
+ };
+ 
+ static GstBinClass *parent_class;
+ static guint gst_decode_bin_signals[LAST_SIGNAL] = { 0 };
+ 
+ static GstStaticCaps default_raw_caps = GST_STATIC_CAPS (DEFAULT_RAW_CAPS);
++static GstStaticCaps default_v4l2dec_caps = GST_STATIC_CAPS (DEFAULT_V4L2DEC_PROPERTIES);
+ 
+ static void do_async_start (GstDecodeBin * dbin);
+ static void do_async_done (GstDecodeBin * dbin);
+@@ -971,6 +975,18 @@ gst_decode_bin_class_init (GstDecodeBinClass * klass)
+           "Expose all streams, including those of unknown type or that don't match the 'caps' property",
+           DEFAULT_EXPOSE_ALL_STREAMS,
+           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
++ /**
++   * GstDecodeBin::v4l2decprop
++   *
++   * Allows to indicate video decoder post-processing properties ( format, width, height)
++   *
++   * If set, if v4l2dec decoder is selected, then these properties will be set to this element.
++   * By default, set to 'video/x-raw, width=800, height=480'
++   */
++  g_object_class_install_property (gobject_klass, PROP_V4L2DECPROP,
++      g_param_spec_boxed ("v4l2decprop", "V4L2 decoder preferred-caps property",
++          "Set preferred-caps property to v4l2dec plugin if used",
++          GST_TYPE_CAPS, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+ 
+   /**
+    * GstDecodeBin2::connection-speed
+@@ -1096,6 +1112,7 @@ gst_decode_bin_init (GstDecodeBin * decode_bin)
+ 
+   decode_bin->expose_allstreams = DEFAULT_EXPOSE_ALL_STREAMS;
+   decode_bin->connection_speed = DEFAULT_CONNECTION_SPEED;
++  decode_bin->v4l2decprop = gst_static_caps_get (&default_v4l2dec_caps);
+ }
+ 
+ static void
+@@ -1125,6 +1142,10 @@ gst_decode_bin_dispose (GObject * object)
+ 
+   unblock_pads (decode_bin);
+ 
++  if (decode_bin->v4l2decprop)
++    gst_caps_unref (decode_bin->v4l2decprop);
++  decode_bin->v4l2decprop = NULL;
++
+   G_OBJECT_CLASS (parent_class)->dispose (object);
+ }
+ 
+@@ -1285,6 +1306,11 @@ gst_decode_bin_set_property (GObject * object, guint prop_id,
+       dbin->connection_speed = g_value_get_uint64 (value) * 1000;
+       GST_OBJECT_UNLOCK (dbin);
+       break;
++    case PROP_V4L2DECPROP:
++      GST_OBJECT_LOCK (dbin);
++      gst_caps_replace (&dbin->v4l2decprop, g_value_get_boxed (value));
++      GST_OBJECT_UNLOCK (dbin);
++      break;
+     default:
+       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+       break;
+@@ -1337,6 +1363,17 @@ gst_decode_bin_get_property (GObject * object, guint prop_id,
+       g_value_set_uint64 (value, dbin->connection_speed / 1000);
+       GST_OBJECT_UNLOCK (dbin);
+       break;
++    case PROP_V4L2DECPROP:
++    {
++      GstCaps *caps = NULL;
++      GST_OBJECT_LOCK (dbin);
++      caps = dbin->v4l2decprop;
++      if (caps)
++        gst_caps_ref (caps);
++      GST_OBJECT_UNLOCK (dbin);
++      g_value_take_boxed (value, caps);
++      break;
++    }
+     default:
+       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+       break;
+@@ -2660,6 +2697,11 @@ connect_element (GstDecodeBin * dbin, GstDecodeElement * delem,
+   GST_DEBUG_OBJECT (dbin, "Attempting to connect element %s [chain:%p] further",
+       GST_ELEMENT_NAME (element), chain);
+ 
++  if (strstr (GST_ELEMENT_NAME (element), "v4l2dec")) {
++    g_object_set (G_OBJECT (element), "preferred-caps", dbin->v4l2decprop,
++        NULL);
++  }
++
+   /* 1. Loop over pad templates, grabbing existing pads along the way */
+   for (pads = GST_ELEMENT_GET_CLASS (element)->padtemplates; pads;
+       pads = g_list_next (pads)) {
+diff --git a/gst/playback/gstplaybin2.c b/gst/playback/gstplaybin2.c
+index f81b584..9721567 100644
+--- a/gst/playback/gstplaybin2.c
++++ b/gst/playback/gstplaybin2.c
+@@ -448,6 +448,7 @@ struct _GstPlayBin
+   GstElement *video_stream_combiner;    /* configured video stream combiner, or NULL */
+   GstElement *text_stream_combiner;     /* configured text stream combiner, or NULL */
+ 
++  GstCaps *v4l2decprop;         /* V4L2DEC preferred-caps property */
+   GSequence *aelements;         /* a list of GstAVElements for audio stream */
+   GSequence *velements;         /* a list of GstAVElements for video stream */
+ 
+@@ -526,6 +527,7 @@ struct _GstPlayBinClass
+ #define DEFAULT_BUFFER_DURATION   -1
+ #define DEFAULT_BUFFER_SIZE       -1
+ #define DEFAULT_RING_BUFFER_MAX_SIZE 0
++#define DEFAULT_V4L2DEC_PROPERTIES  "video/x-raw"
+ 
+ enum
+ {
+@@ -563,7 +565,8 @@ enum
+   PROP_AUDIO_FILTER,
+   PROP_VIDEO_FILTER,
+   PROP_MULTIVIEW_MODE,
+-  PROP_MULTIVIEW_FLAGS
++  PROP_MULTIVIEW_FLAGS,
++  PROP_V4L2DEC_PROP
+ };
+ 
+ /* signals */
+@@ -590,6 +593,7 @@ enum
+ 
+ static GstStaticCaps raw_audio_caps = GST_STATIC_CAPS ("audio/x-raw(ANY)");
+ static GstStaticCaps raw_video_caps = GST_STATIC_CAPS ("video/x-raw(ANY)");
++static GstStaticCaps default_v4l2dec_caps = GST_STATIC_CAPS (DEFAULT_V4L2DEC_PROPERTIES);
+ 
+ static void gst_play_bin_class_init (GstPlayBinClass * klass);
+ static void gst_play_bin_init (GstPlayBin * playbin);
+@@ -853,6 +857,10 @@ gst_play_bin_class_init (GstPlayBinClass * klass)
+       g_param_spec_object ("video-sink", "Video Sink",
+           "the video output element to use (NULL = default sink)",
+           GST_TYPE_ELEMENT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
++  g_object_class_install_property (gobject_klass, PROP_V4L2DEC_PROP,
++      g_param_spec_boxed ("v4l2decprop", "V4L2 decoder preferred-caps property",
++          "Set preferred-caps property to v4l2dec plugin if used",
++          GST_TYPE_CAPS, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+   g_object_class_install_property (gobject_klass, PROP_AUDIO_SINK,
+       g_param_spec_object ("audio-sink", "Audio Sink",
+           "the audio output element to use (NULL = default sink)",
+@@ -1568,6 +1576,7 @@ gst_play_bin_init (GstPlayBin * playbin)
+ 
+   playbin->force_aspect_ratio = TRUE;
+ 
++  playbin->v4l2decprop = gst_static_caps_get (&default_v4l2dec_caps);
+   playbin->multiview_mode = GST_VIDEO_MULTIVIEW_FRAME_PACKING_NONE;
+   playbin->multiview_flags = GST_VIDEO_MULTIVIEW_FLAGS_NONE;
+ }
+@@ -1624,6 +1633,10 @@ gst_play_bin_finalize (GObject * object)
+   if (playbin->velements)
+     g_sequence_free (playbin->velements);
+ 
++  if (playbin->v4l2decprop)
++    gst_caps_unref (playbin->v4l2decprop);
++  playbin->v4l2decprop = NULL;
++
+   g_list_free_full (playbin->contexts, (GDestroyNotify) gst_context_unref);
+ 
+   g_rec_mutex_clear (&playbin->lock);
+@@ -2495,6 +2508,10 @@ gst_play_bin_set_property (GObject * object, guint prop_id,
+       playbin->multiview_flags = g_value_get_flags (value);
+       GST_PLAY_BIN_UNLOCK (playbin);
+       break;
++    case PROP_V4L2DEC_PROP:
++      GST_PLAY_BIN_LOCK (playbin);
++      gst_caps_replace (&playbin->v4l2decprop, g_value_get_boxed (value));
++      GST_PLAY_BIN_UNLOCK (playbin);
+     default:
+       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+       break;
+@@ -2748,6 +2765,17 @@ gst_play_bin_get_property (GObject * object, guint prop_id, GValue * value,
+       g_value_set_flags (value, playbin->multiview_flags);
+       GST_OBJECT_UNLOCK (playbin);
+       break;
++    case PROP_V4L2DEC_PROP:
++    {
++      GstCaps *caps = NULL;
++      GST_PLAY_BIN_LOCK (playbin);
++      caps = playbin->v4l2decprop;
++      if (caps)
++        gst_caps_ref (caps);
++      GST_PLAY_BIN_UNLOCK (playbin);
++      g_value_take_boxed (value, caps);
++      break;
++    }
+     default:
+       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+       break;
+@@ -5269,6 +5297,8 @@ activate_group (GstPlayBin * playbin, GstSourceGroup * group, GstState target)
+       goto no_decodebin;
+     gst_bin_add (GST_BIN_CAST (playbin), uridecodebin);
+     group->uridecodebin = gst_object_ref (uridecodebin);
++    g_object_set (G_OBJECT (group->uridecodebin), "v4l2decprop",
++        playbin->v4l2decprop, NULL);
+   }
+ 
+   flags = gst_play_sink_get_flags (playbin->playsink);
+diff --git a/gst/playback/gsturidecodebin.c b/gst/playback/gsturidecodebin.c
+index 45e9251..82bb436 100644
+--- a/gst/playback/gsturidecodebin.c
++++ b/gst/playback/gsturidecodebin.c
+@@ -116,6 +116,7 @@ struct _GstURIDecodeBin
+   gboolean expose_allstreams;   /* Whether to expose unknow type streams or not */
+ 
+   guint64 ring_buffer_max_size; /* 0 means disabled */
++  GstCaps *v4l2decprop;         /* V4L2DEC preferred-caps property */
+ };
+ 
+ struct _GstURIDecodeBinClass
+@@ -182,6 +183,7 @@ enum
+ #define DEFAULT_USE_BUFFERING       FALSE
+ #define DEFAULT_EXPOSE_ALL_STREAMS  TRUE
+ #define DEFAULT_RING_BUFFER_MAX_SIZE 0
++#define DEFAULT_URI_V4L2DEC_PROPERTIES  "video/x-raw"
+ 
+ enum
+ {
+@@ -196,11 +198,13 @@ enum
+   PROP_DOWNLOAD,
+   PROP_USE_BUFFERING,
+   PROP_EXPOSE_ALL_STREAMS,
+-  PROP_RING_BUFFER_MAX_SIZE
++  PROP_RING_BUFFER_MAX_SIZE,
++  PROP_URI_V4L2DECPROP
+ };
+ 
+ static guint gst_uri_decode_bin_signals[LAST_SIGNAL] = { 0 };
+ 
++static GstStaticCaps default_v4l2dec_caps = GST_STATIC_CAPS (DEFAULT_URI_V4L2DEC_PROPERTIES);
+ GType gst_uri_decode_bin_get_type (void);
+ #define gst_uri_decode_bin_parent_class parent_class
+ G_DEFINE_TYPE (GstURIDecodeBin, gst_uri_decode_bin, GST_TYPE_BIN);
+@@ -495,6 +499,19 @@ gst_uri_decode_bin_class_init (GstURIDecodeBinClass * klass)
+           "Max. amount of data in the ring buffer (bytes, 0 = ring buffer disabled)",
+           0, G_MAXUINT, DEFAULT_RING_BUFFER_MAX_SIZE,
+           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
++ 
++  /**
++   * GstDecodeBin::v4l2decprop
++   *
++   * Allows to indicate video decoder post-processing properties ( format, width, height)
++   *
++   * If set, if v4l2dec decoder is selected, then these properties will be set to this element.
++   * By default, set to 'video/x-raw, width=800, height=480'
++   */
++  g_object_class_install_property (gobject_class, PROP_URI_V4L2DECPROP,
++      g_param_spec_boxed ("v4l2decprop", "V4L2 decoder preferred-caps property",
++          "Set preferred-caps property to v4l2dec plugin if used",
++          GST_TYPE_CAPS, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+ 
+   /**
+    * GstURIDecodeBin::unknown-type:
+@@ -731,6 +748,7 @@ gst_uri_decode_bin_init (GstURIDecodeBin * dec)
+   dec->use_buffering = DEFAULT_USE_BUFFERING;
+   dec->expose_allstreams = DEFAULT_EXPOSE_ALL_STREAMS;
+   dec->ring_buffer_max_size = DEFAULT_RING_BUFFER_MAX_SIZE;
++  dec->v4l2decprop = gst_static_caps_get (&default_v4l2dec_caps);
+ 
+   GST_OBJECT_FLAG_SET (dec, GST_ELEMENT_FLAG_SOURCE);
+   gst_bin_set_suppressed_flags (GST_BIN (dec),
+@@ -752,6 +770,9 @@ gst_uri_decode_bin_finalize (GObject * obj)
+   if (dec->caps)
+     gst_caps_unref (dec->caps);
+ 
++  if (dec->v4l2decprop)
++    gst_caps_unref (dec->v4l2decprop);
++  dec->v4l2decprop = NULL;
+   G_OBJECT_CLASS (parent_class)->finalize (obj);
+ }
+ 
+@@ -823,6 +844,11 @@ gst_uri_decode_bin_set_property (GObject * object, guint prop_id,
+     case PROP_RING_BUFFER_MAX_SIZE:
+       dec->ring_buffer_max_size = g_value_get_uint64 (value);
+       break;
++    case PROP_URI_V4L2DECPROP:
++      GST_OBJECT_LOCK (dec);
++      gst_caps_replace (&dec->v4l2decprop, g_value_get_boxed (value));
++      GST_OBJECT_UNLOCK (dec);
++      break;
+     default:
+       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+       break;
+@@ -883,6 +909,17 @@ gst_uri_decode_bin_get_property (GObject * object, guint prop_id,
+     case PROP_RING_BUFFER_MAX_SIZE:
+       g_value_set_uint64 (value, dec->ring_buffer_max_size);
+       break;
++    case PROP_URI_V4L2DECPROP:
++    {
++      GstCaps *caps = NULL;
++      GST_OBJECT_LOCK (dec);
++      caps = dec->v4l2decprop;
++      if (caps)
++        gst_caps_ref (caps);
++      GST_OBJECT_UNLOCK (dec);
++      g_value_take_boxed (value, caps);
++      break;
++    }
+     default:
+       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+       break;
+@@ -1828,9 +1865,10 @@ make_decoder (GstURIDecodeBin * decoder)
+   if (decoder->caps)
+     g_object_set (decodebin, "caps", decoder->caps, NULL);
+ 
+-  /* Propagate expose-all-streams and connection-speed properties */
++  /* Propagate expose-all-streams and connection-speed properties and v4l2dec preferred-caps */
+   g_object_set (decodebin, "expose-all-streams", decoder->expose_allstreams,
+-      "connection-speed", decoder->connection_speed / 1000, NULL);
++      "connection-speed", decoder->connection_speed / 1000, "v4l2decprop",
++      decoder->v4l2decprop, NULL);
+ 
+   if (!decoder->is_stream || decoder->is_adaptive) {
+     /* propagate the use-buffering property but only when we are not already
+-- 
+2.7.4
+

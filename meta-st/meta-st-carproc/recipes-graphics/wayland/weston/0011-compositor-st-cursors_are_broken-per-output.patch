@@ -1,0 +1,160 @@
+From 2ff805e5754368b38d86aee01c1a56d842a10ba1 Mon Sep 17 00:00:00 2001
+From: Stephane Danieau <stephane.danieau@st.com>
+Date: Wed, 7 Mar 2018 13:56:10 +0100
+Subject: [PATCH 11/37] compositor-st: cursors_are_broken per output
+
+- manage cursors_are_broken per output
+- add cursor related weston_xlog
+
+Change-Id: I2dc45614a56ba154ba70a334d46d7993d05f58ee
+---
+ libweston/compositor-st.c | 68 ++++++++++++++++++++++++++++++++++-------------
+ 1 file changed, 50 insertions(+), 18 deletions(-)
+
+diff --git a/libweston/compositor-st.c b/libweston/compositor-st.c
+index 911e03b..f790fea 100644
+--- a/libweston/compositor-st.c
++++ b/libweston/compositor-st.c
+@@ -110,7 +110,7 @@ struct drm_backend {
+ 	int sprites_are_broken;
+ 	int sprites_hidden;
+ 
+-	int cursors_are_broken;
++	int cursors_are_broken[2]; /* per output */
+ 
+ 	int use_pixman;
+ 
+@@ -1186,41 +1186,72 @@ drm_output_prepare_cursor_view(struct drm_output *output,
+ 	struct weston_buffer_viewport *viewport = &ev->surface->buffer_viewport;
+ 	struct wl_shm_buffer *shmbuf;
+ 
+-	if (b->cursors_are_broken)
++	weston_xlog("   %s: output_base->id = %d\n", __func__, output->base.id);
++
++	if (b->cursors_are_broken[output->base.id]) {
++		weston_xlog("    cursor KO: broken\n");
+ 		return NULL;
++	}
+ 
+-	if (output->cursor_view)
++	if (output->cursor_view) {
++		weston_xlog("    cursor KO: cursor_view\n");
+ 		return NULL;
++	}
+ 
+ 	/* Don't import buffers which span multiple outputs. */
+-	if (ev->output_mask != (1u << output->base.id))
++	if (ev->output_mask != (1u << output->base.id)) {
++		weston_xlog("    cursor KO: mask\n");
+ 		return NULL;
++	}
+ 
+ 	/* We use GBM to import SHM buffers. */
+-	if (b->gbm == NULL)
++	if (b->gbm == NULL) {
++		weston_xlog("    cursor KO: gbm\n");
+ 		return NULL;
++	}
+ 
+-	if (ev->surface->buffer_ref.buffer == NULL)
++	if (ev->surface->buffer_ref.buffer == NULL) {
++		weston_xlog("    cursor KO: buffer\n");
+ 		return NULL;
++	}
++
+ 	shmbuf = wl_shm_buffer_get(ev->surface->buffer_ref.buffer->resource);
+-	if (!shmbuf)
++	if (!shmbuf) {
++		weston_xlog("    cursor KO: shmbuf\n");
+ 		return NULL;
+-	if (wl_shm_buffer_get_format(shmbuf) != WL_SHM_FORMAT_ARGB8888)
++	}
++
++	if (wl_shm_buffer_get_format(shmbuf) != WL_SHM_FORMAT_ARGB8888) {
++		weston_xlog("    cursor KO: format\n");
+ 		return NULL;
++	}
+ 
+-	if (output->base.transform != WL_OUTPUT_TRANSFORM_NORMAL)
++	if (output->base.transform != WL_OUTPUT_TRANSFORM_NORMAL) {
++		weston_xlog("    cursor KO: transform\n");
+ 		return NULL;
++	}
++
+ 	if (ev->transform.enabled &&
+-	    (ev->transform.matrix.type > WESTON_MATRIX_TRANSFORM_TRANSLATE))
++	    (ev->transform.matrix.type > WESTON_MATRIX_TRANSFORM_TRANSLATE)) {
++		weston_xlog("    cursor KO: transform_translate\n");
+ 		return NULL;
+-	if (viewport->buffer.scale != output->base.current_scale)
++	}
++
++	if (viewport->buffer.scale != output->base.current_scale) {
++		weston_xlog("    cursor KO: scale\n");
+ 		return NULL;
+-	if (ev->geometry.scissor_enabled)
++	}
++
++	if (ev->geometry.scissor_enabled) {
++		weston_xlog("    cursor KO: scissor\n");
+ 		return NULL;
++	}
+ 
+ 	if (ev->surface->width > b->cursor_width ||
+-	    ev->surface->height > b->cursor_height)
++	    ev->surface->height > b->cursor_height) {
++		weston_xlog("    cursor KO: size\n");
+ 		return NULL;
++	}
+ 
+ 	output->cursor_view = ev;
+ 
+@@ -1296,7 +1327,7 @@ drm_output_set_cursor(struct drm_output *output)
+ 		if (drmModeSetCursor(b->drm.fd, output->crtc_id, handle,
+ 				b->cursor_width, b->cursor_height)) {
+ 			weston_log("failed to set cursor: %m\n");
+-			b->cursors_are_broken = 1;
++			b->cursors_are_broken[output->base.id] = 1;
+ 		}
+ 	}
+ 
+@@ -1311,7 +1342,7 @@ drm_output_set_cursor(struct drm_output *output)
+ 	if (output->cursor_plane.x != x || output->cursor_plane.y != y) {
+ 		if (drmModeMoveCursor(b->drm.fd, output->crtc_id, x, y)) {
+ 			weston_log("failed to move cursor: %m\n");
+-			b->cursors_are_broken = 1;
++			b->cursors_are_broken[output->base.id] = 1;
+ 		}
+ 
+ 		output->cursor_plane.x = x;
+@@ -1954,7 +1985,7 @@ drm_output_init_egl(struct drm_output *output, struct drm_backend *b)
+ 
+ 	if (output->gbm_cursor_bo[0] == NULL || output->gbm_cursor_bo[1] == NULL) {
+ 		weston_log("cursor buffers unavailable, using gl cursors\n");
+-		b->cursors_are_broken = 1;
++		b->cursors_are_broken[0] = 1;
+ 	}
+ 
+ 	return 0;
+@@ -3043,7 +3074,8 @@ planes_binding(struct weston_keyboard *keyboard, uint32_t time, uint32_t key,
+ 
+ 	switch (key) {
+ 	case KEY_C:
+-		b->cursors_are_broken ^= 1;
++		b->cursors_are_broken[0] ^= 1;
++		b->cursors_are_broken[1] = b->cursors_are_broken[0];
+ 		break;
+ 	case KEY_V:
+ 		b->sprites_are_broken ^= 1;
+@@ -3328,7 +3360,7 @@ drm_backend_create(struct weston_compositor *compositor,
+ 
+ 	/* A this point we have some idea of whether or not we have a working
+ 	 * cursor plane. */
+-	if (!b->cursors_are_broken)
++	if (!b->cursors_are_broken[0] || !b->cursors_are_broken[1])
+ 		compositor->capabilities |= WESTON_CAP_CURSOR_PLANE;
+ 
+ 	path = NULL;
+-- 
+1.9.1
+

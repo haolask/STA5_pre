@@ -1,0 +1,58 @@
+From 91d2b537036eb5893e7ac75cd0af3e9b3b8b56f3 Mon Sep 17 00:00:00 2001
+From: Romain PATEY <romain.patey@st.com>
+Date: Mon, 11 Feb 2019 18:03:14 +0100
+Subject: layer-add-surfaces: enhance surface-layer management
+
+This patch prevents surfaces from getting added to a new layer
+if they are already registered to an existing layer.
+
+Change-Id: I362ec7c15e44049d29b5d05af3e7883d4a87d54e
+Signed-off-by: Romain PATEY <romain.patey@st.com>
+
+diff --git a/ivi-layermanagement-examples/layer-add-surfaces/src/layer-add-surfaces.c b/ivi-layermanagement-examples/layer-add-surfaces/src/layer-add-surfaces.c
+index 4f71bf2..c04b79f 100644
+--- a/ivi-layermanagement-examples/layer-add-surfaces/src/layer-add-surfaces.c
++++ b/ivi-layermanagement-examples/layer-add-surfaces/src/layer-add-surfaces.c
+@@ -69,9 +69,41 @@ static void callbackFunction(ilmObjectType object, t_ilm_uint id, t_ilm_bool cre
+ {
+     (void)user_data;
+     struct ilmSurfaceProperties sp;
++    t_ilm_int llength, slength, i, j;
++    t_ilm_uint* layerIDs = NULL;
++    t_ilm_uint* surfaceIDs = NULL;
++    t_ilm_bool addRequired = ILM_TRUE;
+ 
+     if (object == ILM_SURFACE) {
+-        if (created) {
++        ilm_getLayerIDs(&llength, &layerIDs);
++
++        if(llength > 1) {
++            for(i=0; i < llength; i++) {
++                if(layerIDs[i] != layer) {
++                    ilm_getSurfaceIDsOnLayer(layerIDs[i], &slength, &surfaceIDs);
++                    for(j=0; j < slength; j++){
++                        if(surfaceIDs[j] == id){
++                            addRequired = ILM_FALSE;
++                            printf("surface %d is already attached to layer %d\n", id, layerIDs[i]);
++                        }
++
++                    }
++
++                    if(surfaceIDs) {
++                        free(surfaceIDs);
++                    }
++
++                }
++
++            }
++
++        }
++
++        if(layerIDs) {
++            free(layerIDs);
++        }
++
++        if (created && addRequired) {
+             if (number_of_surfaces > 0) {
+                 number_of_surfaces--;
+                 printf("layer-add-surfaces: surface (%d) created\n",id);

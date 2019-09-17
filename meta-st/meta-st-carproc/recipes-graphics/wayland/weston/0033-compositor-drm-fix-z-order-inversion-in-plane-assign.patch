@@ -1,0 +1,98 @@
+From e23b832684e31de51c9cdfbac61284d827e3241d Mon Sep 17 00:00:00 2001
+From: Stephane Danieau <stephane.danieau@st.com>
+Date: Wed, 7 Mar 2018 17:15:29 +0100
+Subject: [PATCH 33/37] compositor-drm: fix z-order inversion in plane
+ assignment
+
+As discussed in the following thread:
+
+https://lists.freedesktop.org/archives/wayland-devel/2017-August/034755.html
+
+the existing plane assignment in the DRM backend is vulnerable to
+accidental masking of the intended fullscreen surface. This change
+adds a simple stateful memory to the plane assignment algorithm
+to prevent that.
+
+Change-Id: Id1b167ee4bc537ea9dbe45a54de072f4f84946d3
+Reviewed-by: Daniel Stone <daniels@collabora.com>
+---
+ libweston/compositor-drm.c | 13 +++++++++++--
+ libweston/compositor-st.c  | 10 ++++++++--
+ 2 files changed, 19 insertions(+), 4 deletions(-)
+
+diff --git a/libweston/compositor-drm.c b/libweston/compositor-drm.c
+index 1d38f05..6fa8352 100644
+--- a/libweston/compositor-drm.c
++++ b/libweston/compositor-drm.c
+@@ -1312,6 +1312,7 @@ drm_assign_planes(struct weston_output *output_base)
+ 	struct weston_view *ev, *next;
+ 	pixman_region32_t overlap, surface_overlap;
+ 	struct weston_plane *primary, *next_plane;
++	bool picked_scanout = false;
+ 
+ 	/*
+ 	 * Find a surface for each sprite in the output using some heuristics:
+@@ -1354,12 +1355,20 @@ drm_assign_planes(struct weston_output *output_base)
+ 					  &ev->transform.boundingbox);
+ 
+ 		next_plane = NULL;
+-		if (pixman_region32_not_empty(&surface_overlap))
++		if (pixman_region32_not_empty(&surface_overlap) || picked_scanout)
+ 			next_plane = primary;
+ 		if (next_plane == NULL)
+ 			next_plane = drm_output_prepare_cursor_view(output, ev);
+-		if (next_plane == NULL)
++
++		/* If a higher-stacked view already got assigned to scanout, it's incorrect to
++		 * assign a subsequent (lower-stacked) view to scanout.
++		 */
++		if (next_plane == NULL) {
+ 			next_plane = drm_output_prepare_scanout_view(output, ev);
++			if (next_plane)
++				picked_scanout = true;
++		}
++
+ 		if (next_plane == NULL)
+ 			next_plane = drm_output_prepare_overlay_view(output, ev);
+ 		if (next_plane == NULL)
+diff --git a/libweston/compositor-st.c b/libweston/compositor-st.c
+index e7780c4..01da112 100644
+--- a/libweston/compositor-st.c
++++ b/libweston/compositor-st.c
+@@ -1603,6 +1603,7 @@ drm_assign_planes(struct weston_output *output_base)
+ 	struct weston_view *ev, *next;
+ 	pixman_region32_t overlap, surface_overlap;
+ 	struct weston_plane *primary, *next_plane;
++	bool picked_scanout = false;
+ 	int i = 0;
+ 	int zorder = ZORDER_MAX;
+ 
+@@ -1660,7 +1661,7 @@ drm_assign_planes(struct weston_output *output_base)
+ 					  &ev->transform.boundingbox);
+ 
+ 		next_plane = NULL;
+-		if (pixman_region32_not_empty(&surface_overlap)) {
++		if (pixman_region32_not_empty(&surface_overlap) || picked_scanout) {
+ 			next_plane = primary;
+ 			if (next_plane)
+ 				weston_xlog(" ...assigned to primary (cause=overlap)\n");
+@@ -1671,10 +1672,15 @@ drm_assign_planes(struct weston_output *output_base)
+ 				weston_xlog(" ...assigned to cursor\n");
+ 		}
+ 
++		/* If a higher-stacked view already got assigned to scanout, it's incorrect to
++		 * assign a subsequent (lower-stacked) view to scanout.
++		 */
+ 		if (next_plane == NULL) {
+ 			next_plane = drm_output_prepare_scanout_view(output, ev);
+-			if (next_plane)
++			if (next_plane) {
++				picked_scanout = true;
+ 				weston_xlog(" ...assigned to scanout\n");
++			}
+ 		}
+ 
+ 		if (next_plane == NULL) {
+-- 
+1.9.1
+

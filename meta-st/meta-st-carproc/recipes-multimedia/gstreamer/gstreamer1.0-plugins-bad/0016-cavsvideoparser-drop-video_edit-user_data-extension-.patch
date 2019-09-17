@@ -1,0 +1,91 @@
+From d6cec75da95958c2e87f404cc281a080f34639ee Mon Sep 17 00:00:00 2001
+From: Stephane Danieau <stephane.danieau@st.com>
+Date: Thu, 22 Sep 2016 09:36:08 +0200
+Subject: [PATCH 16/25] cavsvideoparser: drop video_edit/user_data/extension
+ frames
+
+As timestamps are not managed in this parser, other frames
+than pictures have to be dropped.
++ Update Ranking of cavsvideoparse
+
+Change-Id: I31381a44a31f57e800dad7c64b29c3d96876eb4c
+Signed-off-by: Stephane Danieau <stephane.danieau@st.com>
+Reviewed-on: https://gerrit.st.com/58210
+
+%% original patch: 0020-cavsvideoparser-drop-video_edit-user_data-extension-.patch
+
+%% original patch: 0020-cavsvideoparser-drop-video_edit-user_data-extension-.patch
+
+%% original patch: 0020-cavsvideoparser-drop-video_edit-user_data-extension-.patch
+
+diff --git a/gst/videoparsers/gstcavsvideoparse.c b/gst/videoparsers/gstcavsvideoparse.c
+index 9231958..306fa7d 100644
+--- a/gst/videoparsers/gstcavsvideoparse.c
++++ b/gst/videoparsers/gstcavsvideoparse.c
+@@ -367,8 +367,17 @@ gst_cavs_video_parse_process_unit (GstCAVSVideoParse * cavsvideoparse,
+       ret = gst_cavs_video_parse_process_sequence_header (cavsvideoparse, unit);
+       break;
+ 
+-    case GST_CAVS_VIDEO_UNIT_VIDEO_SEQUENCE_END:
+     case GST_CAVS_VIDEO_UNIT_USER_DATA:
++    case GST_CAVS_VIDEO_UNIT_EXTENSION:
++    case GST_CAVS_VIDEO_UNIT_SYSTEM:
++      if (G_UNLIKELY (!cavsvideoparse->have_seqhdr))
++        goto no_seqhdr;
++    case GST_CAVS_VIDEO_UNIT_VIDEO_EDIT:
++      GST_DEBUG_OBJECT (cavsvideoparse, "dropping %s unit", _unit_name (unit->type));
++      return FALSE;
++      break;
++
++    case GST_CAVS_VIDEO_UNIT_VIDEO_SEQUENCE_END:
+       if (G_UNLIKELY (!cavsvideoparse->have_seqhdr))
+         goto no_seqhdr;
+       break;
+@@ -386,11 +395,6 @@ gst_cavs_video_parse_process_unit (GstCAVSVideoParse * cavsvideoparse,
+       cavsvideoparse->frame_start = TRUE;
+       break;
+ 
+-    case GST_CAVS_VIDEO_UNIT_EXTENSION:
+-      if (G_UNLIKELY (!cavsvideoparse->have_seqhdr))
+-        goto no_seqhdr;
+-      break;
+-
+     case GST_CAVS_VIDEO_UNIT_PB_PICTURE:
+       if (G_UNLIKELY (!cavsvideoparse->have_seqhdr))
+         goto no_seqhdr;
+@@ -405,19 +409,11 @@ gst_cavs_video_parse_process_unit (GstCAVSVideoParse * cavsvideoparse,
+       cavsvideoparse->frame_start = TRUE;
+       break;
+ 
+-    case GST_CAVS_VIDEO_UNIT_VIDEO_EDIT:
+-      break;
+-
+     case GST_CAVS_VIDEO_UNIT_SLICE:
+       if (G_UNLIKELY (!cavsvideoparse->have_seqhdr))
+         goto no_seqhdr;
+       break;
+ 
+-    case GST_CAVS_VIDEO_UNIT_SYSTEM:
+-      GST_DEBUG_OBJECT (cavsvideoparse, "dropping system unit");
+-      return FALSE;
+-      break;
+-
+     default:
+       g_assert_not_reached ();
+       break;
+diff --git a/gst/videoparsers/plugin.c b/gst/videoparsers/plugin.c
+index b357d4f..d8bba55 100644
+--- a/gst/videoparsers/plugin.c
++++ b/gst/videoparsers/plugin.c
+@@ -57,7 +57,7 @@ plugin_init (GstPlugin * plugin)
+   ret |= gst_element_register (plugin, "vc1parse",
+       GST_RANK_NONE, GST_TYPE_VC1_PARSE);
+   ret |= gst_element_register (plugin, "cavsvideoparse",
+-      GST_RANK_NONE, GST_TYPE_CAVS_VIDEO_PARSE);
++      GST_RANK_PRIMARY, GST_TYPE_CAVS_VIDEO_PARSE);
+ 
+   return ret;
+ }
+-- 
+2.7.4
+

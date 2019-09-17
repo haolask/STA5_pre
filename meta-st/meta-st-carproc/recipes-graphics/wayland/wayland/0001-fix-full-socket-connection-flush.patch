@@ -1,0 +1,25 @@
+From 059029d41458772b46692a4dabc6c3c2e3cd1666 Mon Sep 17 00:00:00 2001
+From: Romain PATEY <romain.patey@st.com>
+Date: Thu, 24 Jan 2019 09:47:46 +0100
+Subject: connection: retry to send message if socket is full
+
+In case of heavy load, sendmsg() would return EAGAIN or EWOULDBLOCK
+as the send socket is full.
+Do not return an error in this case, but retry to send the message.
+
+Signed-off-by: Romain PATEY <romain.patey@st.com>
+
+diff --git a/src/connection.c b/src/connection.c
+index 5c3d187..4e9b7dc 100644
+--- a/src/connection.c
++++ b/src/connection.c
+@@ -299,7 +299,8 @@ wl_connection_flush(struct wl_connection *connection)
+ 		do {
+ 			len = sendmsg(connection->fd, &msg,
+ 				      MSG_NOSIGNAL | MSG_DONTWAIT);
+-		} while (len == -1 && errno == EINTR);
++		} while (len == -1 && ((errno == EINTR) ||
++				(errno == EAGAIN) || (errno == EWOULDBLOCK)));
+ 
+ 		if (len == -1)
+ 			return -1;

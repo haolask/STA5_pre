@@ -1,0 +1,72 @@
+From 538f94f658b181c95c4e98be1429f798be1b437f Mon Sep 17 00:00:00 2001
+From: Khem Raj <raj.khem@gmail.com>
+Date: Sun, 23 Aug 2015 15:50:38 -0700
+Subject: [PATCH] Fix narrowing errors found with clang
+
+clang errors out with
+
+non-constant-expression cannot be narrowed from type 'int8_t' (aka
+'signed char') to 'char' in initializer list
+
+adjust the types to fix the error
+
+string contructor expects char* and not unsigned char* so adjust the
+call
+
+Another issue is seen in constructor using bool instead of a pointer
+
+error: cannot initialize a
+      member subobject of type 'Assimp::DXFImporter::LayerInfo *' with
+      an rvalue of type 'bool'
+
+Signed-off-by: Khem Raj <raj.khem@gmail.com>
+---
+ 3rdparty/assimp/code/BlenderDNA.cpp | 6 +++---
+ 3rdparty/assimp/code/DXFLoader.cpp  | 2 +-
+ 2 files changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/3rdparty/assimp/code/BlenderDNA.cpp b/3rdparty/assimp/code/BlenderDNA.cpp
+index 75ef61f..fb6d1de 100644
+--- a/3rdparty/assimp/code/BlenderDNA.cpp
++++ b/3rdparty/assimp/code/BlenderDNA.cpp
+@@ -55,7 +55,7 @@ using namespace Assimp::Formatter;
+ 
+ #define for_each BOOST_FOREACH
+ bool match4(StreamReaderAny& stream, const char* string) {
+-    char tmp[] = {
++    int8_t tmp[] = {
+         (stream).GetI1(),
+         (stream).GetI1(),
+         (stream).GetI1(),
+@@ -343,13 +343,13 @@ void SectionParser :: Next()
+ {
+     stream.SetCurrentPos(current.start + current.size);
+ 
+-    const char tmp[] = {
++    const int8_t tmp[] = {
+         stream.GetI1(),
+         stream.GetI1(),
+         stream.GetI1(),
+         stream.GetI1()
+     };
+-    current.id = std::string(tmp,tmp[3]?4:tmp[2]?3:tmp[1]?2:1);
++    current.id = std::string((char*)tmp,tmp[3]?4:tmp[2]?3:tmp[1]?2:1);
+ 
+     current.size = stream.GetI4();
+     current.address.val = ptr64 ? stream.GetU8() : stream.GetU4();
+diff --git a/3rdparty/assimp/code/DXFLoader.cpp b/3rdparty/assimp/code/DXFLoader.cpp
+index e372d60..159e1a9 100644
+--- a/3rdparty/assimp/code/DXFLoader.cpp
++++ b/3rdparty/assimp/code/DXFLoader.cpp
+@@ -84,7 +84,7 @@ aiColor4D g_clrInvalid = aiColor4D(get_qnan(),0.f,0.f,1.f);
+ 
+ // ------------------------------------------------------------------------------------------------
+ // Constructor to be privately used by Importer
+-DXFImporter::DXFImporter() : buffer(0), groupCode(0), bRepeat(false), mDefaultLayer(false)
++DXFImporter::DXFImporter() : buffer(0), groupCode(0), bRepeat(false), mDefaultLayer(NULL)
+ {
+     memset(cursor,0,sizeof(cursor));
+ }
+-- 
+2.1.4
+

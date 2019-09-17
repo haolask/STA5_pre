@@ -1,0 +1,60 @@
+From cae3de7b716b04917e5f6ba84ebc20ad25358f2d Mon Sep 17 00:00:00 2001
+From: Christophe Priouzeau <christophe.priouzeau@linaro.org>
+Date: Thu, 7 Apr 2016 10:03:35 +0200
+Subject: [PATCH 01/25] STM: h264parse: update src caps if resolution change
+
+width & height were not part of caps renegotiation criteria,
+this is needed for decoders that don't detect caps change
+on their own.
+
+Change-Id: If8a4ea4a37322776533c31e128819b932dd3d4ea
+Signed-off-by: Hugues FRUCHET <hugues.fruchet@st.com>
+
+%% original patch: 0001-STM-h264parse-update-src-caps-if-resolution-change.patch
+
+%% original patch: 0001-STM-h264parse-update-src-caps-if-resolution-change.patch
+
+%% original patch: 0001-STM-h264parse-update-src-caps-if-resolution-change.patch
+
+%% original patch: 0001-STM-h264parse-update-src-caps-if-resolution-change.patch
+
+%% original patch: 0001-STM-h264parse-update-src-caps-if-resolution-change.patch
+
+%% original patch: 0001-STM-h264parse-update-src-caps-if-resolution-change.patch
+
+%% original patch: 0001-STM-h264parse-update-src-caps-if-resolution-change.patch
+
+%% original patch: 0001-STM-h264parse-update-src-caps-if-resolution-change.patch
+
+diff --git a/gst/videoparsers/gsth264parse.c b/gst/videoparsers/gsth264parse.c
+index 10543ea..8bb5158 100644
+--- a/gst/videoparsers/gsth264parse.c
++++ b/gst/videoparsers/gsth264parse.c
+@@ -387,6 +387,10 @@ gst_h264_parse_negotiate (GstH264Parse * h264parse, gint in_format,
+       gst_caps_unref (caps);
+       caps = NULL;
+       h264parse->can_passthrough = TRUE;
++    } else {
++      GST_DEBUG_OBJECT (h264parse, "not same caps, updating to %" GST_PTR_FORMAT, caps);
++      h264parse->update_caps = TRUE;
++      gst_h264_parse_format_from_caps (in_caps, &format, &align);
+     }
+   }
+ 
+@@ -2687,6 +2691,13 @@ gst_h264_parse_set_caps (GstBaseParse * parse, GstCaps * caps)
+         gst_h264_parse_get_string (h264parse, TRUE, format),
+         "alignment", G_TYPE_STRING,
+         gst_h264_parse_get_string (h264parse, FALSE, align), NULL);
++
++    /* include also width/height as part of negotiation to detect
++     * dynamic resolution change
++     */
++    gst_caps_set_simple (in_caps, "width", G_TYPE_INT, h264parse->width,
++        "height", G_TYPE_INT, h264parse->height, NULL);
++
+     /* negotiate with downstream, sets ->format and ->align */
+     gst_h264_parse_negotiate (h264parse, format, in_caps);
+     gst_caps_unref (in_caps);
+-- 
+2.7.4
+

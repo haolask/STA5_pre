@@ -1,0 +1,44 @@
+From bef5ad684be7a3667ffe85c11ae2fa8e95e79710 Mon Sep 17 00:00:00 2001
+From: Stephane Danieau <stephane.danieau@st.com>
+Date: Wed, 7 Mar 2018 13:57:32 +0100
+Subject: [PATCH 12/37] compositor-st: add sprite and cursor logs when they are
+ disabled/enabled
+
+User can dynamically change the sprite or cursor configuration:
+Ctrl + Shift + Space then c => disable/enable hardware cursor
+Ctrl + Shift + Space then v => disable/enable sprites
+
+Add logs to warn user of the current configuration when sprite or
+cursor are disabled.
+
+Change-Id: I4bf73e35fdabb4fafef8a9cf97ba4ef6a24c3dfc
+Signed-off-by: Vincent Abriou <vincent.abriou@st.com>
+---
+ libweston/compositor-st.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/libweston/compositor-st.c b/libweston/compositor-st.c
+index f790fea..65cfbe1 100644
+--- a/libweston/compositor-st.c
++++ b/libweston/compositor-st.c
+@@ -3076,9 +3076,17 @@ planes_binding(struct weston_keyboard *keyboard, uint32_t time, uint32_t key,
+ 	case KEY_C:
+ 		b->cursors_are_broken[0] ^= 1;
+ 		b->cursors_are_broken[1] = b->cursors_are_broken[0];
++		if (b->cursors_are_broken[0])
++			weston_log("Software cursor.\n");
++		else
++			weston_log("Hardware cursor (if available).\n");
+ 		break;
+ 	case KEY_V:
+ 		b->sprites_are_broken ^= 1;
++		if (b->sprites_are_broken)
++			weston_log("Sprites are disabled.\n");
++		else
++			weston_log("Sprites are enabled.\n");
+ 		break;
+ 	case KEY_O:
+ 		b->sprites_hidden ^= 1;
+-- 
+1.9.1
+

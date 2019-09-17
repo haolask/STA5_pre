@@ -1,0 +1,66 @@
+From c749cb549d77e8e6bd162ac1c2be2b3e729e2517 Mon Sep 17 00:00:00 2001
+From: Stephane Danieau <stephane.danieau@st.com>
+Date: Wed, 7 Mar 2018 11:47:16 +0100
+Subject: [PATCH 06/37] pixman-renderer: support SHM and DMABUF RGB/BGR 24 bits
+ pixel formats
+
+Change-Id: Ia12646971f3544e33517e994abea6a07f3ec2e6b
+Signed-off-by: Fabien Dessenne <fabien.dessenne@st.com>
+Signed-off-by: Vincent Abriou <vincent.abriou@st.com>
+---
+ libweston/pixman-renderer.c | 18 ++++++++++++++++++
+ 1 file changed, 18 insertions(+)
+
+diff --git a/libweston/pixman-renderer.c b/libweston/pixman-renderer.c
+index 76484bd..e11693b 100644
+--- a/libweston/pixman-renderer.c
++++ b/libweston/pixman-renderer.c
+@@ -636,6 +636,12 @@ pixman_renderer_attach(struct weston_surface *es, struct weston_buffer *buffer)
+ 		case WL_SHM_FORMAT_ARGB8888:
+ 			pixman_format = PIXMAN_a8r8g8b8;
+ 			break;
++		case WL_SHM_FORMAT_RGB888:
++			pixman_format = PIXMAN_r8g8b8;
++			break;
++		case WL_SHM_FORMAT_BGR888:
++			pixman_format = PIXMAN_b8g8r8;
++			break;
+ 		case WL_SHM_FORMAT_RGB565:
+ 			pixman_format = PIXMAN_r5g6b5;
+ 			break;
+@@ -668,6 +674,12 @@ pixman_renderer_attach(struct weston_surface *es, struct weston_buffer *buffer)
+ 		case DRM_FORMAT_ARGB8888:
+ 			pixman_format = PIXMAN_a8r8g8b8;
+ 			break;
++		case DRM_FORMAT_RGB888:
++			pixman_format = PIXMAN_r8g8b8;
++			break;
++		case DRM_FORMAT_BGR888:
++			pixman_format = PIXMAN_b8g8r8;
++			break;
+ 		case DRM_FORMAT_RGB565:
+ 			pixman_format = PIXMAN_r5g6b5;
+ 			break;
+@@ -818,6 +830,10 @@ get_dmabuf_size(int32_t width, int32_t height, uint32_t format)
+ 	case DRM_FORMAT_RGB565:
+ 		size *= 2;
+ 		break;
++	case DRM_FORMAT_RGB888:
++	case DRM_FORMAT_BGR888:
++		size *= 3;
++		break;
+ 	case DRM_FORMAT_XRGB8888:
+ 	case DRM_FORMAT_ARGB8888:
+ 		size *= 4;
+@@ -985,6 +1001,8 @@ pixman_renderer_init(struct weston_compositor *ec)
+ 		weston_compositor_add_debug_binding(ec, KEY_R,
+ 						    debug_binding, ec);
+ 
++	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_RGB888);
++	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_BGR888);
+ 	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_RGB565);
+ 	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_NV12);
+ 
+-- 
+1.9.1
+

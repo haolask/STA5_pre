@@ -1,0 +1,124 @@
+From dd927e78930f61da262810c414e44d7ad66b389a Mon Sep 17 00:00:00 2001
+From: Mickael Reulier <mickael.reulier@st.com>
+Date: Wed, 17 Oct 2018 15:02:11 +0200
+Subject: [PATCH] clients: weston-gamma: add negative and linear options
+
+Add option to set negative or linear gamma table for tests
+
+Change-Id: If2a308bb927ba7addbdf92f9adea9ae6f86735c7
+Buglink: https://stintbugzilla.st.com/show_bug.cgi?id=115497
+---
+ clients/gamma.c | 37 +++++++++++++++++++++++++++++--------
+ 1 file changed, 29 insertions(+), 8 deletions(-)
+
+diff --git a/clients/gamma.c b/clients/gamma.c
+index 11bddf8..a363b2e 100644
+--- a/clients/gamma.c
++++ b/clients/gamma.c
+@@ -79,7 +79,7 @@ handle_global(void *data, struct wl_registry *registry,
+ }
+ 
+ #define MAX_COMPONENT_VALUE 255
+-static int update_or_reset_gamma(struct gamma *gam, int x, int y, int reset) {
++static int update_or_reset_gamma(struct gamma *gam, int x, int y, int reset, int force_negative) {
+ 	uint i;
+ 	uint16_t *p;
+ 	int value;
+@@ -92,7 +92,7 @@ static int update_or_reset_gamma(struct gamma *gam, int x, int y, int reset) {
+ 	wl_array_init(&B);
+ 
+ 
+-	if (!reset) {
++	if (!reset && !force_negative) {
+ 		/* Apply a gamma correction depending on touch position */
+ 		if (!gam->gamma_size || !(gam->touch_max_x - gam->touch_min_x) ||
+ 				!(gam->touch_max_y - gam->touch_min_y))
+@@ -113,6 +113,8 @@ static int update_or_reset_gamma(struct gamma *gam, int x, int y, int reset) {
+ 		if (reset) {
+ 			/* Apply a linear gamma correction, i.e no gamma correction */
+ 			value = i;
++		} else if (force_negative) {
++			value = MAX_COMPONENT_VALUE - i;
+ 		} else {
+ 			value = alpha * i + beta;
+ 
+@@ -165,7 +167,9 @@ usage(int error_code)
+ 	fprintf(stderr, "Usage: weston-gamma [OPTIONS]\n\n"
+ 			"  --help\tthis help text\n"
+ 			"  --evdev=e\twhere e is touchscreen input event device (default: /dev/input/event2)\n"
+-			"  --persist\tdo not reset gamma table when leaving program (default: apply a linear gamma at exit)\n");
++			"  --persist\tdo not reset gamma table when leaving program (default: apply a linear gamma at exit)\n"
++			"  --negative\tforce a negative gamma table and exit (useful for tests)\n"
++			"  --linear\tforce a linear gamma table and exit (useful for tests)\n");
+ 
+ 	exit(error_code);
+ }
+@@ -180,7 +184,7 @@ main(int argc, char **argv)
+ 	int fd, status = EXIT_FAILURE;
+ 	char name[256] = "Unknown";
+ 	char *event_device = EVENT_DEVICE;
+-	uint persist = 0, opt_help = 0;
++	uint persist = 0, opt_help = 0, force_negative = 0, force_linear = 0;
+ 	struct input_absinfo abs;
+ 	unsigned long bits[NBITS(KEY_MAX)];
+ 
+@@ -188,6 +192,8 @@ main(int argc, char **argv)
+ 		{WESTON_OPTION_BOOLEAN, "help", 'h', &opt_help },
+ 		{WESTON_OPTION_STRING, "evdev", 'e', &event_device},
+ 		{WESTON_OPTION_BOOLEAN, "persist", 'p', &persist},
++		{WESTON_OPTION_BOOLEAN, "negative", 'n', &force_negative},
++		{WESTON_OPTION_BOOLEAN, "linear", 'l', &force_linear},
+ 	};
+ 
+ 	parse_options(core_options, ARRAY_LENGTH(core_options), &argc, argv);
+@@ -286,6 +292,20 @@ main(int argc, char **argv)
+ 		goto err_gamma_control_destroy;
+ 	}
+ 
++	if (force_negative) {
++		if(update_or_reset_gamma(gam, 0, 0, 0, force_negative) < 0)
++			goto err_gamma_control_destroy;
++		else
++			goto exit;
++	}
++
++	if (force_linear) {
++		if(update_or_reset_gamma(gam, 0, 0, 1, 0) < 0)
++			goto err_gamma_control_destroy;
++		else
++			goto exit;
++	}
++
+ 	while (running) {
+ 		const size_t ev_size = sizeof(struct input_event);
+ 		size_t size;
+@@ -303,7 +323,7 @@ main(int argc, char **argv)
+ 			/*DEBUG fprintf(stderr, "X=%d, Y=%d\n", x, y); */
+ 			/* Don't update if same as previous touch x,y */
+ 			if ( (prev_x != x) || (prev_y != y)) {
+-				if(update_or_reset_gamma(gam, x, y, 0) < 0)
++				if(update_or_reset_gamma(gam, x, y, 0, 0) < 0)
+ 					goto err_gamma_control_destroy;
+ 				prev_x = x;
+ 				prev_y = y;
+@@ -311,13 +331,14 @@ main(int argc, char **argv)
+ 		}
+ 	}
+ 
+-	fprintf(stderr, " Stopping gamma\n");
+-
+ 	if(!persist) {
+-		if(update_or_reset_gamma(gam, 0, 0, 1) < 0)
++		if(update_or_reset_gamma(gam, 0, 0, 1, 0) < 0)
+ 			goto err_gamma_control_destroy;
+ 	}
+ 
++exit:
++	fprintf(stderr, " Stopping gamma\n");
++
+ 	wl_display_roundtrip(gam->display);
+ 
+ 	usleep(1000*1000);
+-- 
+1.9.1
+

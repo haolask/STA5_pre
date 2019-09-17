@@ -1,0 +1,6 @@
+#!/bin/bash
+
+# You can track calls to the Secondary toolchain here
+#echo "`date`: " "$@" >> /tmp/bare-maetal-toolchain.log
+
+exec "$@"

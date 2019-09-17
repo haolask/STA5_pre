@@ -1,0 +1,187 @@
+From e4b778e61b99034532a0b6cf0075f6f7572df9c9 Mon Sep 17 00:00:00 2001
+From: Romain PATEY <romain.patey@st.com>
+Date: Wed, 13 Feb 2019 11:19:39 +0100
+Subject: waylandsink: ensure ivi_surface is created before destroying it
+
+Only implemented for ivi_application for the moment.
+In case of stress test, a destroy request could be done before the
+whole surface creation mechanism is finished.
+It would cause surface display issues.
+
+Also harmonize desktop/ivi surfaces creation functions.
+
+Change-Id: I768c740c422dbc10a1a20585352d5b3af97a4a1d
+Signed-off-by: Romain PATEY <romain.patey@st.com>
+
+diff --git a/ext/wayland/gstwaylandsink.c b/ext/wayland/gstwaylandsink.c
+index 5a61827..36a1c45 100644
+--- a/ext/wayland/gstwaylandsink.c
++++ b/ext/wayland/gstwaylandsink.c
+@@ -975,8 +975,20 @@ render:
+ 
+   if (buffer != to_render)
+     gst_buffer_unref (to_render);
++
++  if (!gst_wl_window_surface_created(sink->window))
++    goto no_window;
++
+   goto done;
+ 
++no_window:
++  {
++    GST_ELEMENT_ERROR (sink, RESOURCE, WRITE,
++        ("Window has not been created in time"),
++        ("Make sure there are no Weston/Wayland issues, and they have enough resources"));
++    ret = GST_FLOW_ERROR;
++    goto done;
++  }
+ no_window_size:
+   {
+     GST_ELEMENT_ERROR (sink, RESOURCE, WRITE,
+diff --git a/ext/wayland/wlwindow.c b/ext/wayland/wlwindow.c
+index a893cd8..0d02ee4 100644
+--- a/ext/wayland/wlwindow.c
++++ b/ext/wayland/wlwindow.c
+@@ -31,6 +31,9 @@
+ GST_DEBUG_CATEGORY_EXTERN (gstwayland_debug);
+ #define GST_CAT_DEFAULT gstwayland_debug
+ 
++#define SURFACE_CREATION_TRIES 3
++#define SURFACE_CREATION_TIMEOUT_MS 180
++
+ G_DEFINE_TYPE (GstWlWindow, gst_wl_window, G_TYPE_OBJECT);
+ 
+ static void gst_wl_window_finalize (GObject * gobject);
+@@ -86,13 +89,18 @@ gst_wl_window_finalize (GObject * gobject)
+ {
+   GstWlWindow *self = GST_WL_WINDOW (gobject);
+ 
+-  if (self->shell_surface)
+-    wl_shell_surface_destroy (self->shell_surface);
+-
++  if (self->shell_surface) {
++    wl_shell_surface_destroy(self->shell_surface);
++    self->shell_surface = NULL;
++  }
+   if (self->ivi_surface) {
+     ivi_surface_destroy (self->ivi_surface);
++    self->ivi_surface = NULL;
+   }
+ 
++  g_mutex_clear(&(self->surface_created_mutex));
++  g_cond_clear(&(self->surface_created_cond));
++
+   if (self->video_viewport)
+     wp_viewport_destroy (self->video_viewport);
+ 
+@@ -153,6 +161,11 @@ gst_wl_window_new_internal (GstWlDisplay * display, GMutex * render_lock)
+   wl_surface_set_input_region (window->video_surface, region);
+   wl_region_destroy (region);
+ 
++  window->b_surface_created = FALSE;
++  /* mutex used to wait for surface creation */
++  g_mutex_init(&(window->surface_created_mutex));
++  g_cond_init(&(window->surface_created_cond));
++
+   return window;
+ }
+ 
+@@ -161,6 +174,12 @@ handle_configure_ivi (void *data, struct ivi_surface *ivi_surface,
+     int32_t width, int32_t height)
+ {
+   GstWlWindow *window = data;
++  GST_DEBUG("got configuration event!");
++  /* We are sure surface has been created */
++  g_mutex_lock(&(window->surface_created_mutex));
++  window->b_surface_created = TRUE;
++  g_cond_signal(&(window->surface_created_cond));
++  g_mutex_unlock(&(window->surface_created_mutex));
+ 
+   window->video_width = width;
+   window->video_height = height;
+@@ -198,10 +217,54 @@ create_desktop_surface (GstWlWindow * window, GstWlDisplay * display)
+       window->area_surface);
+ 
+   if (window->shell_surface) {
++    /* Surface creation check is not implemented in desktop yet,
++     * let set it as created */
++    g_mutex_lock(&(window->surface_created_mutex));
++    window->b_surface_created = TRUE;
++    g_mutex_unlock(&(window->surface_created_mutex));
++
+     wl_shell_surface_add_listener (window->shell_surface,
+         &shell_surface_listener, window);
+     wl_shell_surface_set_toplevel (window->shell_surface);
+   }
++  else
++    GST_ERROR("issue creating surface\n");
++}
++
++gboolean
++gst_wl_window_surface_created (GstWlWindow* window)
++{
++  gboolean l_ret;
++  int ii;
++  gint64 surface_creation_timeout;
++
++  g_mutex_lock(&(window->surface_created_mutex));
++  if (!(window->b_surface_created)) {
++    for (ii = 1; ii <= SURFACE_CREATION_TRIES; ii++) {
++      g_mutex_unlock(&(window->surface_created_mutex));
++      /* Ensure that request is well sent to Wayland server. Future
++       * implementation would not need this as it is be done in display thread*/
++      wl_display_dispatch_pending(window->display->display);
++      g_mutex_lock(&(window->surface_created_mutex));
++      surface_creation_timeout = g_get_monotonic_time() + (SURFACE_CREATION_TIMEOUT_MS / SURFACE_CREATION_TRIES) * G_TIME_SPAN_MILLISECOND;
++      if (!g_cond_wait_until(&(window->surface_created_cond),
++                             &(window->surface_created_mutex),
++                             surface_creation_timeout)) {
++        GST_ERROR("surface not created, even after %ums",
++          ((SURFACE_CREATION_TIMEOUT_MS/SURFACE_CREATION_TRIES) * ii));
++      }
++      else
++      {
++        window->b_surface_created = TRUE;
++        break;
++      }
++    }
++  }
++
++  l_ret = window->b_surface_created;
++  g_mutex_unlock(&(window->surface_created_mutex));
++
++  return l_ret;
+ }
+ 
+ GstWlWindow *
+@@ -219,7 +282,7 @@ gst_wl_window_new_toplevel (GstWlDisplay * display, const GstVideoInfo * info,
+   else if (display->shell)
+     create_desktop_surface (window, display);
+   else {
+-    GST_ERROR ("Unable to get surface");
++    GST_ERROR ("Unable to determinate surface type");
+     g_object_unref (window);
+     return NULL;
+   }
+diff --git a/ext/wayland/wlwindow.h b/ext/wayland/wlwindow.h
+index e41cfa1..0c504a4 100644
+--- a/ext/wayland/wlwindow.h
++++ b/ext/wayland/wlwindow.h
+@@ -50,6 +50,9 @@ struct _GstWlWindow
+   struct wp_viewport *video_viewport;
+   struct wl_shell_surface *shell_surface;
+   struct ivi_surface *ivi_surface;
++  GMutex surface_created_mutex;
++  GCond surface_created_cond;
++  gboolean b_surface_created;
+ 
+   /* the size and position of the area_(sub)surface */
+   GstVideoRectangle render_rectangle;
+@@ -86,6 +89,7 @@ void gst_wl_window_render (GstWlWindow * window, GstWlBuffer * buffer,
+         const GstVideoInfo * info, guint width, guint height);
+ void gst_wl_window_set_render_rectangle (GstWlWindow * window, gint x, gint y,
+         gint w, gint h);
++gboolean gst_wl_window_surface_created (GstWlWindow* window);
+ 
+ G_END_DECLS
+ 

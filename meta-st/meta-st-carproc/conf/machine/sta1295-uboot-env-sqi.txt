@@ -1,0 +1,17 @@
+#
+# U-boot environment variables for Accordo full SQI EVB boards
+#
+console=console=tty0 consoleblank=0 console=ttyAMA2,115200n8
+loadaddr=A0000000
+loadzaddr=A1000000
+mtdids=nor1=50200000.sqi
+fdt_high=FFFFFFFF
+kernel_sz=800000
+sqiload=sf probe; sf read ${loadzaddr} AP_OS ${kernel_sz}
+sqiboot=echo Booting from SQI...; run sqiargs; bootm ${loadzaddr}
+serial#=01010101
+
+# Boot command and args
+commonargs=rw rootwait earlyprintk quiet systemd.gpt_auto=0
+sqiargs=setenv bootargs ${console} ${mtdparts} ubi.mtd=UBI root=ubi0:rootfs rootfstype=ubifs ${commonargs} coherent_pool=4M
+bootcmd=run sqiload sqiboot

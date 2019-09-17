@@ -1,0 +1,42 @@
+SECONDARY TOOLCHAIN USE
+=======================
+
+The secondary toolchain can be used project wide or limited to receipes.
+
+Only receipe application has been tested today.
+
+To activate the toolchain for a particular receipe, add this to the .bb file:
+TOOLCHAIN_pn-<receipe> = 'bare-metal'
+
+Usual variables used for compilation will be overrided with secondary toolchain.
+
+
+-----------------
+
+The wrapper is done in conf/tc-bare-metal.conf file.
+Some variable are resetted to avoid side effect:
+
+	HOST_CC_ARCH_toolchain-bare-metal = ""
+	HOST_LD_ARCH_toolchain-bare-metal = ""
+	HOST_AS_ARCH_toolchain-bare-metal = ""
+	TOOLCHAIN_OPTIONS_toolchain-bare-metal = ""
+
+	CC_toolchain-bare-metal  = "bare-metal-toolchain ${CCACHE}${HOST_PREFIX}gcc ${HOST_CC_ARCH}${TOOLCHAIN_OPTIONS}"
+	CXX_toolchain-bare-metal = "bare-metal-toolchain ${CCACHE}${HOST_PREFIX}g++ ${HOST_CC_ARCH}${TOOLCHAIN_OPTIONS}"
+	CPP_toolchain-bare-metal = "bare-metal-toolchain ${CCACHE}${HOST_PREFIX}gcc -E${TOOLCHAIN_OPTIONS} ${HOST_CC_ARCH}"
+	LD_toolchain-bare-metal  = "bare-metal-toolchain ${HOST_PREFIX}gcc${TOOLCHAIN_OPTIONS} ${HOST_LD_ARCH}"
+	AS_toolchain-bare-metal  = "bare-metal-toolchain ${HOST_PREFIX}gcc ${HOST_AS_ARCH}"
+	RANLIB_toolchain-bare-metal  = "bare-metal-toolchain ${HOST_PREFIX}ranlib"
+	AR_toolchain-bare-metal  = "bare-metal-toolchain ${HOST_PREFIX}ar"
+	OBJCOPY_toolchain-bare-metal = "bare-metal-toolchain ${HOST_PREFIX}objcopy"
+	OBJDUMP_toolchain-bare-metal = "bare-metal-toolchain ${HOST_PREFIX}objdump"
+	NM_toolchain-bare-metal = "bare-metal-toolchain ${HOST_PREFIX}nm"
+	STRIP_toolchain-bare-metal = "bare-metal-toolchain ${HOST_PREFIX}strip"
+	SIZE_toolchain-bare-metal = "bare-metal-toolchain ${HOST_PREFIX}size"
+
+
+Note: SIZE  variable is not managed by Yocto.
+	  If you want to use it, please use the full name "SIZE_toolchain-bare-metal"
+
+
+More information available here: http://www.openembedded.org/wiki/Adding_a_secondary_toolchain

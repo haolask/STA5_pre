@@ -1,0 +1,43 @@
+From 9529f012a1cfdae36aedeab8ccd790c875ae7f73 Mon Sep 17 00:00:00 2001
+From: Peter Kjellerstedt <pkj@axis.com>
+Date: Sat, 16 Sep 2017 15:09:23 +0200
+Subject: [PATCH 1/2] Make it compile with GCC 7
+
+This avoids the following errors:
+
+  src/readelf.c: In function 'register_info':
+  src/readelf.c:4481:30: warning: 'sizeof' on array function parameter
+  'name' will return size of 'char *' [-Wsizeof-array-argument]
+         snprintf (name, sizeof name, "reg%u", loc->regno);
+                                ^~~~
+  src/readelf.c:4472:14: note: declared here
+           char name[REGNAMESZ], int *bits, int *type)
+                ^~~~
+  rc/readelf.c:4481:30: warning: argument to 'sizeof' in 'snprintf' call
+  is the same expression as the destination; did you mean to provide an
+  explicit length? [-Wsizeof-pointer-memaccess]
+         snprintf (name, sizeof name, "reg%u", loc->regno);
+                                ^~~~
+
+Upstream-Status: Inappropriate [legacy version]
+Signed-off-by: Peter Kjellerstedt <peter.kjellerstedt@axis.com>
+---
+ src/readelf.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/readelf.c b/src/readelf.c
+index bf622a6..ba0607b 100644
+--- a/src/readelf.c
++++ b/src/readelf.c
+@@ -4478,7 +4478,7 @@ register_info (Ebl *ebl, unsigned int regno, const Ebl_Register_Location *loc,
+ 				 bits ?: &ignore, type ?: &ignore);
+   if (n <= 0)
+     {
+-      snprintf (name, sizeof name, "reg%u", loc->regno);
++      snprintf (name, REGNAMESZ, "reg%u", loc->regno);
+       if (bits != NULL)
+ 	*bits = loc->bits;
+       if (type != NULL)
+-- 
+2.12.0
+

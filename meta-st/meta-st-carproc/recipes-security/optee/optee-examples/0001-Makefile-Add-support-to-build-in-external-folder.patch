@@ -1,0 +1,26 @@
+From 75652e8e1eb59b888eecc102365a6cd9a289e61c Mon Sep 17 00:00:00 2001
+From: Baptiste Chauloux <baptiste.chauloux@st.com>
+Date: Mon, 23 Apr 2018 17:29:37 +0200
+Subject: [PATCH] Makefile: Add support to build in external folder
+
+Signed-off-by: Baptiste Chauloux <baptiste.chauloux@st.com>
+---
+ Makefile | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/Makefile b/Makefile
+index f870a61..9854db9 100644
+--- a/Makefile
++++ b/Makefile
+@@ -1,6 +1,8 @@
+ export V ?= 0
+ 
++ifeq ($(OUTPUT_DIR),y)
+ OUTPUT_DIR := $(CURDIR)/out
++endif
+ 
+ EXAMPLE_LIST := $(subst /,,$(dir $(wildcard */Makefile)))
+ 
+-- 
+2.7.4
+

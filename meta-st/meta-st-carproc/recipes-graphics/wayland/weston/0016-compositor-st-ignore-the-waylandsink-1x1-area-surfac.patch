@@ -1,0 +1,37 @@
+From eb568ccc63a1f5a8b4ecfe7170048aaae59c9a26 Mon Sep 17 00:00:00 2001
+From: Stephane Danieau <stephane.danieau@st.com>
+Date: Wed, 7 Mar 2018 14:33:58 +0100
+Subject: [PATCH 16/37] compositor-st: ignore the waylandsink 1x1 area surface
+
+From the GStreamer 1.6 version, waylandsink embeds the video surface
+inside a virtual black area surface (which is a 1x1 buffer scaled to the
+video size).
+Ignore this surface as it shall neither be displayed nor be considered
+during the plane assignment algorithm (overlap issue)
+
+Change-Id: I6a9e5cb5ac9eb7023ec0ff1be4556ba78ac387b8
+Signed-off-by: Fabien Dessenne <fabien.dessenne@st.com>
+---
+ libweston/compositor-st.c | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/libweston/compositor-st.c b/libweston/compositor-st.c
+index 8e6154b..7c19b4b 100644
+--- a/libweston/compositor-st.c
++++ b/libweston/compositor-st.c
+@@ -1516,6 +1516,12 @@ drm_assign_planes(struct weston_output *output_base)
+ 				ev->surface->width, ev->surface->height);
+ 		i++;
+ 
++		/* Ignore the ugly waylandsink 1x1 "area surface" */
++		if (ev->surface->width_from_buffer == 1) {
++			weston_xlog(" ...surface is ignored (1x1)\n");
++			continue;
++		}
++
+ 		/* Test whether this buffer can ever go into a plane:
+ 		 * non-shm, or small enough to be a cursor or dmabuf.
+ 		 *
+-- 
+1.9.1
+

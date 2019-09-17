@@ -1,0 +1,30 @@
+From 91d42ef48f246a02ea7df6102130e332929a3bcf Mon Sep 17 00:00:00 2001
+From: Stephane Danieau <stephane.danieau@st.com>
+Date: Wed, 7 Mar 2018 17:22:14 +0100
+Subject: [PATCH 36/37] compositor-st: Add support for YUV Full color range
+
+Update DRM framebuffer flag with corresponding DRM_MODE_FB_YFCR
+flag
+
+Change-Id: Ib3e6fcaf0e60b068dcd105c162d70842ae50087c
+---
+ libweston/compositor-st.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/libweston/compositor-st.c b/libweston/compositor-st.c
+index bd94f65..90e781a 100644
+--- a/libweston/compositor-st.c
++++ b/libweston/compositor-st.c
+@@ -599,6 +599,9 @@ drm_fb_get_from_dmabuf(struct linux_dmabuf_buffer *dmabuf_buffer,
+ 	if (dmabuf_buffer->attributes.flags & ZWP_LINUX_BUFFER_PARAMS_V1_FLAGS_BOTTOM_FIRST)
+ 		fb->flags |= DRM_MODE_FB_BFF;
+ 
++	if (dmabuf_buffer->attributes.flags & ZWP_LINUX_BUFFER_PARAMS_V1_FLAGS_YUV_FULL_COLOR_RANGE)
++		fb->flags |= DRM_MODE_FB_YFCR;
++
+ 	ret = drmModeAddFB2(backend->drm.fd, width, height,
+ 			format, handles, pitches, offsets,
+ 			&fb->fb_id, fb->flags);
+-- 
+1.9.1
+

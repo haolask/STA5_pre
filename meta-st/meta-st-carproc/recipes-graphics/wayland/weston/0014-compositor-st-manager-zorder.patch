@@ -1,0 +1,123 @@
+From 8ba06fb97b9b136ee10a140e144a26076ed24bc8 Mon Sep 17 00:00:00 2001
+From: Stephane Danieau <stephane.danieau@st.com>
+Date: Wed, 7 Mar 2018 14:24:37 +0100
+Subject: [PATCH 14/37] compositor-st: manager zorder
+
+Call drmModeObjectSetProperty in order to set plane zorder
+
+Change-Id: Idbd40d02264ed9675d8879db1a6ee0517510b7b7
+Signed-off-by: Fabien Dessenne <fabien.dessenne@st.com>
+---
+ libweston/compositor-st.c | 40 +++++++++++++++++++++++++++++++++++++---
+ 1 file changed, 37 insertions(+), 3 deletions(-)
+
+diff --git a/libweston/compositor-st.c b/libweston/compositor-st.c
+index 264dd90..a14a625 100644
+--- a/libweston/compositor-st.c
++++ b/libweston/compositor-st.c
+@@ -79,6 +79,9 @@
+ #define GBM_BO_USE_CURSOR GBM_BO_USE_CURSOR_64X64
+ #endif
+ 
++#define ZORDER_PROP_NAME	"zpos"
++#define ZORDER_MAX		6
++
+ struct drm_backend {
+ 	struct weston_backend base;
+ 	struct weston_compositor *compositor;
+@@ -201,6 +204,8 @@ struct drm_sprite {
+ 	uint32_t possible_crtcs;
+ 	uint32_t plane_id;
+ 	uint32_t count_formats;
++	uint32_t zorder;
++	uint32_t zpos_prop_id;
+ 
+ 	int32_t src_x, src_y;
+ 	uint32_t src_w, src_h;
+@@ -840,6 +845,7 @@ drm_output_repaint(struct weston_output *output_base,
+ 		weston_xlog(" refresh the sprite=%p crtc_id=%d plane_id=%d possible_crtcs=%d fb_id=%d\n",
+ 				s, output->crtc_id, s->plane_id, s->possible_crtcs, fb_id);
+ 
++		drmModeObjectSetProperty (backend->drm.fd, s->plane_id, DRM_MODE_OBJECT_PLANE, s->zpos_prop_id, s->zorder);
+ 		ret = drmModeSetPlane(backend->drm.fd, s->plane_id,
+ 				      output->crtc_id, fb_id, flags,
+ 				      s->dest_x, s->dest_y,
+@@ -1068,7 +1074,7 @@ drm_view_transform_supported(struct weston_view *ev)
+ 
+ static struct weston_plane *
+ drm_output_prepare_overlay_view(struct drm_output *output,
+-				struct weston_view *ev)
++				struct weston_view *ev, int zorder)
+ {
+ 	struct weston_compositor *ec = output->base.compositor;
+ 	struct drm_backend *b = to_drm_backend(ec);
+@@ -1207,6 +1213,8 @@ drm_output_prepare_overlay_view(struct drm_output *output,
+ 	s->plane.x = box->x1;
+ 	s->plane.y = box->y1;
+ 
++	s->zorder = zorder;
++
+ 	/*
+ 	 * Calculate the source & dest rects properly based on actual
+ 	 * position (note the caller has called weston_view_update_transform()
+@@ -1452,6 +1460,7 @@ drm_assign_planes(struct weston_output *output_base)
+ 	pixman_region32_t overlap, surface_overlap;
+ 	struct weston_plane *primary, *next_plane;
+ 	int i = 0;
++	int zorder = ZORDER_MAX;
+ 
+ 	weston_xlog("%s: output=%p\n", __func__, output);
+ 
+@@ -1519,7 +1528,7 @@ drm_assign_planes(struct weston_output *output_base)
+ 		}
+ 
+ 		if (next_plane == NULL) {
+-			next_plane = drm_output_prepare_overlay_view(output, ev);
++			next_plane = drm_output_prepare_overlay_view(output, ev, zorder--);
+ 			if (next_plane)
+ 				weston_xlog(" ...assigned to overlay\n");
+ 		}
+@@ -2799,7 +2808,9 @@ create_sprites(struct drm_backend *b)
+ 	struct drm_sprite *sprite;
+ 	drmModePlaneRes *plane_res;
+ 	drmModePlane *plane;
+-	uint32_t i;
++	drmModeObjectPropertiesPtr properties = NULL;
++	drmModePropertyPtr property = NULL;
++	uint32_t i, j;
+ 
+ 	plane_res = drmModeGetPlaneResources(b->drm.fd);
+ 	if (!plane_res) {
+@@ -2835,6 +2846,29 @@ create_sprites(struct drm_backend *b)
+ 		weston_compositor_stack_plane(b->compositor, &sprite->plane,
+ 					      &b->compositor->primary_plane);
+ 
++		properties = drmModeObjectGetProperties (b->drm.fd, sprite->plane_id, DRM_MODE_OBJECT_PLANE);
++
++		if (properties) {
++			for (j = 0; j < properties->count_props; ++j) {
++				property = drmModeGetProperty (b->drm.fd, properties->props[j]);
++				if (!property)
++					continue;
++				if (strcmp (property->name, ZORDER_PROP_NAME) == 0)
++					break;
++				drmModeFreeProperty (property);
++			}
++
++			if (j < properties->count_props) {
++				sprite->zpos_prop_id = property->prop_id;
++				drmModeFreeProperty (property);
++			} else {
++				weston_log("ERROR : failed to get zorder property id\n");
++			}
++			drmModeFreeObjectProperties (properties);
++		} else {
++			weston_log("ERROR : failed to get zorder property id\n");
++		}
++
+ 		wl_list_insert(&b->sprite_list, &sprite->link);
+ 	}
+ 
+-- 
+1.9.1
+

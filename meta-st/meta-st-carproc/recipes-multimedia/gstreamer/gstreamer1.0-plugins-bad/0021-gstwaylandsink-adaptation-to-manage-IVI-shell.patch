@@ -1,0 +1,239 @@
+From b5a0afcc01036d26306f9b8c2933db5791d889a3 Mon Sep 17 00:00:00 2001
+From: Stephane Danieau <stephane.danieau@st.com>
+Date: Tue, 13 Mar 2018 15:24:34 +0100
+Subject: [PATCH 21/25] gstwaylandsink : adaptation to manage IVI shell
+
+        Change-Id: Iec2ea8dbdd3c6c5d376a92bb3e5873b24a0b4df0
+        Signed-off-by: Stephane Danieau <stephane.danieau@st.com>
+        Reviewed-on: https://gerrit.st.com/86720
+        Reviewed-by: CITOOLS <smet-aci-reviews@lists.codex.cro.st.com>
+
+diff --git a/ext/wayland/Makefile.am b/ext/wayland/Makefile.am
+index c60bab6..255856e 100644
+--- a/ext/wayland/Makefile.am
++++ b/ext/wayland/Makefile.am
+@@ -4,7 +4,9 @@ BUILT_SOURCES = \
+ 	viewporter-protocol.c \
+ 	viewporter-client-protocol.h \
+ 	linux-dmabuf-unstable-v1-protocol.c \
+-	linux-dmabuf-unstable-v1-client-protocol.h
++	linux-dmabuf-unstable-v1-client-protocol.h \
++	ivi-application-protocol.c \
++	ivi-application-client-protocol.h
+ 
+ libgstwaylandsink_la_SOURCES =  \
+ 	gstwaylandsink.c \
+@@ -18,7 +20,8 @@ libgstwaylandsink_la_SOURCES =  \
+ 
+ nodist_libgstwaylandsink_la_SOURCES = \
+ 	viewporter-protocol.c \
+-	linux-dmabuf-unstable-v1-protocol.c
++	linux-dmabuf-unstable-v1-protocol.c \
++	ivi-application-protocol.c
+ 
+ libgstwaylandsink_la_CFLAGS = \
+ 	$(GST_PLUGINS_BAD_CFLAGS) \
+diff --git a/ext/wayland/gstwaylandsink.c b/ext/wayland/gstwaylandsink.c
+index 11ae338..aed1827 100644
+--- a/ext/wayland/gstwaylandsink.c
++++ b/ext/wayland/gstwaylandsink.c
+@@ -764,10 +764,12 @@ render_last_buffer (GstWaylandSink * sink)
+       G_UNLIKELY (!sink->window->set_size_done)) {
+     /* "_set_fullscreen" this only makes the area_surface in fullscreen, the
+      * video_surface needs then to be scaled */
+-    wl_shell_surface_set_fullscreen (sink->window->shell_surface,
+-        WL_SHELL_SURFACE_FULLSCREEN_METHOD_DEFAULT, 0, NULL);
+-    width = sink->display->output_width;
+-    height = sink->display->output_height;
++    if (sink->window->shell_surface) {
++      wl_shell_surface_set_fullscreen (sink->window->shell_surface,
++          WL_SHELL_SURFACE_FULLSCREEN_METHOD_DEFAULT, 0, NULL);
++      width = sink->display->output_width;
++      height = sink->display->output_height;
++    }
+   }
+ 
+   if (G_UNLIKELY (sink->window_width) &&
+diff --git a/ext/wayland/wldisplay.c b/ext/wayland/wldisplay.c
+index 1a2210c..d724bbc 100644
+--- a/ext/wayland/wldisplay.c
++++ b/ext/wayland/wldisplay.c
+@@ -93,6 +93,9 @@ gst_wl_display_finalize (GObject * gobject)
+   if (self->shell)
+     wl_shell_destroy (self->shell);
+ 
++  if (self->ivi_application)
++    ivi_application_destroy (self->ivi_application);
++
+   if (self->compositor)
+     wl_compositor_destroy (self->compositor);
+ 
+@@ -266,7 +269,10 @@ registry_handle_global (void *data, struct wl_registry *registry,
+   } else if ((g_strcmp0 (interface, "wl_output") == 0) && !self->output) {
+     self->output = wl_registry_bind (registry, id, &wl_output_interface, 1);
+     wl_output_add_listener (self->output, &output_listener, self);
+-  }
++  } else if (g_strcmp0 (interface, "ivi_application") == 0) {
++    self->ivi_application =
++        wl_registry_bind (registry, id, &ivi_application_interface, 1);
++   }
+ 
+ }
+ 
+@@ -369,9 +375,18 @@ gst_wl_display_new_existing (struct wl_display * display,
+ 
+   VERIFY_INTERFACE_EXISTS (compositor, "wl_compositor");
+   VERIFY_INTERFACE_EXISTS (subcompositor, "wl_subcompositor");
+-  VERIFY_INTERFACE_EXISTS (shell, "wl_shell");
+   VERIFY_INTERFACE_EXISTS (shm, "wl_shm");
+-  VERIFY_INTERFACE_EXISTS (output, "wl_output");
++  VERIFY_INTERFACE_EXISTS (output, "wl_output");  
++  if (!self->shell) {
++    if (!self->ivi_application) {
++      g_set_error (error, g_quark_from_static_string ("GstWlDisplay"), 0,
++          "Could not bind to neither 'wl_shell' nor 'ivi_application'"
++          ". Either it is not implemented in "
++          "the compositor, or the implemented version doesn't match");
++      g_object_unref (self);
++      return NULL;
++    }
++  }
+ 
+ #undef VERIFY_INTERFACE_EXISTS
+ 
+diff --git a/ext/wayland/wldisplay.h b/ext/wayland/wldisplay.h
+index a982fb8..ebdc390 100644
+--- a/ext/wayland/wldisplay.h
++++ b/ext/wayland/wldisplay.h
+@@ -26,6 +26,7 @@
+ #include <wayland-client.h>
+ #include "viewporter-client-protocol.h"
+ #include "linux-dmabuf-unstable-v1-client-protocol.h"
++#include "ivi-application-client-protocol.h"
+ 
+ #include "gst/allocators/gstdmabuf.h"
+ 
+@@ -52,6 +53,7 @@ struct _GstWlDisplay
+   struct wl_compositor *compositor;
+   struct wl_subcompositor *subcompositor;
+   struct wl_shell *shell;
++  struct ivi_application *ivi_application;
+   struct wl_shm *shm;
+   struct wp_viewporter *viewporter;
+   struct zwp_linux_dmabuf_v1 *dmabuf;
+diff --git a/ext/wayland/wlwindow.c b/ext/wayland/wlwindow.c
+index 5f994ba..e74adbf 100644
+--- a/ext/wayland/wlwindow.c
++++ b/ext/wayland/wlwindow.c
+@@ -89,6 +89,10 @@ gst_wl_window_finalize (GObject * gobject)
+   if (self->shell_surface)
+     wl_shell_surface_destroy (self->shell_surface);
+ 
++  if (self->ivi_surface) {
++    ivi_surface_destroy (self->ivi_surface);
++  }
++
+   if (self->video_viewport)
+     wp_viewport_destroy (self->video_viewport);
+ 
+@@ -152,17 +156,40 @@ gst_wl_window_new_internal (GstWlDisplay * display, GMutex * render_lock)
+   return window;
+ }
+ 
+-GstWlWindow *
+-gst_wl_window_new_toplevel (GstWlDisplay * display, const GstVideoInfo * info,
+-    GMutex * render_lock)
++static void
++handle_configure_ivi (void *data, struct ivi_surface *ivi_surface,
++    int32_t width, int32_t height)
+ {
+-  GstWlWindow *window;
+-  struct wl_region *region;
+-  gint width;
++  GstWlWindow *window = data;
+ 
+-  window = gst_wl_window_new_internal (display, render_lock);
++  window->video_width = width;
++  window->video_height = height;
++}
+ 
+-  /* go toplevel */
++static const struct ivi_surface_listener ivi_surface_listener = {
++  handle_configure_ivi,
++};
++
++#define IVI_SURFACE_ID 19000    // TO BE CUSTOMIZED, Just an example
++static void
++create_ivi_surface (GstWlWindow * window, GstWlDisplay * display)
++{
++  uint32_t id_ivisurf = IVI_SURFACE_ID + (uint32_t) getpid ();
++  window->ivi_surface =
++      ivi_application_surface_create (display->ivi_application,
++      id_ivisurf, window->area_surface);
++
++  if (window->ivi_surface == NULL) {
++    GST_ERROR ("Failed to create ivi_client_surface\n");
++    return;
++  }
++
++  ivi_surface_add_listener (window->ivi_surface, &ivi_surface_listener, window);
++}
++
++static void
++create_desktop_surface (GstWlWindow * window, GstWlDisplay * display)
++{
+   window->shell_surface = wl_shell_get_shell_surface (display->shell,
+       window->area_surface);
+ 
+@@ -170,9 +197,25 @@ gst_wl_window_new_toplevel (GstWlDisplay * display, const GstVideoInfo * info,
+     wl_shell_surface_add_listener (window->shell_surface,
+         &shell_surface_listener, window);
+     wl_shell_surface_set_toplevel (window->shell_surface);
+-  } else {
+-    GST_ERROR ("Unable to get wl_shell_surface");
++  }
++}
++
++GstWlWindow *
++gst_wl_window_new_toplevel (GstWlDisplay * display, const GstVideoInfo * info,
++    GMutex * render_lock)
++{
++  GstWlWindow *window;
++  struct wl_region *region;
++  gint width;
++
++  window = gst_wl_window_new_internal (display, render_lock);
+ 
++  if (display->ivi_application)
++    create_ivi_surface (window, display);
++  else if (display->shell)
++    create_desktop_surface (window, display);
++  else {
++    GST_ERROR ("Unable to get surface");
+     g_object_unref (window);
+     return NULL;
+   }
+@@ -229,7 +272,7 @@ gst_wl_window_is_toplevel (GstWlWindow * window)
+ {
+   g_return_val_if_fail (window != NULL, FALSE);
+ 
+-  return (window->shell_surface != NULL);
++  return ((window->shell_surface != NULL) || (window->ivi_surface != NULL));
+ }
+ 
+ static void
+diff --git a/ext/wayland/wlwindow.h b/ext/wayland/wlwindow.h
+index c62783a..e375ce8 100644
+--- a/ext/wayland/wlwindow.h
++++ b/ext/wayland/wlwindow.h
+@@ -49,6 +49,7 @@ struct _GstWlWindow
+   struct wl_subsurface *video_subsurface;
+   struct wp_viewport *video_viewport;
+   struct wl_shell_surface *shell_surface;
++  struct ivi_surface *ivi_surface;
+ 
+   /* the size and position of the area_(sub)surface */
+   GstVideoRectangle render_rectangle;
+-- 
+2.7.4
+

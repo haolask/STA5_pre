@@ -1,0 +1,50 @@
+From bc45279d295dc6633ec7d02db0e5960edb180581 Mon Sep 17 00:00:00 2001
+From: Stephane Danieau <stephane.danieau@st.com>
+Date: Wed, 7 Mar 2018 16:24:52 +0100
+Subject: [PATCH 27/37] compositor-st: don't repaint primary plane if no damage
+
+If we don't have any damage for the primary plane, then don't force a
+repaint; simply reuse the old buffer we already have.
+
+backport of https://patchwork.freedesktop.org/patch/121776/
+
+Change-Id: I1370d5e170298cc3db894a97d44edfb63d2beae2
+Signed-off-by: Vincent Abriou <vincent.abriou@st.com>
+Reviewed-on: https://gerrit.st.com/63826
+Reviewed-by: Fabien DESSENNE <fabien.dessenne@st.com>
+Tested-by: Fabien DESSENNE <fabien.dessenne@st.com>
+---
+ libweston/compositor-st.c | 10 ++++++++--
+ 1 file changed, 8 insertions(+), 2 deletions(-)
+
+diff --git a/libweston/compositor-st.c b/libweston/compositor-st.c
+index b70d7ea..50473f8 100644
+--- a/libweston/compositor-st.c
++++ b/libweston/compositor-st.c
+@@ -792,7 +792,12 @@ drm_output_render(struct drm_output *output, pixman_region32_t *damage)
+ 	struct weston_compositor *c = output->base.compositor;
+ 	struct drm_backend *b = to_drm_backend(c);
+ 
+-	if (b->use_pixman)
++	if (!pixman_region32_not_empty(damage) && output->current) {
++		if (!output->next)
++			output->next = output->current;
++		weston_xlog("no dammage on primary plane, do not repaint it\n");
++		return;
++	} else if (b->use_pixman)
+ 		drm_output_render_pixman(output, damage);
+ 	else
+ 		drm_output_render_gl(output, damage);
+@@ -1120,7 +1125,8 @@ page_flip_handler(int fd, unsigned int frame,
+ 	 * we just want to page flip to the current buffer to get an accurate
+ 	 * timestamp */
+ 	if (output->page_flip_pending) {
+-		drm_output_release_fb(output, output->current);
++		if (output->current != output->next)
++			drm_output_release_fb(output, output->current);
+ 		output->current = output->next;
+ 		output->next = NULL;
+ 	}
+-- 
+1.9.1
+

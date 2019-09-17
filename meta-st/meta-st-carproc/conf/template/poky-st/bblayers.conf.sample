@@ -1,0 +1,38 @@
+# LAYER_CONF_VERSION is increased each time build/conf/bblayers.conf
+# changes incompatibly
+POKY_BBLAYERS_CONF_VERSION = "2"
+
+BBPATH = "${TOPDIR}"
+BBFILES ?= ""
+OEROOT := "${@os.path.abspath(os.path.dirname(d.getVar('FILE', True)) + '/../..')}"
+
+BBLAYERS ?= " \
+  ${OEROOT}/meta-st/meta-st-carproc \
+  ${OEROOT}/meta-toolchain-bare-metal \
+  ${OEROOT}/poky/meta \
+  ${OEROOT}/poky/meta-poky \
+  ${OEROOT}/poky/meta-yocto-bsp \
+  ${OEROOT}/meta-gplv2 \
+  ${OEROOT}/meta-openembedded/meta-oe \
+  ${OEROOT}/meta-openembedded/meta-python \
+  ${OEROOT}/meta-openembedded/meta-multimedia \
+  ${OEROOT}/meta-openembedded/meta-webserver \
+  ${OEROOT}/meta-openembedded/meta-networking \
+  "
+
+BBLAYERS_NON_REMOVABLE ?= " \
+  ${OEROOT}/poky/meta \
+  ${OEROOT}/poky/meta-poky \
+  "
+
+# specific to st gcnano
+BBLAYERS += "${@'${OEROOT}/meta-st/meta-gcnano' if os.path.isfile('${OEROOT}/meta-st/meta-gcnano/conf/layer.conf') else ''}"
+#Demo packages
+BBLAYERS += "${@'${OEROOT}/meta-st/meta-st-demo' if os.path.isfile('${OEROOT}/meta-st/meta-st-demo/conf/layer.conf') else ''}"
+BBLAYERS += "${@'${OEROOT}/meta-qt5' if os.path.isfile('${OEROOT}/meta-qt5/conf/layer.conf') else ''}"
+
+BBLAYERS += "${@'${OEROOT}/meta-security' if os.path.isfile('${OEROOT}/meta-security/conf/layer.conf') else ''}"
+BBLAYERS += "${@'${OEROOT}/meta-security/meta-tpm' if os.path.isfile('${OEROOT}/meta-security/meta-tpm/conf/layer.conf') else ''}"
+BBLAYERS += "${@'${OEROOT}/meta-st/meta-st-ubiqb' if os.path.isfile('${OEROOT}/meta-st/meta-st-ubiqb/conf/layer.conf') else ''}"
+BBLAYERS += "${@'${OEROOT}/meta-openembedded/meta-perl' if os.path.isfile('${OEROOT}/meta-security/conf/layer.conf') else ''}"
+BBLAYERS += "${@'${OEROOT}/meta-openembedded/meta-filesystems'}"

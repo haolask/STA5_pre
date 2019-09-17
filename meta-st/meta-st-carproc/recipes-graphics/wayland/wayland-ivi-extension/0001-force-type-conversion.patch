@@ -1,0 +1,21 @@
+From 5d54c576f0692f74b97a95af90f2a1662f74afef Mon Sep 17 00:00:00 2001
+From: Romain PATEY <romain.patey@st.com>
+Date: Fri, 8 Feb 2019 17:44:23 +0100
+Subject: layer-add-surfaces: force type conversion in createEGLContext()
+
+Change-Id: Ie9a2247ed9d02cbd147f76f7839ed884cb41bd1e
+Signed-off-by: Romain PATEY <romain.patey@st.com>
+
+diff --git a/ivi-layermanagement-examples/EGLWLMockNavigation/src/OpenGLES2App.cpp b/ivi-layermanagement-examples/EGLWLMockNavigation/src/OpenGLES2App.cpp
+index 50c3e38..2f4910e 100644
+--- a/ivi-layermanagement-examples/EGLWLMockNavigation/src/OpenGLES2App.cpp
++++ b/ivi-layermanagement-examples/EGLWLMockNavigation/src/OpenGLES2App.cpp
+@@ -248,7 +248,7 @@ bool OpenGLES2App::createEGLContext(SurfaceConfiguration* config)
+     m_eglContextStruct.eglSurface = NULL;
+     m_eglContextStruct.eglContext = NULL;
+ 
+-    m_eglContextStruct.eglDisplay = eglGetDisplay(m_wlContextStruct.wlDisplay);
++    m_eglContextStruct.eglDisplay = eglGetDisplay((EGLNativeDisplayType)m_wlContextStruct.wlDisplay);
+     if (!m_eglContextStruct.eglDisplay)
+     {
+ 	cout << "Error: eglGetDisplay() failed.\n";

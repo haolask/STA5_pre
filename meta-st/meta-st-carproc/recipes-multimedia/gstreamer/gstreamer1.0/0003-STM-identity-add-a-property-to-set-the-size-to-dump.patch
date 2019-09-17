@@ -1,0 +1,107 @@
+From d3b51481e9ce558b92426338c38aeb67edc41f7b Mon Sep 17 00:00:00 2001
+From: Christophe Priouzeau <christophe.priouzeau@linaro.org>
+Date: Wed, 6 Apr 2016 15:03:11 +0200
+Subject: [PATCH 3/3] STM: identity: add a property to set the size to dump
+
+Add 'dump-size' property in order to dump a given number
+of bytes instead of the whole buffer size.
+Beginning and end of buffer will be traced.
+
+Useful to reduce the trace output when tracing buffers
+with identity plugin.
+
+Change-Id: Id7ade6b0bbeb7b073119e69841097c7282f5b950
+Signed-off-by: Christophe Priouzeau <christophe.priouzeau@linaro.org>
+
+diff --git a/plugins/elements/gstidentity.c b/plugins/elements/gstidentity.c
+index e05ff1e..f756992 100644
+--- a/plugins/elements/gstidentity.c
++++ b/plugins/elements/gstidentity.c
+@@ -68,6 +68,7 @@ enum
+ #define DEFAULT_SILENT                  TRUE
+ #define DEFAULT_SINGLE_SEGMENT          FALSE
+ #define DEFAULT_DUMP                    FALSE
++#define DEFAULT_DUMP_SIZE               0
+ #define DEFAULT_SYNC                    FALSE
+ #define DEFAULT_CHECK_IMPERFECT_TIMESTAMP FALSE
+ #define DEFAULT_CHECK_IMPERFECT_OFFSET    FALSE
+@@ -85,6 +86,7 @@ enum
+   PROP_SINGLE_SEGMENT,
+   PROP_LAST_MESSAGE,
+   PROP_DUMP,
++  PROP_DUMP_SIZE,
+   PROP_SYNC,
+   PROP_CHECK_IMPERFECT_TIMESTAMP,
+   PROP_CHECK_IMPERFECT_OFFSET,
+@@ -193,6 +195,12 @@ gst_identity_class_init (GstIdentityClass * klass)
+   g_object_class_install_property (gobject_class, PROP_DUMP,
+       g_param_spec_boolean ("dump", "Dump", "Dump buffer contents to stdout",
+           DEFAULT_DUMP, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
++  g_object_class_install_property (gobject_class, PROP_DUMP_SIZE,
++      g_param_spec_uint ("dump-size", "Dump size",
++          "Dump the first and last N bytes of buffer contents to stdout"
++          "(0 = whole buffer)",
++          DEFAULT_DUMP_SIZE, G_MAXINT, DEFAULT_DUMP_SIZE,
++          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+   g_object_class_install_property (gobject_class, PROP_SYNC,
+       g_param_spec_boolean ("sync", "Synchronize",
+           "Synchronize to pipeline clock", DEFAULT_SYNC,
+@@ -272,6 +280,7 @@ gst_identity_init (GstIdentity * identity)
+   identity->check_imperfect_timestamp = DEFAULT_CHECK_IMPERFECT_TIMESTAMP;
+   identity->check_imperfect_offset = DEFAULT_CHECK_IMPERFECT_OFFSET;
+   identity->dump = DEFAULT_DUMP;
++  identity->dump_size = DEFAULT_DUMP_SIZE;
+   identity->last_message = NULL;
+   identity->signal_handoffs = DEFAULT_SIGNAL_HANDOFFS;
+   g_cond_init (&identity->blocked_cond);
+@@ -602,7 +611,14 @@ gst_identity_transform_ip (GstBaseTransform * trans, GstBuffer * buf)
+     GstMapInfo info;
+ 
+     if (gst_buffer_map (buf, &info, GST_MAP_READ)) {
+-      gst_util_dump_mem (info.data, info.size);
++      if (identity->dump_size && identity->dump_size < info.size) {
++        /* dump only beginning and end of buffer */
++        gst_util_dump_mem (info.data, identity->dump_size);/* N first bytes */
++        gst_util_dump_mem (info.data + info.size - identity->dump_size,
++                                     identity->dump_size);/* N last bytes */
++      } else {
++        gst_util_dump_mem (info.data, info.size);
++      }
+       gst_buffer_unmap (buf, &info);
+     }
+   }
+@@ -699,6 +715,9 @@ gst_identity_set_property (GObject * object, guint prop_id,
+     case PROP_DUMP:
+       identity->dump = g_value_get_boolean (value);
+       break;
++    case PROP_DUMP_SIZE:
++      identity->dump_size = g_value_get_uint (value);
++      break;
+     case PROP_ERROR_AFTER:
+       identity->error_after = g_value_get_int (value);
+       break;
+@@ -766,6 +785,9 @@ gst_identity_get_property (GObject * object, guint prop_id, GValue * value,
+     case PROP_DUMP:
+       g_value_set_boolean (value, identity->dump);
+       break;
++    case PROP_DUMP_SIZE:
++      g_value_set_uint (value, identity->dump_size);
++      break;
+     case PROP_LAST_MESSAGE:
+       GST_OBJECT_LOCK (identity);
+       g_value_set_string (value, identity->last_message);
+diff --git a/plugins/elements/gstidentity.h b/plugins/elements/gstidentity.h
+index c562d47..45ed1bc 100644
+--- a/plugins/elements/gstidentity.h
++++ b/plugins/elements/gstidentity.h
+@@ -61,6 +61,7 @@ struct _GstIdentity {
+   guint 	 sleep_time;
+   gboolean 	 silent;
+   gboolean 	 dump;
++  guint		 dump_size;
+   gboolean 	 sync;
+   gboolean 	 check_imperfect_timestamp;
+   gboolean 	 check_imperfect_offset;
+-- 
+2.7.4
+

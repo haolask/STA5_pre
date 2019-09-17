@@ -1,0 +1,395 @@
+From 4f80a1df2815ab63d82871460f74ba94e25e6e51 Mon Sep 17 00:00:00 2001
+From: Mickael Reulier <mickael.reulier@st.com>
+Date: Tue, 25 Sep 2018 14:41:00 +0200
+Subject: [PATCH 2/2] clients: Add gamma control client example
+
+This example will change gamma look-up table depending on the touch position.
+Note:
+* update_gamma() function may be updated to select new gamma set-up
+algorithms (default implementation has been based on
+https://docs.opencv.org/3.4.2/d3/dc1/tutorial_basic_linear_transform.html
+using g(x)=alpha*f(x)+beta with alpha tunes contrast and beta tunes brightness).
+
+Change-Id: I93fab9baf7aa5b632d0e9c78b7aa6f594fb08d8b
+Signed-off-by: Mickael Reulier <mickael.reulier@st.com>
+---
+ Makefile.am     |  10 ++
+ clients/gamma.c | 345 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 355 insertions(+)
+ create mode 100644 clients/gamma.c
+
+diff --git a/Makefile.am b/Makefile.am
+index eaf5e21..2c69db1 100644
+--- a/Makefile.am
++++ b/Makefile.am
+@@ -756,6 +756,16 @@ weston_simple_capture_LDADD = $(SIMPLE_CLIENT_LIBS)
+ BUILT_SOURCES += protocol/capture-client-protocol.h
+ endif
+ 
++demo_clients += weston-gamma
++nodist_weston_gamma_SOURCES =			\
++	protocol/gamma-control-protocol.c		\
++	protocol/gamma-control-client-protocol.h
++weston_gamma_SOURCES = clients/gamma.c
++weston_gamma_CFLAGS = $(AM_CFLAGS) $(SIMPLE_CLIENT_CFLAGS)
++weston_gamma_LDADD = $(SIMPLE_CLIENT_LIBS) libshared.la
++
++BUILT_SOURCES += protocol/gamma-control-client-protocol.h
++
+ weston_terminal_SOURCES = 				\
+ 	clients/terminal.c				\
+ 	shared/helpers.h
+diff --git a/clients/gamma.c b/clients/gamma.c
+new file mode 100644
+index 0000000..11bddf8
+--- /dev/null
++++ b/clients/gamma.c
+@@ -0,0 +1,345 @@
++/*
++ * Copyright (C) STMicroelectronics SA 2018
++ * Author: Mickael Reulier <mickael.reulier@st.com> for STMicroelectronics.
++ *
++ * Permission to use, copy, modify, distribute, and sell this software and
++ * its documentation for any purpose is hereby granted without fee, provided
++ * that the above copyright notice appear in all copies and that both that
++ * copyright notice and this permission notice appear in supporting
++ * documentation, and that the name of the copyright holders not be used in
++ * advertising or publicity pertaining to distribution of the software
++ * without specific, written prior permission.  The copyright holders make
++ * no representations about the suitability of this software for any
++ * purpose.  It is provided "as is" without express or implied warranty.
++ *
++ * THE COPYRIGHT HOLDERS DISCLAIM ALL WARRANTIES WITH REGARD TO THIS
++ * SOFTWARE, INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND
++ * FITNESS, IN NO EVENT SHALL THE COPYRIGHT HOLDERS BE LIABLE FOR ANY
++ * SPECIAL, INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER
++ * RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF
++ * CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
++ * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
++ */
++
++#include "config.h"
++
++#include <stdlib.h>
++#include <stdio.h>
++#include <string.h>
++#include <unistd.h>
++#include <sys/param.h>
++#include <linux/input.h>
++#include <fcntl.h>
++
++#include "shared/helpers.h"
++#include "shared/config-parser.h"
++
++#include <wayland-client.h>
++#include "gamma-control-client-protocol.h"
++
++#define EVENT_DEVICE    "/dev/input/event2"
++
++#define BITS_PER_LONG (sizeof(long) * 8)
++#define NBITS(x) ((((x)-1)/BITS_PER_LONG)+1)
++#define OFF(x)  ((x)%BITS_PER_LONG)
++#define BIT(x)  (1UL<<OFF(x))
++#define LONG(x) ((x)/BITS_PER_LONG)
++#define test_bit(bit, array)    ((array[LONG(bit)] >> OFF(bit)) & 1)
++
++struct gamma {
++	struct wl_display *display;
++	struct wl_registry *registry;
++	struct wl_output *output;
++	struct wl_gamma_control *gamma_ctrl;
++	unsigned int gamma_size;
++	int touch_min_x, touch_min_y, touch_max_x, touch_max_y;
++};
++
++static void
++gamma_control_handle_gamma_size(void *data, struct wl_gamma_control *gamma_control, uint size)
++{
++	struct gamma *gam = data;
++	gam->gamma_size = size;
++}
++
++static const struct wl_gamma_control_listener gamma_control_listener = {
++	gamma_control_handle_gamma_size,
++};
++
++static void
++handle_global(void *data, struct wl_registry *registry,
++		uint32_t name, const char *interface, uint32_t version)
++{
++	struct gamma *gam = data;
++
++	if (strcmp(interface, "wl_gamma_control") == 0) {
++		gam->gamma_ctrl = wl_registry_bind(registry, name, &wl_gamma_control_interface, 1);
++		wl_gamma_control_add_listener(gam->gamma_ctrl, &gamma_control_listener, gam);
++	}
++}
++
++#define MAX_COMPONENT_VALUE 255
++static int update_or_reset_gamma(struct gamma *gam, int x, int y, int reset) {
++	uint i;
++	uint16_t *p;
++	int value;
++	struct wl_array R, G, B;
++	float x_rel, y_rel, alpha, beta;
++	int err;
++
++	wl_array_init(&R);
++	wl_array_init(&G);
++	wl_array_init(&B);
++
++
++	if (!reset) {
++		/* Apply a gamma correction depending on touch position */
++		if (!gam->gamma_size || !(gam->touch_max_x - gam->touch_min_x) ||
++				!(gam->touch_max_y - gam->touch_min_y))
++			fprintf(stderr, "Can't update gamma\n");
++
++		/* considering touchscreen provides x and y between min and max */
++		/* x_rel and y_rel are from 0 to 1 */
++		x_rel = (float) (x - gam->touch_min_x) / (float)(gam->touch_max_x - gam->touch_min_x);
++		y_rel = (float) (y - gam->touch_min_y) / (float)(gam->touch_max_y - gam->touch_min_y);
++
++		/* Calculates alpha and beta parameters needed for gamma values calculation*/
++		/*g(x)=alpha*f(x)+beta with alpha tunes contrast and beta tunes brightness*/
++		alpha = x_rel; /* from 0 to 1 */
++		beta = y_rel * MAX_COMPONENT_VALUE; /* from 0 to MAX_COMPONENT_VALUE */
++	}
++
++	for (i = 0; i < gam->gamma_size; i++) {
++		if (reset) {
++			/* Apply a linear gamma correction, i.e no gamma correction */
++			value = i;
++		} else {
++			value = alpha * i + beta;
++
++			/* Crop values from 0 to MAX_COMPONENT_VALUE */
++			if (value > MAX_COMPONENT_VALUE) value = MAX_COMPONENT_VALUE;
++			if (value < 0) value = 0;
++		}
++
++		/* gamma value is uint16 where both first and second bytes are identicals */
++		p = wl_array_add(&R, sizeof *p);
++		*p = (value << 8) + value;
++		p = wl_array_add(&G, sizeof *p);
++		*p = (value << 8) + value;
++		p = wl_array_add(&B, sizeof *p);
++		*p = (value << 8) + value;
++	}
++
++	wl_gamma_control_set_gamma(gam->gamma_ctrl, &R, &G, &B);
++
++	wl_array_release(&R);
++	wl_array_release(&G);
++	wl_array_release(&B);
++
++	/* Check for error */
++	wl_display_roundtrip(gam->display);
++	err = wl_display_get_error(gam->display);
++	if (err) {
++		fprintf(stderr, " Error: Set Gamma failed (%d)\n", err );
++		return -1;
++	}
++
++	return 0;
++}
++
++static const struct wl_registry_listener registry_listener = {
++	handle_global
++};
++
++static int running = 1;
++
++static void
++signal_int(int signum)
++{
++	running = 0;
++}
++
++static void
++usage(int error_code)
++{
++	fprintf(stderr, "Usage: weston-gamma [OPTIONS]\n\n"
++			"  --help\tthis help text\n"
++			"  --evdev=e\twhere e is touchscreen input event device (default: /dev/input/event2)\n"
++			"  --persist\tdo not reset gamma table when leaving program (default: apply a linear gamma at exit)\n");
++
++	exit(error_code);
++}
++
++int
++main(int argc, char **argv)
++{
++	struct gamma *gam;
++	struct sigaction sigint;
++	int err, prev_x = 0, x = 0, prev_y = 0, y = 0;
++	struct input_event ev;
++	int fd, status = EXIT_FAILURE;
++	char name[256] = "Unknown";
++	char *event_device = EVENT_DEVICE;
++	uint persist = 0, opt_help = 0;
++	struct input_absinfo abs;
++	unsigned long bits[NBITS(KEY_MAX)];
++
++	const struct weston_option core_options[] = {
++		{WESTON_OPTION_BOOLEAN, "help", 'h', &opt_help },
++		{WESTON_OPTION_STRING, "evdev", 'e', &event_device},
++		{WESTON_OPTION_BOOLEAN, "persist", 'p', &persist},
++	};
++
++	parse_options(core_options, ARRAY_LENGTH(core_options), &argc, argv);
++
++	if (opt_help) {
++		usage(EXIT_SUCCESS);
++	}
++
++	if ((getuid ()) != 0) {
++		fprintf(stderr, "You are not root! This may not work...\n");
++		goto err;
++	}
++
++	/* Open Device */
++	fd = open(event_device, O_RDONLY);
++	if (fd == -1) {
++		fprintf(stderr, "%s is not a valid device\n", event_device);
++		goto err;
++	}
++
++	/* Print Device Name */
++	ioctl(fd, EVIOCGNAME(sizeof(name)), name);
++	printf("Reading from:\n");
++	printf("device file = %s\n", event_device);
++	printf("device name = %s\n", name);
++
++	sigint.sa_handler = signal_int;
++	sigemptyset(&sigint.sa_mask);
++	sigint.sa_flags = SA_RESETHAND;
++	sigaction(SIGINT, &sigint, NULL);
++
++	gam = calloc(1, sizeof *gam);
++	if (!gam) {
++		fprintf(stderr, " Error: out of memory\n");
++		goto err_close_fd;
++	}
++
++	ioctl (fd, EVIOCGBIT(0, EV_MAX), bits);
++	if (!test_bit (EV_ABS, bits))
++	{
++		fprintf (stderr, "   does not provide ABS events\n");
++		goto err_free_gam;
++	}
++
++	ioctl (fd, EVIOCGBIT (EV_ABS, KEY_MAX), bits);
++	if (!(test_bit (ABS_MT_POSITION_X, bits) &&
++				test_bit (ABS_MT_POSITION_Y, bits)))
++	{
++		ioctl (fd, EVIOCGABS (ABS_X), &abs);
++		gam->touch_min_x  = abs.minimum;
++		gam->touch_max_x  = abs.maximum;
++		ioctl (fd, EVIOCGABS (ABS_Y), &abs);
++		gam->touch_min_y = abs.minimum;
++		gam->touch_max_y = abs.maximum;
++	}
++	else {
++		ioctl (fd, EVIOCGABS (ABS_MT_POSITION_X), &abs);
++		gam->touch_min_x  = abs.minimum;
++		gam->touch_max_x  = abs.maximum;
++		ioctl (fd, EVIOCGABS (ABS_MT_POSITION_Y), &abs);
++		gam->touch_min_y = abs.minimum;
++		gam->touch_max_y = abs.maximum;
++	}
++
++	printf("touch_min_x=%d, touch_max_x=%d, touch_min_y=%d, touch_max_y=%d\n",
++			gam->touch_min_x, gam->touch_max_x, gam->touch_min_y, gam->touch_max_y);
++
++	gam->display = wl_display_connect(NULL);
++	if (!gam->display) {
++		fprintf(stderr, " Error: can't connect to display\n");
++		goto err_free_gam;
++	}
++
++	gam->registry = wl_display_get_registry(gam->display);
++	if(!gam->registry) {
++		fprintf(stderr, " Error: can't get display registry\n");
++		goto err_disconnect_display;
++	}
++
++	wl_registry_add_listener(gam->registry, &registry_listener, gam);
++	wl_display_dispatch(gam->display);
++	wl_display_roundtrip(gam->display);
++
++	if (!gam->gamma_ctrl) {
++		fprintf(stderr, " Error: gamma protocol not supported\n");
++		goto err_gamma_destroy_registry;
++	}
++
++	fprintf(stderr, " Starting gamma\n");
++
++	/* Check for error */
++	wl_display_roundtrip(gam->display);
++	err = wl_display_get_error(gam->display);
++	if (err) {
++		fprintf(stderr, " Error: start failed (%d)\n",err );
++		goto err_gamma_control_destroy;
++	}
++
++	while (running) {
++		const size_t ev_size = sizeof(struct input_event);
++		size_t size;
++
++		size = read(fd, &ev, ev_size);
++		if (size < ev_size) {
++			fprintf(stderr, "Error size when reading\n");
++			goto err_gamma_control_destroy;
++		}
++
++		if (ev.type == EV_ABS && (ev.code == ABS_X || ev.code == ABS_Y)) {
++			if (ev.code == ABS_X) x = ev.value;
++			if (ev.code == ABS_Y) y = ev.value;
++		} else if (ev.type == EV_SYN && ev.code == SYN_REPORT) {
++			/*DEBUG fprintf(stderr, "X=%d, Y=%d\n", x, y); */
++			/* Don't update if same as previous touch x,y */
++			if ( (prev_x != x) || (prev_y != y)) {
++				if(update_or_reset_gamma(gam, x, y, 0) < 0)
++					goto err_gamma_control_destroy;
++				prev_x = x;
++				prev_y = y;
++			}
++		}
++	}
++
++	fprintf(stderr, " Stopping gamma\n");
++
++	if(!persist) {
++		if(update_or_reset_gamma(gam, 0, 0, 1) < 0)
++			goto err_gamma_control_destroy;
++	}
++
++	wl_display_roundtrip(gam->display);
++
++	usleep(1000*1000);
++
++	status = EXIT_SUCCESS;
++
++err_gamma_control_destroy:
++	wl_gamma_control_destroy(gam->gamma_ctrl);
++
++err_gamma_destroy_registry:
++	wl_registry_destroy(gam->registry);
++
++err_disconnect_display:
++	wl_display_flush(gam->display);
++	wl_display_disconnect(gam->display);
++
++err_free_gam:
++	free(gam);
++
++err_close_fd:
++	close(fd);
++
++err:
++	return status;
++}
+-- 
+1.9.1
+

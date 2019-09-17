@@ -1,0 +1,141 @@
+From cf4c649463e958dc790dba2d51f1738a32cddac2 Mon Sep 17 00:00:00 2001
+From: Stephane Danieau <stephane.danieau@st.com>
+Date: Wed, 7 Mar 2018 14:30:58 +0100
+Subject: [PATCH 15/37] compositor-st: interlaced buffers support
+
+Wait for 2 VSYNC signals when displaying an interlaced frame, as it is
+displayed twice (top field, then bottom field).
+Use the "interlaced" property of the dmabuf buffer when creating a DRM
+FB
+
+The gl-renderer shall not reject interlaced buffers at import.
+In the nominal use case the interlaced buffers are sent to a DRM
+plane (overlay view) which processes the deinterlacing.
+In the backup case (video rotation,... ) the buffer is handled by GL, in
+which case there is no deinterlacing unless we use a specific shader,
+not available for the time being.
+
+Change-Id: I69c3e52b02b325347c0a22fe4737a7fc93becb5d
+Signed-off-by: Vincent Abriou <vincent.abriou@st.com>
+---
+ libweston/compositor-st.c | 34 ++++++++++++++++++++++++++++++++--
+ libweston/gl-renderer.c   |  4 ----
+ 2 files changed, 32 insertions(+), 6 deletions(-)
+
+diff --git a/libweston/compositor-st.c b/libweston/compositor-st.c
+index a14a625..8e6154b 100644
+--- a/libweston/compositor-st.c
++++ b/libweston/compositor-st.c
+@@ -131,7 +131,7 @@ struct drm_mode {
+ };
+ 
+ struct drm_fb {
+-	uint32_t fb_id, stride, handle, size;
++	uint32_t fb_id, stride, handle, size, flags;
+ 	int width, height;
+ 	int fd;
+ 	int is_client_buffer;
+@@ -212,6 +212,8 @@ struct drm_sprite {
+ 	uint32_t dest_x, dest_y;
+ 	uint32_t dest_w, dest_h;
+ 
++	bool vblank_pending;
++
+ 	uint32_t formats[];
+ };
+ 
+@@ -532,9 +534,15 @@ drm_fb_get_from_dmabuf(struct linux_dmabuf_buffer *dmabuf_buffer,
+ 		offsets[i] = dmabuf_buffer->attributes.offset[i];
+ 	}
+ 
++	if (dmabuf_buffer->attributes.flags & ZWP_LINUX_BUFFER_PARAMS_V1_FLAGS_INTERLACED)
++		fb->flags |= DRM_MODE_FB_INTERLACED;
++
++	if (dmabuf_buffer->attributes.flags & ZWP_LINUX_BUFFER_PARAMS_V1_FLAGS_BOTTOM_FIRST)
++		fb->flags |= DRM_MODE_FB_BFF;
++
+ 	ret = drmModeAddFB2(backend->drm.fd, width, height,
+ 			format, handles, pitches, offsets,
+-			&fb->fb_id, 0);
++			&fb->fb_id, fb->flags);
+ 	if (ret) {
+ 		weston_log("addfb2 failed\n");
+ 		goto err_free;
+@@ -835,6 +843,11 @@ drm_output_repaint(struct weston_output *output_base,
+ 			.request.sequence = 1,
+ 		};
+ 
++		if (s->vblank_pending) {
++			weston_xlog(" do not refresh the sprite=%p (currently in processing)\n", s);
++			continue;
++		}
++
+ 		if ((!s->current && !s->next) ||
+ 		    !drm_sprite_crtc_supported(output, s))
+ 			continue;
+@@ -855,9 +868,19 @@ drm_output_repaint(struct weston_output *output_base,
+ 		if (ret)
+ 			weston_log("setplane failed: %d: %s\n",
+ 				ret, strerror(errno));
++		else
++			s->vblank_pending = true;
+ 
+ 		vbl.request.type |= drm_waitvblank_pipe(output);
+ 
++		if (fb_id) {
++			/* Wait for 2 Vsync in case of interlaced buffer */
++			if (s->next->flags & DRM_MODE_FB_INTERLACED) {
++				weston_log(" interlaced frame vblank\n");
++				vbl.request.sequence = 2;
++			}
++		}
++
+ 		/*
+ 		 * Queue a vblank signal so we know when the surface
+ 		 * becomes active on the display or has been replaced.
+@@ -983,6 +1006,7 @@ vblank_handler(int fd, unsigned int frame, unsigned int sec, unsigned int usec,
+ 	drm_output_release_fb(output, s->current);
+ 	s->current = s->next;
+ 	s->next = NULL;
++	s->vblank_pending = false;
+ 
+ 	if (!output->page_flip_pending) {
+ 		ts.tv_sec = sec;
+@@ -1172,6 +1196,11 @@ drm_output_prepare_overlay_view(struct drm_output *output,
+ 				format_ok = 1;
+ 		}
+ 
++		if (s->vblank_pending && format_ok) {
++			weston_xlog("    sprite is currently being rendered\n");
++			return NULL;
++		}
++
+ 		if ((!s->next) && format_ok) {
+ 			found = 1;
+ 			break;
+@@ -2837,6 +2866,7 @@ create_sprites(struct drm_backend *b)
+ 		sprite->plane_id = plane->plane_id;
+ 		sprite->current = NULL;
+ 		sprite->next = NULL;
++		sprite->vblank_pending = false;
+ 		sprite->backend = b;
+ 		sprite->count_formats = plane->count_formats;
+ 		memcpy(sprite->formats, plane->formats,
+diff --git a/libweston/gl-renderer.c b/libweston/gl-renderer.c
+index c6091af..ee432c7 100644
+--- a/libweston/gl-renderer.c
++++ b/libweston/gl-renderer.c
+@@ -1881,10 +1881,6 @@ gl_renderer_import_dmabuf(struct weston_compositor *ec,
+ 			return false;
+ 	}
+ 
+-	/* reject all flags we do not recognize or handle */
+-	if (dmabuf->attributes.flags & ~ZWP_LINUX_BUFFER_PARAMS_V1_FLAGS_Y_INVERT)
+-		return false;
+-
+ 	image = import_dmabuf(gr, dmabuf);
+ 	if (!image)
+ 		return false;
+-- 
+1.9.1
+
